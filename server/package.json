@@ -1,0 +1,24 @@
+{
+  "name": "penny-server",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/index.js",
+    "start": "node src/index.js",
+    "test": "node --test \"test/**/*.test.js\"",
+    "seed:demo": "node scripts/seed-demo.mjs"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "google-auth-library": "^11.1.0",
+    "nodemailer": "^10.0.13",
+    "pg": "^8.13.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "mailparser": "^3.9.33",
+    "smtp-server": "^3.19.16"
+  }
+}

@@ -1,0 +1,8 @@
+node_modules
+.pgdata
+.env
+client/dist
+*.log
+server/mail-preview
+server/test-mail-*
+e2e/node_modules

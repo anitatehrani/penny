@@ -1,0 +1,16 @@
+**/node_modules
+.git
+.pgdata
+.env
+**/.env
+client/dist
+e2e
+docs
+scripts
+*.log
+server/mail-preview
+server/test
+server/test-mail-*
+Dockerfile
+docker-compose*.yml
+.dockerignore

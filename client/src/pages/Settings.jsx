@@ -1,0 +1,267 @@
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { api } from '../api.js';
+import AccountCard from '../components/AccountCard.jsx';
+import AppearanceSettings from '../components/AppearanceSettings.jsx';
+import NotificationSettings from '../components/NotificationSettings.jsx';
+import { Field, Icon, Modal, Segmented } from '../components/ui.jsx';
+import { useApp } from '../context.jsx';
+import { useNotifications } from '../notifications.jsx';
+import { useWorkspace } from '../workspace.jsx';
+
+const CURRENCIES = ['USD', 'EUR', 'GBP', 'CHF', 'SEK', 'NOK', 'DKK', 'PLN', 'CZK', 'HUF', 'RON', 'TRY', 'AED', 'SAR', 'EGP', 'INR', 'JPY', 'CNY', 'AUD', 'NZD', 'CAD', 'MXN', 'BRL', 'ZAR'];
+
+function CategoryForm({ initial, onSaved, onCancel }) {
+  const { notify } = useApp();
+  const [name, setName] = useState(initial?.name ?? '');
+  const [kind, setKind] = useState(initial?.kind ?? 'expense');
+  const [color, setColor] = useState(initial?.color ?? '#2a78d6');
+  const [saving, setSaving] = useState(false);
+
+  async function submit(e) {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const body = { name, kind, color };
+      if (initial?.id) await api.put(`/categories/${initial.id}`, body);
+      else await api.post('/categories', body);
+      onSaved();
+    } catch (err) {
+      notify(err.message, 'error');
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="form">
+      <Segmented
+        label="Kind"
+        value={kind}
+        onChange={setKind}
+        options={[
+          { value: 'expense', label: 'Expense', tone: 'expense' },
+          { value: 'income', label: 'Income', tone: 'income' },
+        ]}
+      />
+      <div className="form-grid">
+        <Field label="Name">
+          <input value={name} onChange={(e) => setName(e.target.value)} required maxLength={60} />
+        </Field>
+        <Field label="Color">
+          <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="color-input" />
+        </Field>
+      </div>
+      <div className="form-actions">
+        <button type="button" className="btn" onClick={onCancel}>
+          Cancel
+        </button>
+        <button type="submit" className="btn primary" disabled={saving}>
+          Save
+        </button>
+      </div>
+    </form>
+  );
+}
+
+const TABS = [
+  ['general', 'Budget', 'gear'],
+  ['account', 'Account', 'user'],
+  ['notifications', 'Notifications', 'bell'],
+  ['appearance', 'Appearance', 'palette'],
+];
+
+export default function Settings() {
+  const [params, setParams] = useSearchParams();
+  const tab = TABS.some(([id]) => id === params.get('tab')) ? params.get('tab') : 'general';
+  const { unread } = useNotifications();
+  const { settings, categories, reloadSettings, reloadCategories, notify } = useApp();
+  const { current, isGroup } = useWorkspace();
+  const [opening, setOpening] = useState(String(settings.opening_balance));
+  const [currency, setCurrency] = useState(settings.currency);
+  const [editingCat, setEditingCat] = useState(null);
+  const [catAlerts, setCatAlerts] = useState({}); // category id -> 'on' | 'off' (my own choices; missing = follow default)
+
+  useEffect(() => {
+    api
+      .get('/alerts/overrides')
+      .then((rows) => setCatAlerts(Object.fromEntries(rows.filter((r) => r.target_type === 'category').map((r) => [r.target_id, r.mode]))))
+      .catch(() => {});
+  }, [categories]);
+
+  async function setCategoryAlert(c, mode) {
+    try {
+      await saveAlertChoice('category', c.id, { mode, days: '' });
+      setCatAlerts((m) => {
+        const next = { ...m };
+        if (mode === 'default') delete next[c.id];
+        else next[c.id] = mode;
+        return next;
+      });
+    } catch (err) {
+      notify(err.message, 'error');
+    }
+  }
+
+  useEffect(() => {
+    setOpening(String(settings.opening_balance));
+    setCurrency(settings.currency);
+  }, [settings]);
+
+  async function save(e) {
+    e.preventDefault();
+    try {
+      await api.put('/settings', { opening_balance: Number(opening), currency });
+      reloadSettings();
+      notify('Settings saved');
+    } catch (err) {
+      notify(err.message, 'error');
+    }
+  }
+
+  async function removeCategory(c) {
+    const msg = c.usage_count
+      ? `Delete "${c.name}"? ${c.usage_count} payment(s) will become uncategorized.`
+      : `Delete "${c.name}"?`;
+    if (!window.confirm(msg)) return;
+    try {
+      await api.del(`/categories/${c.id}`);
+      reloadCategories();
+    } catch (err) {
+      notify(err.message, 'error');
+    }
+  }
+
+  const groups = [
+    ['expense', 'Expense categories'],
+    ['income', 'Income categories'],
+  ];
+  const currencies = CURRENCIES.includes(currency) ? CURRENCIES : [currency, ...CURRENCIES];
+
+  return (
+    <>
+      <header className="page-head">
+        <div>
+          <h1>Settings</h1>
+          <p className="muted">
+            {isGroup ? `Starting balance, currency and categories of the shared budget “${current.name}”. Anyone in the group can change these.` : 'Your budget, your account and how you are notified.'}
+          </p>
+        </div>
+      </header>
+
+      <div className="tabs" role="tablist" aria-label="Settings sections">
+        {TABS.map(([id, label, icon]) => (
+          <button key={id} role="tab" id={`set-${id}`} aria-selected={tab === id} aria-controls="set-panel" className={tab === id ? 'active' : ''} onClick={() => setParams(id === 'general' ? {} : { tab: id }, { replace: true })}>
+            <Icon name={icon} size={16} /> {label}
+            {id === 'notifications' && unread > 0 && <span className="tab-badge" aria-label={`${unread} unread`}>{unread > 99 ? '99+' : unread}</span>}
+          </button>
+        ))}
+      </div>
+
+      <div id="set-panel" role="tabpanel" aria-labelledby={`set-${tab}`} className="tab-panel">
+      {tab === 'account' && <AccountCard />}
+      {tab === 'notifications' && <NotificationSettings />}
+      {tab === 'appearance' && <AppearanceSettings />}
+      {tab === 'general' && (
+      <>
+      <section className="card">
+        <div className="card-head">
+          <h2>Balance &amp; currency</h2>
+        </div>
+        <form onSubmit={save} className="form">
+          <div className="form-grid">
+            <Field label="Starting balance" hint="What you had before your first recorded payment. Can be negative (e.g. an overdraft).">
+              <input type="number" step="0.01" inputMode="decimal" value={opening} onChange={(e) => setOpening(e.target.value)} required />
+            </Field>
+            <Field label="Currency">
+              <select value={currency} onChange={(e) => setCurrency(e.target.value)}>
+                {currencies.map((c) => (
+                  <option key={c}>{c}</option>
+                ))}
+              </select>
+            </Field>
+          </div>
+          <div className="form-actions left">
+            <button className="btn primary">Save</button>
+          </div>
+        </form>
+      </section>
+
+      {groups.map(([kind, title]) => (
+        <section className="card" key={kind}>
+          <div className="card-head">
+            <h2>{title}</h2>
+            {kind === 'expense' && (
+              <button className="btn sm" onClick={() => setEditingCat({})}>
+                <Icon name="plus" size={14} /> New category
+              </button>
+            )}
+          </div>
+          <ul className="cat-list">
+            {categories
+              .filter((c) => c.kind === kind)
+              .map((c) => (
+                <li key={c.id}>
+                  <span className="cat">
+                    <span className="dot big" style={{ background: c.color }} />
+                    {c.name}
+                  </span>
+                  <span className="muted small">{c.usage_count} payment{c.usage_count === 1 ? '' : 's'}</span>
+                  <select
+                    className="cat-alert"
+                    value={catAlerts[c.id] ?? 'default'}
+                    onChange={(e) => setCategoryAlert(c, e.target.value)}
+                    aria-label={`Alerts for ${c.name}`}
+                    title="Payment alerts for this category (only for you)"
+                  >
+                    <option value="default">Alerts: default</option>
+                    <option value="on">Alerts: always</option>
+                    <option value="off">Alerts: never</option>
+                  </select>
+                  <span className="row-actions">
+                    <button className="btn icon ghost" onClick={() => setEditingCat(c)} aria-label={`Edit ${c.name}`}>
+                      <Icon name="edit" />
+                    </button>
+                    <button className="btn icon ghost danger-hover" onClick={() => removeCategory(c)} aria-label={`Delete ${c.name}`}>
+                      <Icon name="trash" />
+                    </button>
+                  </span>
+                </li>
+              ))}
+          </ul>
+          {kind === 'income' && (
+            <button className="btn sm" onClick={() => setEditingCat({ kind: 'income' })}>
+              <Icon name="plus" size={14} /> New income category
+            </button>
+          )}
+        </section>
+      ))}
+
+      <section className="card">
+        <div className="card-head">
+          <h2>Export</h2>
+        </div>
+        <p className="muted">Download every payment as a CSV file you can open in Excel or Google Sheets.</p>
+        <a className="btn" href={`/api/transactions/export.csv?status=&ws=${current.id}`}>
+          <Icon name="download" /> Download all payments
+        </a>
+      </section>
+
+      </>
+      )}
+      </div>
+
+      {editingCat && (
+        <Modal title={editingCat.id ? 'Edit category' : 'New category'} onClose={() => setEditingCat(null)}>
+          <CategoryForm
+            initial={editingCat}
+            onCancel={() => setEditingCat(null)}
+            onSaved={() => {
+              setEditingCat(null);
+              reloadCategories();
+            }}
+          />
+        </Modal>
+      )}
+    </>
+  );
+}

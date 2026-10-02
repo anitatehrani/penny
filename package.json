@@ -1,0 +1,22 @@
+{
+  "name": "penny",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Penny, a personal budget manager: payments, recurring items, installments and forecasts",
+  "scripts": {
+    "setup": "npm install && cd server && npm install && cd ../client && npm install",
+    "dev": "concurrently -n api,web -c blue,green \"npm --prefix server run dev\" \"npm --prefix client run dev\"",
+    "build": "npm --prefix client run build",
+    "start": "npm --prefix server start",
+    "test": "cd server && npm test && cd ../client && npm test",
+    "db:start": "powershell -ExecutionPolicy Bypass -File scripts/pg-local.ps1 start",
+    "db:stop": "powershell -ExecutionPolicy Bypass -File scripts/pg-local.ps1 stop",
+    "test:server": "cd server && npm test",
+    "test:client": "cd client && npm test",
+    "seed:demo": "cd server && npm run seed:demo",
+    "e2e": "cd e2e && npm install --no-audit --no-fund && npm run ui"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0"
+  }
+}

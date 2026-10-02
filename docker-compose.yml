@@ -1,0 +1,55 @@
+# Penny with its own Postgres:  docker compose up -d --build   ->  http://localhost:3001
+#
+# Settings are read from a `.env` file next to this one (copy .env.docker.example); every value has a default.
+# Only Postgres is needed while developing?  docker compose up -d db
+#   then set DATABASE_URL=postgres://penny:penny@127.0.0.1:5434/penny in server/.env
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: penny
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-penny}
+      POSTGRES_DB: penny
+    ports:
+      - "127.0.0.1:${DB_PORT:-5434}:5432" # loopback only, for psql / local development
+    volumes:
+      - penny-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U penny -d penny"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    image: penny:latest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${PORT:-3001}:3001"
+    environment:
+      DATABASE_URL: postgres://penny:${DB_PASSWORD:-penny}@db:5432/penny
+      # Public address of the app, used in the links inside e-mails.
+      APP_URL: ${APP_URL:-http://localhost:${PORT:-3001}}
+      # Set to true when you serve Penny over HTTPS, so the session cookie is marked Secure.
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      # Optional. When empty, a random secret is created once and kept in the database.
+      APP_SECRET: ${APP_SECRET:-}
+      # Optional Google sign-in (OAuth "Web application" client ID).
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      # Optional e-mail delivery. Without SMTP_HOST, e-mails are saved to the penny-mail volume.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      MAIL_FROM: ${MAIL_FROM:-Penny <no-reply@localhost>}
+    volumes:
+      - penny-mail:/data/mail-preview
+
+volumes:
+  penny-data:
+  penny-mail:

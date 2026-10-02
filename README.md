@@ -1,0 +1,300 @@
+# Penny
+
+Manage this month's payments, record past ones, plan upcoming commitments (recurring bills, birthdays,
+installments) and see where your balance is heading — including when it goes negative.
+
+**Stack:** Node.js + Express · PostgreSQL · React (Vite) · Recharts
+
+## Features
+
+| Area | What you can do |
+| --- | --- |
+| **Payments** | Add income/expenses, pick any date (past dates = "already paid"), mark paid/unpaid, edit, delete. Month navigator, filters (to pay / paid / overdue / skipped, type, category), search, CSV export. |
+| **Recurring** | Rent, subscriptions, salary, yearly birthdays, quarterly insurance… (weekly / monthly / yearly, every N, optional end date, pause/resume). Generates real pending payments for the next 24 months. |
+| **Installments** | Enter total *or* per-installment amount, number of installments, first due date and how many are already paid. One payment per month, progress tracking, remaining total. |
+| **Dashboard** | Balance today, this month's income/expenses (paid vs pending), projected end-of-month balance, overdue + next-14-days list, spending by category, balance outlook chart. |
+| **Forecast** | 3 months back, up to 24 ahead. Balance line, income vs expenses, month-by-month table, warnings when/how far the balance goes negative, lowest point. Optional estimate of everyday spending. |
+| **Settings** | Starting balance (can be negative), currency, categories (name + colour). |
+| **Accounts** | Sign up / sign in with email + password or with Google. Every account has its own private data. Change password, connect/disconnect Google, sign out. |
+| **Profile & sharing** | Username, email, optional phone. Others find you by exact `@username`, email or phone (each can be switched off, or hide yourself completely). Share your profile link `/u/username` or a QR code from **Profile**. |
+| **People** | Send connection requests (partner / family / friend / other), accept or decline, remove. Nobody is added without accepting. |
+| **Add people to a payment** | Add connections to any payment and split it equally or with custom amounts. They see it under **People → Shared with me** and can add their share to their own budget in one click. |
+| **Shared budgets (groups)** | Create a group, invite connections, and pool your income: one combined balance, payments marked *paid by / from* a member, per-member contributions on the dashboard, shared categories, recurring items, installments and forecast. Switching to a group re-themes the whole UI (teal) so it is obvious whose money you are looking at. |
+| **Profile picture** | Upload a photo on **Profile** (cropped to a square and shrunk in your browser, re-checked by the server). Shown to people who can already see you; falls back to your Google picture or your initials. |
+| **Receipts** | Attach up to 5 photos or PDFs (5 MB each) to any payment, when adding it or later via the paperclip. Preview, download, delete. Visible to everyone in the budget. |
+| **Notifications** | A bell with an unread count and a **Notifications** page: payments coming up and overdue, low-balance warnings, connection requests, group invitations and changes, payments shared with you, and (optionally) activity in shared budgets. Mark read/unread, delete, "Mark paid" straight from the notification, clear read ones. |
+| **Alert rules** | Decide which payments alert you: default (X days before), *always* (with its own number of days) or *never*, for a single payment, a whole recurring item, an installment plan or a category. The most specific rule wins. Pause all payment alerts for a day, week, month or until a date. |
+| **Email alerts** | Confirm your email, then get a daily summary (at the hour you choose, in your time zone) or an email right away, choosing which kinds of alert are emailed. Every email has an unsubscribe link (also one-click for mail apps), and a test email button. |
+| **Assistant** | Insights written from your own ledger: spending up or down against the same point last month, subscriptions that grew, a busy week ahead, the first month the forecast goes negative, where you could save. Each one can be expanded ("Why?"), questioned, or dismissed for the month. Ask your own questions ("How much did I spend on groceries?", "Will I go negative?"). **It is a rules-and-statistics engine running on your server, not a large language model; no financial data leaves it.** |
+| **Command palette** | `Ctrl`/`⌘` + `K` from anywhere: fuzzy-search pages, actions (add payment, add recurring item…), payments, people, themes and accent colours; type a question to hand it to the assistant. |
+| **Personal dashboard** | Reorder, resize (S/M/L) and hide dashboard widgets, collapse sections, pin pages in the sidebar, collapse the sidebar, choose comfortable or compact density and an accent colour. Saved to your account. |
+| **Avatars** | Your photo, initials, a generated pattern or a small illustration; an "active now" dot for people you are connected to (you can switch it off). |
+| **Themes** | Light, Dark or System (follows your device), switchable from the sidebar, the sign-in page and Profile. |
+
+The balance **can be negative** everywhere; negative values are shown in red with a warning icon.
+
+### How the numbers work
+
+* **Balance today** = starting balance + all income marked *received* − all expenses marked *paid*.
+* **Month-end projection** = balance today + pending items up to that month (overdue unpaid items count
+  against the current month) + optional estimates.
+* **Estimate of everyday spending** = average of your last ≤3 full months of one-off (manually added) paid
+  expenses, ignoring categories already covered by an active recurring item or an open installment plan
+  (so a past "Rent" you typed in isn't counted on top of your recurring rent). Turn it off on the Forecast page.
+* Deleting an occurrence of a recurring item *skips* it (it stays skipped, and can be restored from the
+  "Skipped" filter). Deleting a recurring item or installment plan removes its unpaid payments and keeps paid history.
+
+## Running it
+
+Requirements: Node 20+ and a PostgreSQL server.
+
+```bash
+npm run setup          # installs root, server and client dependencies
+npm run db:start       # starts the project's own Postgres (see "Database"), skip if you use your own
+npm run dev            # API on :3001, web app on http://localhost:5173
+```
+
+Production-style (one process serves API + built UI on http://localhost:3001):
+
+```bash
+npm run build
+npm start
+```
+
+### With Docker
+
+Needs only Docker. One command builds the app and starts it together with its own Postgres:
+
+```bash
+docker compose up -d --build     # then open http://localhost:3001
+docker compose exec app npm run seed:demo   # optional: fill it with the demo data (see "Demo data")
+docker compose logs -f app       # follow the server log
+docker compose down              # stop (your data stays in the penny-data volume); add -v to delete it
+```
+
+The image (`Dockerfile`) builds the React app, installs only the server's production dependencies and runs as a non-root user;
+Node serves the API and the built UI on one port. Tables are created on first start, and the container has a health check on `/api/health`.
+
+Every setting is optional. Copy `.env.docker.example` to `.env` next to `docker-compose.yml` to change the port, the database
+password (set it before the first start), `APP_URL`, `COOKIE_SECURE=true` behind HTTPS, Google sign-in or SMTP (see the sections below).
+Without `SMTP_HOST`, e-mails are saved in the `penny-mail` volume instead of being sent:
+`docker compose exec app ls /data/mail-preview`.
+
+Data lives in two named volumes: `penny-data` (Postgres) and `penny-mail`. To update after pulling new code, run `docker compose up -d --build` again.
+
+### Tests
+
+```bash
+npm test              # everything (about 40 seconds)
+npm run test:server   # API, security, migration and logic tests
+npm run test:client   # browser-side logic (password checklist vs server rules, formatting, fuzzy search, avatars, layout rules)
+npm run e2e           # drives a real Chrome/Edge through the interface (needs the app running and the demo data)
+```
+
+`npm run e2e` is separate from `npm test` because it needs a browser. It checks the dashboard, notification centre, command palette,
+assistant, customise mode, avatar picker, settings, offline/error/first-run states and the phone layout (about 30 checks).
+Set `CHROME_PATH` if Chrome is not in its usual place.
+
+The server tests start the **real server against a throw-away Postgres database** (created and dropped per test file
+on the same Postgres, `budget_test_*`), so they never touch your data. They cover: budget logic (payments, filters,
+CSV, recurring, installments, summary, forecast), sign-up/login/sessions/CSRF/rate limiting, Google account rules,
+people and connections, groups and invitations, shared payments and splits, data isolation between users (IDOR),
+malformed input, races (simultaneous sign-ups, double imports, crossing requests), database upgrades from older
+versions, and database constraints. Set `TEST_PG_URL` (default `postgres://budget@127.0.0.1:5433`) to use another Postgres.
+
+### Database
+
+Tables are created automatically on server start (`server/src/schema.sql`, idempotent) and default categories
+are seeded. The connection comes from `DATABASE_URL` in `server/.env` (see `.env.example`).
+
+Three ways to provide Postgres:
+
+1. **Project-local cluster (what this repo was set up with)** – data lives in `.pgdata/`, port **5433**,
+   user `budget`, trusted for localhost only. `npm run db:start` / `npm run db:stop`. The default
+   `DATABASE_URL` is `postgres://budget@127.0.0.1:5433/budget`. To recreate it from scratch:
+   ```powershell
+   $pg = "C:\Program Files\PostgreSQL\17\bin"
+   & "$pg\initdb.exe" -D .pgdata -U budget --auth=trust -E UTF8
+   Add-Content .pgdata\postgresql.conf "`nport = 5433`nlisten_addresses = 'localhost'"
+   npm run db:start
+   & "$pg\createdb.exe" -h 127.0.0.1 -p 5433 -U budget budget
+   ```
+2. **Docker** – `docker compose up -d db`, then set `DATABASE_URL=postgres://penny:penny@127.0.0.1:5434/penny` (the container publishes Postgres on 127.0.0.1:5434; change it with `DB_PORT`). To run the whole app in Docker instead, see "With Docker".
+3. **Your own Postgres** – create a database and point `DATABASE_URL` at it.
+
+## The interface
+
+The look is documented in [docs/DESIGN.md](docs/DESIGN.md): the problems it solves, the "Ink & Signal" direction, the design tokens
+(`client/src/design/tokens.css`), and the backend additions that came with it. In short: figures are the typography (Geist Mono),
+sections are ruled rather than boxed, colour carries meaning (and never alone), and the assistant is a thin indigo rule beside a sentence, not a chatbot bubble.
+
+Keyboard: `Ctrl`/`⌘` + `K` palette · `Ctrl`/`⌘` + `J` assistant · `Esc` closes any panel and returns focus.
+Everything moves only if your device allows motion (`prefers-reduced-motion`).
+
+## Demo data
+
+`npm run seed:demo` (with the server running) fills the app with a realistic demo so every feature has something to
+show. It is safe to run again: it deletes and recreates only the demo accounts below, never anyone else's data.
+
+| Account | Email | Username | Role in the demo |
+| --- | --- | --- | --- |
+| **Alex Morgan** (main) | `alex.morgan@example.com` | `@alex` (find-me name, not for login) | Six months of history, recurring items, installments, splits, three budgets |
+| Sam Rivera | `sam.rivera@example.com` | `@sam` | Alex's partner; shares the **Home** budget |
+| Jordan Morgan | `jordan.morgan@example.com` | `@jordan` | Alex's sister; has a pending invitation |
+| Priya Nair | `priya.nair@example.com` | `@priya` | Friend; in the **Lisbon trip** budget, has invited Alex to **Book club** |
+| Chris Walker | `chris.walker@example.com` | `@chris` | Has sent Alex a connection request (waiting) |
+| Dana Lee | `dana.lee@example.com` | `@dana` | Alex has sent a request to Dana (waiting) |
+
+Password for all of them: `Budget-Showcase#2026`
+
+What Alex's account shows: a balance that is fine today but **projected to go negative** when the summer holiday
+lands (the forecast warning), one **overdue** bill, payments **due in the next 14 days**, a **skipped** recurring
+occurrence, a **paused** recurring item, **installment plans** (in progress, upcoming and completed), payments
+**split** with Sam, Priya and Jordan, and payments others shared with Alex under **People → Shared with me**.
+Alex's **Home** budget pools Alex's and Sam's income (per-member contribution bars, "paid by" on every payment),
+**Lisbon trip** is a second shared budget with one invitation still pending, and the inbox holds one connection
+request and one group invitation to answer. Alex and the friends have **profile pictures**, three payments have
+**receipts** (images and PDFs), the **bell** has unread notifications, a few **alert rules** are set (an always-on rule
+for the gym, a muted category, one single payment silenced) and Alex has a confirmed email with a daily summary turned on.
+Log in as Sam or Priya to see the other side of the same data.
+
+## Accounts and security
+
+* **Sign up / sign in** at `/signup` and `/login`. Each account only ever sees its own payments, categories,
+  recurring items, installments and settings (every query is scoped to the signed-in user).
+* **Password format** (checked live in the form and enforced again on the server): at least 10 characters,
+  with a lowercase letter, an uppercase letter, a number and a special character; at most 128 characters; not a
+  very common password; must not contain the part of your email before the `@` or your first name.
+* **Passwords are never stored.** Only a salted `scrypt` hash is kept. Login errors are deliberately generic
+  ("Invalid email or password") and login/sign-up are rate-limited (15 attempts / 15 min per IP + email).
+* **Sessions** are random tokens in an `HttpOnly`, `SameSite=Lax` cookie (30 days, renewed while you use the
+  app); only a hash of the token is stored in the database. Changing your password signs out all other devices.
+  State-changing requests from another origin are rejected (CSRF protection). Set `COOKIE_SECURE=true` in
+  `server/.env` when you serve the app over HTTPS.
+* **Existing data:** if you used the app before accounts existed, the *first* account you create adopts that data.
+
+### People, groups and privacy
+
+* **Budgets ("workspaces").** Everyone has a private *Personal* budget. A *Group* is a separate shared budget with its
+  own balance, categories, recurring items and settings; the switcher at the top of the sidebar (top bar on phones)
+  changes which one you are looking at. Personal and group money never mix unless you add an entry yourself.
+* **Finding people** works on the *exact* username, email or phone number only (no browsing or partial search), is
+  rate-limited, and returns just a name and `@username`; your email and phone are never shown to anyone. Switch each
+  way of being found on or off in **Profile**, or turn "Let people find me" off to disappear from search and disable
+  your profile link.
+* **Phone numbers must be in international format** (`+49 170 1234567`), because a local number cannot be matched reliably.
+* **Phone numbers and email addresses are not verified** (there is no SMS/e-mail service behind this app). That is why a
+  request always shows the person's name and `@username` and must be accepted by the other side. Check you have the
+  right person before accepting or sending.
+* **Groups:** only the owner invites (and only people they are connected with), invited people must accept, every
+  member can add and edit payments, the owner can rename, remove members, transfer ownership or delete the group
+  (which deletes its data for everyone). A member who leaves loses access; what they entered stays in the group.
+* **Adding people to a payment:** only accepted connections (or fellow group members) can be added. Removing a connection
+  stops sharing between the two of you. People you add only see description, date, amount and their own share.
+* **Not included:** settling up / "who owes whom" tracking, and per-member permissions inside a group.
+* **Email:** your address counts as confirmed once you open the link we email you (valid 24 hours, single use). Alerts are only
+  ever sent to a confirmed address. "Forgot password" emails are **not** included: if you forget a password, ask whoever runs the
+  server to reset it, or sign in with Google if you connected it.
+
+## Email alerts: setting up a mail server (optional)
+
+Without any configuration the app runs in **preview mode**: nothing leaves the machine. Confirmation links are shown on screen
+and every email it would send is written as an `.html` + `.txt` pair to `server/mail-preview/` so you can open it in a browser.
+To send real email, put these in `server/.env` (any SMTP provider works):
+
+| Variable | Meaning |
+| --- | --- |
+| `SMTP_HOST`, `SMTP_PORT` | mail server (port 587 STARTTLS is the default; 465 with `SMTP_SECURE=true`) |
+| `SMTP_USER`, `SMTP_PASS` | login, if the server needs one |
+| `SMTP_IGNORE_TLS` | `true` only for a local test server without TLS |
+| `MAIL_FROM` | the From address, e.g. `Penny <alerts@example.com>` |
+| `APP_URL` | the public address of this app (used for links in emails), e.g. `https://budget.example.com` |
+| `ALERT_SCAN_MINUTES` | how often the server looks for new alerts (default 60; `off` turns the scheduler off) |
+| `MAIL_PREVIEW_DIR` | where preview-mode emails are written |
+
+How alerts work: every hour (and when someone opens **Notifications → Check now**) the server looks at each person's pending
+payments in every budget they belong to, applies their alert rules in *their own* time zone, and creates one notification per
+payment per due date (so nothing repeats). Overdue and due-soon alerts resolve themselves when the payment is paid, moved or
+deleted. Email is a second step: a daily summary at the chosen hour, or (instant mode) one email shortly after something new appears.
+
+## Google sign-in (optional)
+
+The "Continue with Google" button creates an account the first time and signs you in afterwards. It stays
+hidden until you give the server a Google OAuth client ID (free; takes about 5 minutes):
+
+1. Open the [Google Cloud Console](https://console.cloud.google.com/), create or pick a project.
+2. **APIs & Services → OAuth consent screen**: choose *External*, fill in the app name and your e-mail. While
+   the app is in *Testing*, add the Google accounts that should be able to sign in under **Test users**.
+3. **APIs & Services → Credentials → Create credentials → OAuth client ID → Web application.**
+4. Under **Authorised JavaScript origins** add every address you open the app on, for example
+   `http://localhost:3001` and `http://localhost:5173` (and `http://127.0.0.1:5173` if you use that).
+   You do **not** need redirect URIs and you do **not** need the client secret.
+5. Copy the **Client ID** (ends in `.apps.googleusercontent.com`) into `server/.env`:
+   ```
+   GOOGLE_CLIENT_ID=1234567890-abc123.apps.googleusercontent.com
+   ```
+6. Restart the server. The Google button now appears on the sign-in and sign-up pages.
+
+How it behaves: the browser gets a signed ID token from Google, the server verifies it (signature, audience =
+your client ID, e-mail verified) and then starts a normal session. If an account with that e-mail already exists
+with a password, Google sign-in will *not* silently take it over: sign in with the password, then use
+**Settings → Account → Connect Google**.
+
+## API (all under `/api`; everything except `/health` and the public `/auth` calls needs a signed-in session)
+
+| | |
+| --- | --- |
+| `POST /auth/signup`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/me` | account + session |
+| `POST /auth/google`, `POST /auth/google/link`, `DELETE /auth/google` | Google sign-in/up, connect, disconnect |
+| `PUT /auth/password` | change (or, for Google-only accounts, set) password |
+| `GET /auth/username-available?u=` | is this username free? |
+| `PUT /profile` | name, username, phone, who can find you |
+| `GET /people/lookup?q=` · `GET /people/:username` | find someone (exact username / email / phone) · profile card |
+| `GET/POST /connections` · `POST /connections/:id/accept\|decline` · `PUT/DELETE /connections/:id` | connection requests and connections |
+| `GET /inbox` | waiting requests, group invitations, shared payments |
+| `GET/POST /workspaces` · `PUT/DELETE /workspaces/:id` | your budgets / create a group, rename, delete |
+| `POST /workspaces/:id/invites` · `GET /workspaces/:id/invites` · `DELETE /workspace-invites/:id` | invite connections / cancel |
+| `POST /workspace-invites/:id/accept\|decline` | answer an invitation |
+| `POST /workspaces/:id/leave\|transfer` · `DELETE /workspaces/:id/members/:username` | membership |
+| `GET /shared` · `POST /shared/:id/import` | payments shared with me / add my share to the open budget |
+| `PUT/DELETE /profile/avatar` · `GET /avatars/:id` | profile picture (raw image body, max 512 KB) / remove / view |
+| `GET/POST /transactions/:id/receipts` · `DELETE /receipts/:id` · `GET /receipts/:id[?download=1]` | receipts of a payment (raw body, `X-Filename` header, max 5 MB) |
+| `GET /notifications` · `GET /notifications/summary` · `POST /notifications/refresh` | list (`status`, `kind`, `before`, `limit`) · unread count · check for new alerts now |
+| `POST /notifications/read-all` · `DELETE /notifications` · `POST/DELETE /notifications/:id[/read|unread]` | mark read/unread, delete (clear read ones) |
+| `GET/PUT /notifications/settings` | which alerts, lead days, pause, browser alerts, email on/off + frequency + hour + time zone |
+| `POST /notifications/test-email` · `GET /notifications/emails` | send yourself a test email · recent emails |
+| `GET /alerts/upcoming` · `GET /alerts/overrides` · `PUT/DELETE /alerts/:type/:id` | payments with their alert rule · all your rules · set (`{mode:'on'|'off', days}`) or remove a rule for a `transaction`, `recurring`, `installment` or `category` |
+| `POST /auth/email/send-verification` · `POST /auth/email/verify` | confirm your email address |
+| `POST /unsubscribe` (public) | one-click unsubscribe from the link in every email |
+| `GET /insights` · `POST /insights/:key/dismiss` · `DELETE /insights/:key/dismiss` · `DELETE /insights/dismissed` | the assistant's insights, month summary and comparison numbers for the open budget · dismiss / undo / restore all |
+| `POST /assistant/ask` `{question}` | answer a typed question from the ledger: `{intent, answer, blocks, follow_ups, link}` (40 a minute) |
+| `GET/PUT/DELETE /preferences` | dashboard layout, density, accent, sidebar, pins, avatar style (validated; each key replaced as a whole) |
+| `GET /presence` | who of your connections / budget members is active right now (if they allow it) |
+
+Budget routes below act on the budget named by the `X-Workspace` header (or `?ws=`); without it they use your personal budget.
+Membership is checked on every request. `paid_by` (username) and `participants` (`[{username, share}]`) are accepted on payments.
+| `GET/PUT /settings` | starting balance, currency |
+| `GET/POST/PUT/DELETE /categories` | categories |
+| `GET /transactions?month=YYYY-MM&status=&type=&category_id=&q=` | list (`status`: pending, paid, overdue, skipped) |
+| `POST /transactions`, `PUT /transactions/:id` | create / update |
+| `PATCH /transactions/:id/status` | `{status: 'paid'｜'pending'｜'skipped'}` |
+| `DELETE /transactions/:id` | delete (recurring occurrences are skipped; `?hard=1` deletes) |
+| `GET /transactions/export.csv` | CSV, same filters |
+| `GET/POST/PUT/DELETE /recurring` | recurring rules |
+| `GET/POST/PUT/DELETE /installments` | installment plans |
+| `GET /summary?month=YYYY-MM` | dashboard numbers |
+| `GET /forecast?months=12&past=3&estimateExpenses=1&estimateIncome=0` | forecast |
+
+## Layout
+
+```
+server/src   index.js · db.js · schema.sql · routes/ · lib/ (dates, schedule, forecast, materialize, notifications, alerts, mailer)
+server/test  unit tests for the pure logic
+client/src   pages/ (older screens) · layout/ (sidebar, top bar, bottom bar) · dashboard/ (page, widgets, charts)
+             assistant/ · command/ (palette, fuzzy search) · notifications/ · components/ (ds/ = tooltip, menu, sheet, states)
+             design/ (tokens, base, components, shell, dashboard, assistant CSS) · prefs.jsx · quick.jsx
+e2e          browser checks (puppeteer-core)
+Dockerfile · docker-compose.yml · .env.docker.example   run the whole app (and its Postgres) in containers
+docs         DESIGN.md
+scripts      pg-local.ps1 (start/stop the local Postgres)
+```

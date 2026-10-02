@@ -1,0 +1,171 @@
+/* ==========================================================================
+   Design tokens: "Ink & Signal"
+   One source of truth for colour, type, space, radius, elevation, motion and icon sizes.
+   Every colour is written once with light-dark(); the theme switch only changes `color-scheme`.
+   ========================================================================== */
+@import '@fontsource-variable/geist/wght.css';
+@import '@fontsource-variable/geist-mono/wght.css';
+
+:root {
+  color-scheme: light dark;
+
+  /* ---- type ---- */
+  --font-sans: 'Geist Variable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'Geist Mono Variable', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  --fs-1: 0.75rem; /* 12  labels, captions */
+  --fs-2: 0.8125rem; /* 13  secondary text */
+  --fs-3: 0.875rem; /* 14  controls, dense rows */
+  --fs-4: 0.9375rem; /* 15  body */
+  --fs-5: 1.125rem; /* 18  section titles */
+  --fs-6: 1.375rem; /* 22  page titles */
+  --fs-7: 1.875rem; /* 30  key figures */
+  --fs-8: 2.75rem; /* 44  hero figure */
+  --lh-tight: 1.15;
+  --lh-body: 1.5;
+
+  /* ---- space (4-pt) ---- */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+  --s-8: 64px;
+
+  /* ---- radius ---- */
+  --r-1: 6px; /* chips, small controls */
+  --r-2: 10px; /* inputs, buttons, panels */
+  --r-3: 14px; /* dialogs, menus, sheets */
+  --radius: var(--r-2);
+
+  /* ---- icon sizes ---- */
+  --icon-sm: 16px;
+  --icon-md: 18px;
+  --icon-lg: 20px;
+
+  /* ---- motion ---- */
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --t-fast: 120ms;
+  --t-base: 180ms;
+  --t-slow: 260ms;
+
+  /* ---- surfaces ---- */
+  --bg: light-dark(#f4f3ee, #0e0f0d);
+  --surface: light-dark(#fcfbf8, #171815);
+  --surface-2: light-dark(#eeece5, #1f201d);
+  --surface-3: light-dark(#e6e3da, #272825);
+  --hover: light-dark(#e9e7df, #252623);
+  --line: light-dark(#e1dfd6, #2a2b27);
+  --line-strong: light-dark(#cbc8bc, #3a3b36);
+
+  /* ---- ink ---- */
+  --ink: light-dark(#14161a, #f1f1ec);
+  --ink-2: light-dark(#474a52, #c4c5bd);
+  --ink-3: light-dark(#64676f, #909189);
+
+  /* ---- accent (the user can change it; the shared-budget mode has its own) ---- */
+  --accent: light-dark(#1f5fc4, #2a6fc4);
+  --accent-text: light-dark(#1a55b0, #7aaef3);
+  --accent-ink: #ffffff;
+  --accent-soft: light-dark(#e3ecfa, #14263f);
+
+  /* ---- meaning ---- */
+  --pos: light-dark(#096947, #4fcf9b);
+  --neg: light-dark(#c4302b, #ff7b78);
+  --caution: light-dark(#9a5b00, #f0b95a);
+  --forecast: light-dark(#0b6177, #53c4dc);
+  --signal: light-dark(#5450c4, #a9a6f7); /* assistant only */
+  --signal-soft: light-dark(#ecebfa, #1e1d3a);
+  --signal-line: light-dark(#cdcbf0, #3b3a6b);
+
+  --bad-bg: light-dark(rgba(227, 73, 72, 0.1), rgba(230, 103, 103, 0.14));
+  --warn-bg: light-dark(#fff4dc, #33290f);
+  --warn-line: light-dark(#ecc56a, #6b5415);
+  --warn-ink: light-dark(#6b4a00, #f3d78c);
+  --danger-bg: light-dark(#fdeceb, #3a1716);
+  --danger-line: light-dark(#f1a9a7, #7a2f2c);
+  --danger-ink: light-dark(#8a1f1b, #ffb4b1);
+  --ok-bg: light-dark(#e6f5ee, #123024);
+  --ok-line: light-dark(#9fd5bb, #25604a);
+  --ok-ink: light-dark(#0b5d3f, #8fe0bd);
+  --info-bg: light-dark(#eaf1fb, #13253b);
+  --info-line: light-dark(#b6d0f2, #27466e);
+  --info-ink: light-dark(#184f95, #9cc7f5);
+
+  /* ---- data colours (charts) ---- */
+  --series-1: light-dark(#2a78d6, #3987e5);
+  --series-2: light-dark(#eb6834, #d95926);
+  --series-3: light-dark(#1baf7a, #199e70);
+
+  /* ---- elevation: flat (hairline), raised, float ---- */
+  --shadow: none;
+  --shadow-raised: 0 1px 0 light-dark(rgba(20, 20, 18, 0.04), transparent);
+  --shadow-float: light-dark(0 14px 36px rgba(20, 20, 18, 0.16), 0 14px 36px rgba(0, 0, 0, 0.55)), 0 0 0 1px light-dark(rgba(20, 20, 18, 0.06), rgba(255, 255, 255, 0.05));
+  --pop: var(--shadow-float);
+  --scrim: light-dark(rgba(20, 20, 18, 0.38), rgba(0, 0, 0, 0.6));
+
+  /* ---- density ---- */
+  --row-pad: 12px;
+  --card-pad: 18px;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+:root[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+/* ---- density ---- */
+:root[data-density='compact'] {
+  --row-pad: 7px;
+  --card-pad: 14px;
+}
+
+/* ---- accent choices (not applied inside a shared budget, which keeps its own colour) ---- */
+:root[data-accent='green']:not([data-mode='group']) {
+  --accent: light-dark(#2a7a3b, #2f8a45);
+  --accent-text: light-dark(#226a31, #6fd58a);
+  --accent-soft: light-dark(#e2f3e6, #12301a);
+}
+:root[data-accent='violet']:not([data-mode='group']) {
+  --accent: light-dark(#6a4fc9, #6f56cf);
+  --accent-text: light-dark(#5a41b5, #b4a2f6);
+  --accent-soft: light-dark(#eeeafa, #221b40);
+}
+:root[data-accent='amber']:not([data-mode='group']) {
+  --accent: light-dark(#a35f00, #b86e00);
+  --accent-text: light-dark(#8a5000, #f0b95a);
+  --accent-soft: light-dark(#fbefd9, #382a0b);
+}
+:root[data-accent='rose']:not([data-mode='group']) {
+  --accent: light-dark(#c2335a, #cc3d65);
+  --accent-text: light-dark(#a82a4d, #f59ab4);
+  --accent-soft: light-dark(#fbe6ec, #3a1522);
+}
+:root[data-accent='graphite']:not([data-mode='group']) {
+  --accent: light-dark(#363a41, #d6d8dd);
+  --accent-text: light-dark(#363a41, #d6d8dd);
+  --accent-ink: light-dark(#ffffff, #14161a);
+  --accent-soft: light-dark(#e6e7ea, #2a2c30);
+}
+
+/* ---- shared (group) budget: the whole UI shifts to teal so it is obvious whose money this is ---- */
+:root[data-mode='group'] {
+  --accent: #0b7a6c;
+  --accent-text: light-dark(#0a6f62, #4fd6c0);
+  --accent-ink: #ffffff;
+  --accent-soft: light-dark(#e0f4f0, #11382f);
+  --info-bg: light-dark(#e3f4f1, #10302a);
+  --info-line: light-dark(#a8d9d1, #226556);
+  --info-ink: light-dark(#0b5f54, #8fe0cf);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --t-fast: 0.01ms;
+    --t-base: 0.01ms;
+    --t-slow: 0.01ms;
+  }
+}
