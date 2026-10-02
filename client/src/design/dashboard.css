@@ -252,20 +252,50 @@
 .hero-why[aria-expanded='true'] svg {
   transform: rotate(180deg);
 }
+/* The arithmetic floats over the page instead of pushing it: opening it must never move the figure the pointer is on
+   (the row is bottom-aligned, so growing it in place made the number jump away, close the panel, jump back, and flicker). */
+.hero-figure {
+  position: relative;
+}
+/* Each widget is its own stacking context (entrance animation), so lift the one that holds the floating panel above the widgets after it. */
+.widget:has(.hero) {
+  position: relative;
+  z-index: 3;
+}
+/* The balance widget cannot be collapsed, so its body does not need to clip: the floating panel may leave it. */
+.widget:has(.hero) .section-collapse > div {
+  overflow: visible;
+}
 .hero-breakdown {
-  display: grid;
-  grid-template-rows: 0fr;
-  transition: grid-template-rows var(--t-slow) var(--ease), opacity var(--t-base) var(--ease);
+  position: absolute;
+  z-index: 6;
+  top: calc(100% + var(--s-2));
+  left: 0;
+  width: min(400px, calc(100vw - 2 * var(--s-4)));
+  padding: var(--s-2) var(--s-4);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-2);
+  background: var(--surface);
+  box-shadow: var(--pop);
   opacity: 0;
+  visibility: hidden;
+  transform: translateY(-4px);
+  pointer-events: none;
+  transition: opacity var(--t-base) var(--ease), transform var(--t-base) var(--ease), visibility 0s linear var(--t-base);
 }
 .hero-breakdown.open {
-  grid-template-rows: 1fr;
   opacity: 1;
+  visibility: visible;
+  transform: none;
+  pointer-events: auto;
+  transition-delay: 0s;
 }
 .hero-breakdown dl {
-  overflow: hidden;
-  min-height: 0;
   margin: 0;
+}
+.bd-row:last-child,
+.bd-row.strong:last-child {
+  border-bottom: 0;
 }
 .bd-row {
   display: flex;

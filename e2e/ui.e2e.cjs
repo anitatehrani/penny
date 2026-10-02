@@ -110,6 +110,40 @@ async function sessionFor(db, email) {
     await sleep(300);
     eq(await page.$eval('.hero-breakdown', (e) => e.classList.contains('open')), false, 'closed again');
   });
+  await check('pointing at the balance opens the breakdown on top of the page and the figure never moves (no flicker)', async () => {
+    const figure = () => page.$eval('.hero-balance', (e) => { const r = e.getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; });
+    const before = await figure();
+    await page.evaluate(() => {
+      window.__hover = [];
+      const el = document.querySelector('.hero-balance');
+      el.addEventListener('mouseenter', () => window.__hover.push('enter'));
+      el.addEventListener('mouseleave', () => window.__hover.push('leave'));
+    });
+    await page.mouse.move(before.x, before.y);
+    await sleep(900); // longer than the opening animation: a jumping figure would have flickered by now
+    eq(await page.$eval('.hero-breakdown', (e) => e.classList.contains('open')), true, 'open while pointing');
+    const during = await figure();
+    eq(during.y, before.y, 'the figure did not move');
+    eq(JSON.stringify(await page.evaluate(() => window.__hover)), '["enter"]', 'one enter, no leave: it did not flicker');
+    const panel = await page.$eval('.hero-breakdown', (e) => { const r = e.getBoundingClientRect(); return { x: r.left + 40, y: r.top + 40, shadow: getComputedStyle(e).boxShadow }; });
+    truthy(await page.evaluate((x, y) => !!document.elementFromPoint(x, y)?.closest('.hero-breakdown'), panel.x, panel.y), 'the panel is on top of the widgets below it, not hidden or clipped');
+    truthy(panel.shadow !== 'none', 'the floating panel has a shadow');
+    await page.mouse.move(before.x + 600, before.y + 300);
+    await sleep(400);
+    eq(await page.$eval('.hero-breakdown', (e) => e.classList.contains('open')), false, 'closes when the pointer leaves');
+    eq(await page.$eval('.hero-breakdown', (e) => getComputedStyle(e).visibility), 'hidden', 'and is hidden from the tab order and screen readers');
+  });
+  await check('every floating surface token resolves to a real shadow (light-dark() is only valid around colours)', async () => {
+    const shadow = await page.evaluate(() => {
+      const d = document.createElement('div');
+      d.style.boxShadow = 'var(--pop)';
+      document.body.appendChild(d);
+      const s = getComputedStyle(d).boxShadow;
+      d.remove();
+      return s;
+    });
+    truthy(shadow && shadow !== 'none', `--pop gave "${shadow}"`);
+  });
   await check('pointing at a category lights it up in the list and in the ring', async () => {
     await page.hover('.spending-list li:nth-child(2) .spend-row');
     await sleep(250);
