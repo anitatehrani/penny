@@ -83,6 +83,23 @@ async function sessionFor(db, email) {
     truthy((await count(page, '.insight')) >= 1, 'at least one insight');
     truthy((await count(page, '.prow')) >= 3, 'upcoming payments');
   });
+  await check('the app is called Penny: tab title, sidebar and the sign-in screen', async () => {
+    eq(await page.title(), 'Dashboard · Penny', 'tab title');
+    eq(await text(page, '.sidebar .brand-name'), 'Penny', 'sidebar');
+    const fresh = await browser.createBrowserContext(); // its own cookie jar, so nobody is signed in
+    const out = await fresh.newPage();
+    try {
+      await out.goto(BASE + '/', { waitUntil: 'networkidle0' });
+      eq(await out.title(), 'Penny', 'signed-out tab title');
+      truthy(/^Penny\b/.test(await text(out, '.auth-brand')), 'brand on the sign-in screen');
+      truthy(!/Budget Planner/.test(await out.evaluate(() => document.body.innerText)), 'no old name on the page');
+    } finally {
+      await fresh.close();
+    }
+    await page.goto(BASE + '/payments', { waitUntil: 'networkidle0' });
+    truthy(/ · Penny$/.test(await page.title()), 'other pages end with · Penny');
+    await page.goto(BASE + '/', { waitUntil: 'networkidle0' });
+  });
   await check('"How is this made up?" reveals the arithmetic, and again hides it', async () => {
     eq(await page.$eval('.hero-breakdown', (e) => e.classList.contains('open')), false, 'closed at first');
     await page.click('.hero-why');
