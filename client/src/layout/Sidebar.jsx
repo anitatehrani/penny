@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { Tooltip } from '../components/ds/Tooltip.jsx';
+import { LogoMark, Wordmark } from '../components/Logo.jsx';
 import WorkspaceSwitcher from '../components/WorkspaceSwitcher.jsx';
 import { Icon } from '../components/ui.jsx';
 import { useInsights } from '../assistant/insights.jsx';
@@ -71,10 +72,8 @@ export default function Sidebar({ collapsed, onToggle }) {
   return (
     <aside className={`sidebar${collapsed ? ' collapsed' : ''}`} aria-label="Sidebar">
       <div className="brand">
-        <span className="brand-mark" aria-hidden="true">
-          <Icon name="trend" size={18} />
-        </span>
-        {!collapsed && <span className="brand-name">Penny</span>}
+        {collapsed ? <LogoMark size={30} /> : <Wordmark height={24} />}
+        <span className="sr-only brand-name">Penny</span>
       </div>
       <WorkspaceSwitcher compact={collapsed} />
       <nav className="nav" aria-label="Main">

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <style>.bg{fill:#14161a}.g{stroke:#f1f1ec}@media (prefers-color-scheme:dark){.bg{fill:#f1f1ec}.g{stroke:#14161a}}</style>
+  <rect class="bg" width="512" height="512" rx="116"/>
+  <path class="g" d="M290 725V619A56.5 55 0 1 1 346.5 674H327" transform="translate(256 256) scale(1.55) translate(-346.5 -644)" fill="none" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

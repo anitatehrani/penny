@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="256 529 745 236" width="373" height="118" fill="none" stroke="#14161a" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" role="img" aria-label="Penny">
+  <title>Penny</title>
+  <path d="M290 725V619A56.5 55 0 1 1 346.5 674H327"/>
+  <path d="M475 633L543.1 604.3A55 55 0 1 0 538.6 644.3"/>
+  <path d="M578 673V613A50 50 0 0 1 678 613V673"/>
+  <path d="M718 673V614A50.5 50.5 0 0 1 819 614V673"/>
+  <path d="M860 563V619A53.5 55.5 0 0 0 967 619"/>
+  <path d="M967 563V671A60 60 0 0 1 872 720"/>
+</svg>

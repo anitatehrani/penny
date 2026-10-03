@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import GoogleButton from '../components/GoogleButton.jsx';
+import { Wordmark } from '../components/Logo.jsx';
 import PasswordField from '../components/PasswordField.jsx';
 import { Field, Icon, ThemeToggle } from '../components/ui.jsx';
 import { useAuth } from '../auth.jsx';
@@ -15,10 +16,8 @@ export function Shell({ title, subtitle, children, footer }) {
       </div>
       <div className="auth-card">
         <div className="auth-brand">
-          <span className="brand-mark">
-            <Icon name="trend" size={18} />
-          </span>
-          Penny
+          <Wordmark height={30} />
+          <span className="sr-only">Penny</span>
         </div>
         <h1>{title}</h1>
         <p className="muted">{subtitle}</p>

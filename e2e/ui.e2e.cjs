@@ -100,6 +100,41 @@ async function sessionFor(db, email) {
     truthy(/ · Penny$/.test(await page.title()), 'other pages end with · Penny');
     await page.goto(BASE + '/', { waitUntil: 'networkidle0' });
   });
+  await check('the logo: drawn in the sidebar and on the sign-in page, and the tab, home-screen and manifest icons are served', async () => {
+    const logo = await page.$eval('.sidebar svg.wordmark', (e) => {
+      const r = e.getBoundingClientRect();
+      return { w: Math.round(r.width), h: Math.round(r.height), paths: e.querySelectorAll('path').length, stroke: getComputedStyle(e).stroke, ink: getComputedStyle(e.closest('.brand')).color, hidden: e.getAttribute('aria-hidden') };
+    });
+    eq(logo.paths, 6, 'six strokes: p e n n y (the y has two)');
+    truthy(logo.h === 24 && logo.w > 80, `sidebar wordmark is ${logo.w}x${logo.h}`);
+    eq(logo.stroke, logo.ink, 'it takes the text colour, so it follows light and dark');
+    eq(logo.hidden, 'true', 'decorative for screen readers (the name is read from the text beside it)');
+    // the drawn ink (plus half a stroke each side) must fill the viewBox exactly: nothing clipped, no stray margin
+    const fit = await page.$eval('.sidebar svg.wordmark', (e) => {
+      const b = e.getBBox();
+      const [vx, vy, vw, vh] = e.getAttribute('viewBox').split(' ').map(Number);
+      const half = Number(e.getAttribute('stroke-width')) / 2;
+      return { left: b.x - half - vx, top: b.y - half - vy, right: vx + vw - (b.x + b.width + half), bottom: vy + vh - (b.y + b.height + half) };
+    });
+    truthy(Object.values(fit).every((v) => Math.abs(v) <= 2), `ink fits the box to within 2 units: ${JSON.stringify(fit)}`);
+    const links = await page.$$eval('head link[rel~="icon"], head link[rel="apple-touch-icon"], head link[rel="manifest"]', (els) => els.map((e) => e.getAttribute('href')));
+    for (const href of ['/favicon.svg', '/favicon-32.png', '/apple-touch-icon.png', '/manifest.webmanifest']) truthy(links.includes(href), `${href} is linked`);
+    const manifest = await page.evaluate(async () => (await fetch('/manifest.webmanifest')).json());
+    eq(manifest.name, 'Penny', 'manifest name');
+    truthy(manifest.icons.some((i) => i.purpose === 'maskable'), 'a maskable icon');
+    for (const src of [...links, ...manifest.icons.map((i) => i.src)]) {
+      const r = await page.evaluate(async (u) => { const x = await fetch(u); return { ok: x.ok, type: x.headers.get('content-type'), size: (await x.arrayBuffer()).byteLength }; }, src);
+      truthy(r.ok && r.size > 100 && /image|manifest/.test(r.type), `${src} is served (${r.type}, ${r.size} bytes)`);
+    }
+    const fresh = await browser.createBrowserContext();
+    const out = await fresh.newPage();
+    try {
+      await out.goto(BASE + '/', { waitUntil: 'networkidle0' });
+      eq(await count(out, '.auth-brand svg.wordmark'), 1, 'wordmark on the sign-in screen');
+    } finally {
+      await fresh.close();
+    }
+  });
   await check('"How is this made up?" reveals the arithmetic, and again hides it', async () => {
     eq(await page.$eval('.hero-breakdown', (e) => e.classList.contains('open')), false, 'closed at first');
     await page.click('.hero-why');
@@ -330,6 +365,9 @@ async function sessionFor(db, email) {
     await page.click('.collapse-btn');
     await sleep(500);
     eq(await page.$eval('.shell', (e) => e.classList.contains('is-collapsed')), true, 'collapsed');
+    eq(await count(page, '.sidebar .logo-mark'), 1, 'the p monogram replaces the wordmark');
+    eq(await count(page, '.sidebar .wordmark'), 0, 'no wordmark while collapsed');
+    eq(await text(page, '.sidebar .brand-name'), 'Penny', 'the name is still there for screen readers');
     await page.hover('.nav-item:nth-child(2) .nav-link');
     await sleep(700);
     eq(await page.$eval('.nav-item:nth-child(2) .tip', (e) => getComputedStyle(e).opacity), '1', 'tooltip shown');
@@ -337,6 +375,7 @@ async function sessionFor(db, email) {
     eq(await page.$eval('.shell', (e) => e.classList.contains('is-collapsed')), true, 'collapsed after reload');
     await page.click('.collapse-btn');
     await sleep(400);
+    eq(await count(page, '.sidebar .wordmark'), 1, 'the wordmark is back after expanding');
   });
   await check('pinning a page moves it to a "Pinned" group', async () => {
     await page.hover('.nav-item:nth-child(5)');
