@@ -37,3 +37,34 @@ export function budgetStatus(debt) {
   if (debt.scheduled_count > 0) return { tone: 'tone-forecast', label: 'In your forecast' };
   return { tone: '', label: 'Counted · no plan yet' };
 }
+
+/**
+ * The steps of a debt's repayment timeline, oldest first. `debt.payments` are its paid and pending payments (oldest first), `today` is
+ * 'YYYY-MM-DD'. States: paid, overdue (pending, day passed), next (first pending not overdue), later, and a final `open` step for the
+ * part of what is still owed that no payment covers. `debtFree` is the date of the last planned payment when the plan covers everything
+ * still owed, else null.
+ */
+export function timelineSteps(debt, today) {
+  const steps = [];
+  let nextTaken = false;
+  let plannedCents = 0;
+  let lastPlanned = null;
+  for (const p of debt.payments ?? []) {
+    if (p.status === 'paid') {
+      steps.push({ key: `p${p.id}`, state: 'paid', date: p.date, amount: p.amount });
+      continue;
+    }
+    plannedCents += toCents(p.amount);
+    lastPlanned = p.date;
+    let state = 'later';
+    if (p.date < today) state = 'overdue';
+    else if (!nextTaken) {
+      state = 'next';
+      nextTaken = true;
+    }
+    steps.push({ key: `p${p.id}`, state, date: p.date, amount: p.amount });
+  }
+  const openCents = debt.status === 'settled' ? 0 : Math.max(0, toCents(debt.remaining) - plannedCents);
+  if (openCents > 0) steps.push({ key: 'open', state: 'open', date: null, amount: openCents / 100 });
+  return { steps, debtFree: debt.status !== 'settled' && openCents === 0 && plannedCents > 0 ? lastPlanned : null };
+}

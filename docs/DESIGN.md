@@ -272,3 +272,30 @@ was almost invisible.
 - The forecast page uses the dashboard's charts, a segmented "Look ahead" (3 months, 6 months, 1 year, 2 years) and two switches for the
   estimates, each with a sentence saying what it does.
 - A debt shows a visible progress bar with the percentage paid, and the "·" before the person's name no longer collides with the text.
+
+## 15. Debt repayment timeline (defined before implementation)
+
+**What was missing.** A debt card shows how much is paid and the next payment, but not the road to zero: which payments are done, which
+is next, when the last one lands, and whether anything is still unplanned. The user had to open Payments to piece it together.
+
+**What it is.** Each debt card gets a "Repayment timeline" that opens in place (a native `<details>`, closed by default, so the page stays
+short). It is a vertical rail, one step per payment, in date order:
+
+| State | Mark | Meaning |
+| --- | --- | --- |
+| `paid` | check | a payment marked paid (a scheduled one, or one recorded by hand) |
+| `overdue` | red ring | a pending payment whose day has passed |
+| `next` | filled dot | the first pending payment that is not overdue |
+| `later` | empty circle | pending payments after it |
+| `open` | dashed circle | the part of what is owed that no payment covers yet ("Not scheduled yet") |
+
+Each step shows the date, the amount and a state word (not colour alone). The rail ends with "Debt-free" and the date of the last planned
+payment, but only when the planned payments cover everything still owed; otherwise the `open` step comes last.
+
+**Where the data comes from.** `GET /api/debts` adds `payments[]` to every debt: `{ id, date, amount, status, installment_no }` for its paid
+and pending payments (skipped ones are left out), oldest first. The steps are worked out by `timelineSteps(debt, today)` in
+`client/src/debtLogic.js`, a plain function, so it is tested without a browser. Nothing else about debts changes.
+
+**Look.** The visual idea (rail, mark, date beside a state word) follows a timeline from the 21st.dev catalog; it is drawn in Penny's own
+CSS tokens (`client/src/design/pages.css`), not copied, because the app does not use Tailwind. It works in light and dark, wraps on a phone,
+and is keyboard operable and announced as an ordered list.

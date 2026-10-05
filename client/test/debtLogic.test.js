@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { installmentDates, splitInstallments } from '../../server/src/lib/schedule.js';
-import { budgetStatus, describePlan, previewPlan, splitCents } from '../src/debtLogic.js';
+import { budgetStatus, describePlan, previewPlan, splitCents, timelineSteps } from '../src/debtLogic.js';
 
 const long = (d) => `<${d}>`;
 
@@ -68,5 +68,57 @@ describe('describing a debt', () => {
     assert.equal(budgetStatus({ status: 'active', count_in_budget: false, scheduled_count: 2 }).label, 'Not counted', 'off wins, whatever is left over');
     assert.equal(budgetStatus({ status: 'active', count_in_budget: true, scheduled_count: 2 }).label, 'In your forecast');
     assert.equal(budgetStatus({ status: 'active', count_in_budget: true, scheduled_count: 0 }).label, 'Counted · no plan yet');
+  });
+});
+
+describe('the repayment timeline', () => {
+  const TODAY = '2031-02-15';
+  const pay = (id, date, amount, status) => ({ id, date, amount, status });
+  const debt = (payments, over = {}) => ({ status: 'active', remaining: 300, payments, ...over });
+
+  it('marks paid, the next pending one, and the later ones', () => {
+    const { steps, debtFree } = timelineSteps(
+      debt([pay(1, '2031-01-10', 100, 'paid'), pay(2, '2031-03-10', 100, 'pending'), pay(3, '2031-04-10', 100, 'pending')], { remaining: 200 }),
+      TODAY,
+    );
+    assert.deepEqual(steps.map((s) => s.state), ['paid', 'next', 'later']);
+    assert.equal(debtFree, '2031-04-10');
+  });
+
+  it('calls a pending payment whose day has passed overdue, and the next one is the first not overdue', () => {
+    const { steps } = timelineSteps(debt([pay(1, '2031-01-10', 100, 'pending'), pay(2, '2031-02-20', 100, 'pending'), pay(3, '2031-03-20', 100, 'pending')]), TODAY);
+    assert.deepEqual(steps.map((s) => s.state), ['overdue', 'next', 'later']);
+  });
+
+  it('treats today as still to come, not overdue', () => {
+    assert.equal(timelineSteps(debt([pay(1, TODAY, 300, 'pending')]), TODAY).steps[0].state, 'next');
+  });
+
+  it('adds an open step for what no payment covers, and is not debt-free yet', () => {
+    const { steps, debtFree } = timelineSteps(debt([pay(1, '2031-03-10', 100, 'pending')]), TODAY);
+    assert.deepEqual(steps.map((s) => [s.state, s.amount]), [['next', 100], ['open', 200]]);
+    assert.equal(debtFree, null);
+  });
+
+  it('is a single open step when nothing is scheduled', () => {
+    const { steps, debtFree } = timelineSteps(debt([]), TODAY);
+    assert.deepEqual(steps, [{ key: 'open', state: 'open', date: null, amount: 300 }]);
+    assert.equal(debtFree, null);
+  });
+
+  it('counts cents exactly (no float drift) when deciding what is covered', () => {
+    const { steps, debtFree } = timelineSteps(debt([pay(1, '2031-03-10', 0.1, 'pending'), pay(2, '2031-04-10', 0.2, 'pending')], { remaining: 0.3 }), TODAY);
+    assert.equal(steps.some((s) => s.state === 'open'), false);
+    assert.equal(debtFree, '2031-04-10');
+  });
+
+  it('shows only what was paid for a settled debt, with no open step and no debt-free line', () => {
+    const { steps, debtFree } = timelineSteps(debt([pay(1, '2031-01-10', 300, 'paid')], { status: 'settled', remaining: 0 }), TODAY);
+    assert.deepEqual(steps.map((s) => s.state), ['paid']);
+    assert.equal(debtFree, null);
+  });
+
+  it('copes with a debt that has no payments list', () => {
+    assert.deepEqual(timelineSteps({ status: 'settled', remaining: 0 }, TODAY), { steps: [], debtFree: null });
   });
 });

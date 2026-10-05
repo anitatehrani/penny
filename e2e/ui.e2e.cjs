@@ -596,6 +596,20 @@ async function sessionFor(db, email) {
     eq(pend.join(','), '80,80,80', 'three payments of 80');
     truthy(/Still owed\s*€240\.00/.test(await text(page, '.card.debt')), 'the card shows 240');
   });
+  await check('the repayment timeline is closed at first, then shows paid, next, later and the debt-free day', async () => {
+    page = await open('/debts');
+    eq(await page.evaluate((n) => [...document.querySelectorAll('.card.debt')].find((x) => x.querySelector('h3')?.textContent === n).querySelector('details.timeline-wrap').open, DEBT), false, 'closed by default');
+    await page.evaluate((n) => [...document.querySelectorAll('.card.debt')].find((x) => x.querySelector('h3')?.textContent === n).querySelector('details.timeline-wrap > summary').click(), DEBT);
+    await sleep(200);
+    const info = await page.evaluate((n) => {
+      const c = [...document.querySelectorAll('.card.debt')].find((x) => x.querySelector('h3')?.textContent === n);
+      const ol = c.querySelector('ol.timeline');
+      return { steps: [...ol.querySelectorAll('li')].map((li) => li.className.replace('tl-step ', '')), label: ol.getAttribute('aria-label'), end: c.querySelector('.tl-step.end')?.textContent };
+    }, DEBT);
+    eq(info.steps.join(','), 'paid,next,later,later,end', 'paid 60, then three planned payments, then the debt-free line');
+    eq(info.label, 'Repayment timeline for ' + DEBT, 'the list is named');
+    truthy(/Debt-free/.test(info.end), 'it says Debt-free');
+  });
   await check('"count it in my budget" off: the plan is kept but the payments leave the forecast', async () => {
     page = await open('/debts');
     await page.click('[aria-label="Edit ' + DEBT + '"]');

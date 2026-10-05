@@ -4,7 +4,7 @@ import { api } from '../api.js';
 import { Avatar, CategoryDot, CategorySelect, Empty, ErrorBox, Field, Icon, Loading, Modal, Segmented } from '../components/ui.jsx';
 import { useAuth } from '../auth.jsx';
 import { useApp } from '../context.jsx';
-import { budgetStatus, describePlan, previewPlan } from '../debtLogic.js';
+import { budgetStatus, describePlan, previewPlan, timelineSteps } from '../debtLogic.js';
 import { addMonthsYM, currentMonth, dateLong, todayYMD } from '../format.js';
 import { useFetch } from '../hooks.js';
 import { useWorkspace } from '../workspace.jsx';
@@ -209,6 +209,46 @@ function PaymentForm({ debt, onSaved, onCancel }) {
   );
 }
 
+const STEP_WORD = { paid: 'Paid', overdue: 'Overdue', next: 'Next', later: 'Planned', open: 'Not scheduled yet' };
+
+/** The road to zero: one step per payment, a mark for its state, and where the plan ends. Opens in place, closed by default. */
+function DebtTimeline({ debt }) {
+  const { money } = useApp();
+  const { steps, debtFree } = timelineSteps(debt, todayYMD());
+  if (steps.length === 0) return null;
+  const done = steps.filter((s) => s.state === 'paid').length;
+  return (
+    <details className="timeline-wrap">
+      <summary>
+        Repayment timeline
+        <span className="muted small"> · {done} of {steps.length} step{steps.length === 1 ? '' : 's'} done</span>
+      </summary>
+      <ol className="timeline" aria-label={`Repayment timeline for ${debt.name}`}>
+        {steps.map((s) => (
+          <li key={s.key} className={`tl-step ${s.state}`}>
+            <span className="tl-mark" aria-hidden="true">{s.state === 'paid' && <Icon name="check" size={12} />}</span>
+            <div className="tl-body">
+              <span className="tl-title">
+                {s.date ? dateLong(s.date) : 'Still to plan'}
+                <span className="tl-word"> · {STEP_WORD[s.state]}</span>
+              </span>
+              <strong className="num">{money(s.amount)}</strong>
+            </div>
+          </li>
+        ))}
+        {debtFree && (
+          <li className="tl-step end">
+            <span className="tl-mark" aria-hidden="true" />
+            <div className="tl-body">
+              <span className="tl-title">Debt-free<span className="tl-word"> · by {dateLong(debtFree)}</span></span>
+            </div>
+          </li>
+        )}
+      </ol>
+    </details>
+  );
+}
+
 export default function Debts() {
   const { money, notify } = useApp();
   const { isGroup } = useWorkspace();
@@ -307,6 +347,7 @@ export default function Debts() {
           </div>
           <span className="debt-pct num">{pct}% paid</span>
         </div>
+        <DebtTimeline debt={d} />
         <div className="debt-actions">
           <span className="muted small">
             {money(d.paid)} paid{d.scheduled_count > 0 ? ` · ${d.scheduled_count} payment${d.scheduled_count === 1 ? '' : 's'} planned (mark each paid on the Payments page)` : ''}

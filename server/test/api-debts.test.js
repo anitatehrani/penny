@@ -401,3 +401,53 @@ describe('the database', () => {
     assert.match(defs[0].def, /debt/);
   });
 });
+
+describe('the payments list on each debt (repayment timeline)', () => {
+  it('lists the scheduled payments, oldest first, with their status', async () => {
+    const c = await fresh();
+    const d = ok(await monthly(c, 3), 201);
+    const g = await get(c, d.id);
+    assert.deepEqual(g.payments.map((p) => [p.date, p.amount, p.status, p.installment_no]), [
+      [`${NEXT}-10`, 100, 'pending', 1],
+      [`${addMonthsYM(NEXT, 1)}-10`, 100, 'pending', 2],
+      [`${addMonthsYM(NEXT, 2)}-10`, 100, 'pending', 3],
+    ]);
+  });
+
+  it('is empty for a debt that is not scheduled', async () => {
+    const c = await fresh();
+    const d = ok(await debt(c), 201);
+    assert.deepEqual((await get(c, d.id)).payments, []);
+  });
+
+  it('shows a payment recorded by hand as paid, and the rest re-split', async () => {
+    const c = await fresh();
+    const d = ok(await monthly(c, 3), 201);
+    ok(await c.post(`/debts/${d.id}/payments`, { amount: 90, date: today() }), 201);
+    const g = await get(c, d.id);
+    const paid = g.payments.filter((p) => p.status === 'paid');
+    const pending = g.payments.filter((p) => p.status === 'pending');
+    assert.deepEqual(paid.map((p) => p.amount), [90]);
+    assert.equal(pending.reduce((t, p) => t + Math.round(p.amount * 100), 0), 21000);
+  });
+
+  it('never mixes up two debts, and leaves skipped payments out', async () => {
+    const c = await fresh();
+    const a = ok(await monthly(c, 2, { name: 'A', total_amount: 200 }), 201);
+    const b = ok(await once(c, { name: 'B', total_amount: 50 }), 201);
+    const list = ok(await c.get('/debts')).debts;
+    assert.deepEqual(list.find((x) => x.id === a.id).payments.map((p) => p.amount), [100, 100]);
+    assert.deepEqual(list.find((x) => x.id === b.id).payments.map((p) => p.amount), [50]);
+    const first = list.find((x) => x.id === a.id).payments[0];
+    ok(await c.patch(`/transactions/${first.id}/status`, { status: 'skipped' }));
+    assert.equal((await get(c, a.id)).payments.some((p) => p.id === first.id), false);
+  });
+
+  it('does not leak another workspace\'s payments', async () => {
+    const mine = await fresh();
+    const other = await fresh();
+    ok(await monthly(other, 3), 201);
+    ok(await debt(mine), 201);
+    assert.deepEqual(ok(await mine.get('/debts')).debts.map((d) => d.payments), [[]]);
+  });
+});

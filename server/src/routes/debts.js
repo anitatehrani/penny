@@ -124,8 +124,19 @@ router.get(
        ORDER BY (CASE WHEN d.settled_at IS NOT NULL OR d.total_amount - COALESCE(s.paid_total, 0) <= 0 THEN 1 ELSE 0 END), s.next_due NULLS LAST, lower(d.name), d.id`,
       [req.workspace.id],
     );
+    // Each debt's paid and pending payments, oldest first, for the repayment timeline.
+    const byDebt = new Map(rows.map((r) => [r.id, []]));
+    if (rows.length) {
+      const { rows: pay } = await query(
+        `SELECT id, debt_id, date, amount::float8 AS amount, status, installment_no FROM transactions
+         WHERE debt_id = ANY($1::int[]) AND status IN ('paid', 'pending') ORDER BY date, id`,
+        [rows.map((r) => r.id)],
+      );
+      for (const p of pay) byDebt.get(p.debt_id)?.push({ id: p.id, date: p.date, amount: p.amount, status: p.status, installment_no: p.installment_no });
+    }
+    for (const r of rows) r.payments = byDebt.get(r.id);
     const active = rows.filter((r) => r.status === 'active');
-    const sum = (list, key) => Math.round(list.reduce((t, r) => t + Math.round(r[key] * 100), 0)) / 100;
+    const sum =(list, key) => Math.round(list.reduce((t, r) => t + Math.round(r[key] * 100), 0)) / 100;
     res.json({
       debts: rows,
       totals: { owed: sum(active, 'remaining'), counted: sum(active.filter((r) => r.count_in_budget), 'remaining'), scheduled: sum(active, 'scheduled_total'), paid: sum(rows, 'paid') },
