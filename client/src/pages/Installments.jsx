@@ -7,6 +7,7 @@ import { useAuth } from '../auth.jsx';
 import { useApp } from '../context.jsx';
 import { dateLong, todayYMD } from '../format.js';
 import { useFetch } from '../hooks.js';
+import { planFacts } from '../installmentLogic.js';
 import { useWorkspace } from '../workspace.jsx';
 
 function addMonthsYMD(ymd, n) {
@@ -169,7 +170,8 @@ export default function Installments() {
   const owed = active.reduce((s, p) => s + p.remaining_total, 0);
 
   const Card = ({ p }) => {
-    const pct = Math.round((p.paid_count / p.installment_count) * 100);
+    const facts = planFacts(p);
+    const pct = facts.pct;
     return (
       <div className="card plan">
         <div className="card-head">
@@ -200,11 +202,14 @@ export default function Installments() {
             <strong>{p.next_due ? dateLong(p.next_due) : 'Fully paid'}</strong>
           </div>
         </div>
-        <div className="progress" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={`${p.paid_count} of ${p.installment_count} installments paid`}>
-          <div style={{ width: `${pct}%` }} />
+        <div className={`progress${facts.segments ? ' steps' : ''}`} role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={`${p.paid_count} of ${p.installment_count} installments paid`}>
+          {facts.segments ? facts.segments.map((state, i) => <span key={i} className={`step ${state}`} aria-hidden="true" />) : <div style={{ width: `${pct}%` }} />}
         </div>
         <span className="muted small">
-          {p.paid_count} of {p.installment_count} paid · mark each one paid from the Payments page
+          {p.paid_count} of {p.installment_count} paid
+          {facts.finished ? '' : ` · about ${money(facts.each)} each`}
+          {facts.lastDue ? (facts.finished ? ` · finished on ${dateLong(facts.lastDue)}` : ` · the last one is on ${dateLong(facts.lastDue)}`) : ''}
+          {facts.finished ? '' : ' · mark each one paid from the Payments page'}
         </span>
       </div>
     );

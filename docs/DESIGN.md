@@ -345,3 +345,21 @@ no way to see which item is behind them.
 
 **Look.** Drawn in Penny's tokens in `client/src/design/rows.css`, in the spirit of the share-of-total list rows in the 21st.dev catalog.
 It works in light and dark, wraps on a phone, and adds no controls.
+
+## 18. Installments: one step per payment (defined before implementation)
+
+**What was wrong.** A plan showed one smooth bar and "3 of 6 paid". The bar could not tell you *which* payment is next, what each one is, or
+when the last one lands, so those had to be found on the Payments page.
+
+**What changes** (look only; no server change, the page already has `installment_count`, `first_due_date`, `total_amount`, `paid_count` and `next_due`):
+
+- The bar becomes a **step track**: one segment per installment, filled for the ones paid, outlined for the one due next, empty for the
+  rest. Past 24 installments the segments would be hair-thin, so a plan that long keeps the continuous bar.
+- The sentence under it adds **what each one is and when the plan ends**: "3 of 6 paid · about €120.00 each · the last one is on 10 March
+  2027". A finished plan says "Finished on 10 March 2027".
+- The track is `role="progressbar"` with the same label as before ("3 of 6 installments paid"); the segments themselves are `aria-hidden`.
+- `planFacts(plan)` in `client/src/installmentLogic.js` works out the segments, the share paid, the average payment and the last due date.
+  The last due date uses the same month-by-month rule as the server's schedule (`installmentDates`), and a test checks they agree.
+
+**Look.** Drawn in Penny's tokens in `client/src/design/rows.css`, after the segmented step indicators in the 21st.dev catalog. Works in
+light and dark, wraps on a phone, adds no controls.

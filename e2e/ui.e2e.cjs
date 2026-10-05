@@ -667,6 +667,34 @@ async function sessionFor(db, email) {
     eq((await api(page, 'GET', '/transactions?from=2000-01-01&to=2100-01-01&status=')).json.some((t) => /E2E (Faeze|Romena)/.test(t.description)), false, 'no test payments left');
   });
 
+  console.log('\nInstallments');
+  await check('an installment plan shows a step per payment, what each is, and the last day', async () => {
+    page = await open('/installments');
+    const made = await api(page, 'POST', '/installments', { description: 'E2E steps', installment_amount: 50, installment_count: 4, first_due_date: '2031-01-10', paid_count: 1, category_id: null });
+    eq(made.status, 201, 'a plan with 1 of 4 paid');
+    try {
+      page = await open('/installments');
+      await page.waitForSelector('.card.plan');
+      const info = await page.evaluate(() => {
+        const c = [...document.querySelectorAll('.card.plan')].find((x) => x.querySelector('h3')?.textContent === 'E2E steps');
+        const bar = c.querySelector('.progress');
+        return { steps: [...bar.querySelectorAll('.step')].map((x) => x.className.replace('step ', '')), hidden: [...bar.querySelectorAll('.step')].every((x) => x.getAttribute('aria-hidden') === 'true'), label: bar.getAttribute('aria-label'), now: bar.getAttribute('aria-valuenow'), line: c.querySelector('.muted.small')?.textContent ?? '' };
+      });
+      eq(info.steps.join(','), 'paid,next,later,later', 'paid, next, then two to come');
+      eq(info.hidden, true, 'steps are decoration');
+      eq(info.label + '|' + info.now, '1 of 4 installments paid|25', 'the bar still says it in words');
+      truthy(/about .*50.00 each/.test(info.line) && /the last one is on/.test(info.line), 'the line says what each is and when it ends: ' + info.line);
+    } finally {
+      await api(page, 'DELETE', '/installments/' + made.json.id);
+      for (const t of (await api(page, 'GET', '/transactions?from=2000-01-01&to=2100-01-01&status=')).json.filter((x) => x.description.includes('E2E steps'))) await api(page, 'DELETE', '/transactions/' + t.id + '?hard=1');
+    }
+  });
+  await check('the Installments page is left clean: no test plans remain', async () => {
+    page = await open('/installments');
+    eq((await api(page, 'GET', '/installments')).json.filter((p) => p.description.startsWith('E2E ')).length, 0, 'none left');
+    eq((await api(page, 'GET', '/transactions?from=2000-01-01&to=2100-01-01&status=')).json.some((x) => x.description.includes('E2E steps')), false, 'and no test payments');
+  });
+
   console.log('\nRecurring items: how they end');
   let ruleId = null;
   await check('ending a recurring item after a number of payments shows the last payment and saves the date', async () => {
