@@ -268,10 +268,12 @@ export default function Debts() {
                 </>
               )}
               {isGroup && d.member_name && (
-                <span className="who">
+                <>
                   {' · '}
-                  <Avatar user={{ name: d.member_name, avatar_url: d.member_avatar }} size={16} /> {d.member_name.split(' ')[0]}
-                </span>
+                  <span className="who">
+                    <Avatar user={{ name: d.member_name, avatar_url: d.member_avatar }} size={16} /> {d.member_name.split(' ')[0]}
+                  </span>
+                </>
               )}
             </span>
           </div>
@@ -299,8 +301,11 @@ export default function Debts() {
             <strong>{d.status === 'settled' ? 'Settled' : d.next_due ? `${dateLong(d.next_due)} · ${money(d.next_amount)}` : d.plan !== 'none' && !d.count_in_budget ? 'Planned, not counted' : 'No plan yet'}</strong>
           </div>
         </div>
-        <div className="progress" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={`${money(d.paid)} of ${money(d.total_amount)} paid`}>
-          <div style={{ width: `${pct}%` }} />
+        <div className="debt-progress">
+          <div className="progress" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={`${money(d.paid)} of ${money(d.total_amount)} paid`}>
+            <div style={{ width: `${pct}%` }} />
+          </div>
+          <span className="debt-pct num">{pct}% paid</span>
         </div>
         <div className="debt-actions">
           <span className="muted small">

@@ -80,6 +80,7 @@ export function BalanceTrend({ months, height = 190, marker }) {
     actual: m.kind === 'forecast' ? null : m.endBalance,
     forecast: m.kind === 'actual' ? null : m.endBalance,
   }));
+  const labels = Object.fromEntries(data.map((d) => [d.month, d.label]));
   const values = data.map((d) => d.balance);
   const axis = niceAxis(values);
   const dipping = data.some((d) => d.kind !== 'actual' && d.balance < 0);
@@ -98,15 +99,15 @@ export function BalanceTrend({ months, height = 190, marker }) {
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={data} margin={{ top: 18, right: 14, bottom: 0, left: 0 }}>
           <CartesianGrid vertical={false} stroke="var(--line)" strokeDasharray="2 4" />
-          <XAxis dataKey="label" {...AXIS} interval="preserveStartEnd" minTickGap={18} />
+          <XAxis dataKey="month" {...AXIS} tickFormatter={(m) => labels[m]} interval="preserveStartEnd" minTickGap={18} tickMargin={8} padding={{ left: 14, right: 6 }} />
           <YAxis {...AXIS} width={54} domain={axis.domain} ticks={axis.ticks} tickFormatter={(v) => money.compact(v)} />
           <ReferenceLine y={0} stroke="var(--ink-3)" strokeDasharray="3 3" />
           <Tooltip content={<TrendTooltip />} cursor={{ stroke: 'var(--ink-3)', strokeDasharray: '2 3' }} isAnimationActive={false} />
           <Area type="monotone" dataKey="actual" stroke="var(--series-3)" strokeWidth={2.25} fill="var(--series-3)" fillOpacity={0.1} dot={false} activeDot={{ r: 5, stroke: 'var(--surface)', strokeWidth: 2 }} isAnimationActive={!reduced} animationDuration={700} connectNulls={false} />
           <Line type="monotone" dataKey="forecast" stroke="var(--forecast)" strokeWidth={2.25} strokeDasharray="5 5" dot={false} activeDot={{ r: 5, stroke: 'var(--surface)', strokeWidth: 2 }} isAnimationActive={!reduced} animationDuration={700} connectNulls={false} />
-          {mark && <ReferenceLine x={mark.label} stroke="var(--accent)" strokeDasharray="2 3" />}
-          {mark && <ReferenceDot x={mark.label} y={mark.balance} r={6} fill="var(--accent)" stroke="var(--surface)" strokeWidth={2} />}
-          {dip && <ReferenceDot x={dip.label} y={dip.balance} r={5} fill="var(--neg)" stroke="var(--surface)" strokeWidth={2} label={{ value: 'Dips below zero', position: 'bottom', fill: 'var(--neg)', fontSize: 11, fontWeight: 600 }} />}
+          {mark && <ReferenceLine x={mark.month} stroke="var(--accent)" strokeDasharray="2 3" />}
+          {mark && <ReferenceDot x={mark.month} y={mark.balance} r={6} fill="var(--accent)" stroke="var(--surface)" strokeWidth={2} />}
+          {dip && <ReferenceDot x={dip.month} y={dip.balance} r={5} fill="var(--neg)" stroke="var(--surface)" strokeWidth={2} label={{ value: 'Dips below zero', position: 'left', offset: 10, fill: 'var(--neg)', fontSize: 11, fontWeight: 600 }} />}
         </ComposedChart>
       </ResponsiveContainer>
     </div>
@@ -164,6 +165,7 @@ export function CashFlowChart({ months, height = 230, showForecast = true }) {
       const prev = arr[i - 1];
       return { month: m.month, label: axisLabel(m.month, i), kind: m.kind, income, expenses, net: income - expenses, prevExpenses: prev ? prev.expenses + prev.estimatedExpenses : null };
     });
+  const labels = Object.fromEntries(rows.map((r) => [r.month, r.label]));
   const flowAxis = niceAxis(rows.flatMap((r) => [r.income, r.expenses, r.net]));
   const label = `Income and expenses by month, ${monthLabel(rows[0].month)} to ${monthLabel(rows.at(-1).month)}.`;
   return (
@@ -171,7 +173,7 @@ export function CashFlowChart({ months, height = 230, showForecast = true }) {
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={rows} margin={{ top: 10, right: 10, bottom: 0, left: 0 }} barGap={3} barCategoryGap="22%">
           <CartesianGrid vertical={false} stroke="var(--line)" strokeDasharray="2 4" />
-          <XAxis dataKey="label" {...AXIS} interval="preserveStartEnd" minTickGap={10} />
+          <XAxis dataKey="month" {...AXIS} tickFormatter={(m) => labels[m]} interval="preserveStartEnd" minTickGap={10} />
           <YAxis {...AXIS} width={54} domain={flowAxis.domain} ticks={flowAxis.ticks} tickFormatter={(v) => money.compact(v)} />
           <ReferenceLine y={0} stroke="var(--ink-3)" />
           <Tooltip content={<FlowTooltip />} cursor={{ fill: 'var(--hover)', fillOpacity: 0.6 }} isAnimationActive={false} />

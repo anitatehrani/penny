@@ -32,6 +32,7 @@ installments) and see where your balance is heading — including when it goes n
 | **Personal dashboard** | Reorder, resize (S/M/L) and hide dashboard widgets, collapse sections, pin pages in the sidebar, collapse the sidebar, choose comfortable or compact density and an accent colour. Saved to your account. |
 | **Month calendar** | Jump to any month with a calendar (a year with arrows and twelve month buttons; keyboard-friendly; a bottom sheet on a phone) on the dashboard, the Payments page, and as the "Counts in" choice of a credit card payment. On the dashboard it opens a **month view** (`/?month=2027-02`, up to 12 months back and 24 ahead): the balance at the end of that month (actual or expected) with its arithmetic, that month's payments, spending against the month before, and cash flow around it. Insights stay about today. |
 | **Payment filters** | The Payments page filters (type, paid with, category, member) are styled dropdowns: the active ones are tinted, a long list such as the categories has a search box (type to narrow it, arrows and Enter to choose), and **Clear filters** resets them. The search box for descriptions and notes has a clear button. Works with the keyboard and as a bottom sheet on a phone. |
+| **Clearer forecast** | The balance card says at a glance whether you will dip below zero (and when), the forecast page uses the same charts as the dashboard with a Look-ahead choice (3 months to 2 years) and switches for the estimates, and a debt shows how much of it is paid. |
 | **Avatars** | Your photo, initials, a generated pattern or a small illustration; an "active now" dot for people you are connected to (you can switch it off). |
 | **Themes** | Light, Dark or System (follows your device), switchable from the sidebar, the sign-in page and Profile. |
 
@@ -98,7 +99,7 @@ npm run e2e           # drives a real Chrome/Edge through the interface (needs t
 ```
 
 `npm run e2e` is separate from `npm test` because it needs a browser. It checks the dashboard, notification centre, command palette,
-assistant, customise mode, avatar picker, settings, offline/error/first-run states, the logo, credit card payments, debts, recurring endings, signing in by username or email, the month calendar, the payment filters, and the phone layout (about 75 checks).
+assistant, customise mode, avatar picker, settings, offline/error/first-run states, the logo, credit card payments, debts, recurring endings, signing in by username or email, the month calendar, the payment filters, the balance card and forecast page, and the phone layout (about 80 checks).
 Set `CHROME_PATH` if Chrome is not in its usual place.
 
 The server tests start the **real server against a throw-away Postgres database** (created and dropped per test file

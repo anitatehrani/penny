@@ -4,6 +4,7 @@ import { AnimatedNumber } from '../../components/ds/AnimatedNumber.jsx';
 import { Icon, Skeleton } from '../../components/ui.jsx';
 import { useApp } from '../../context.jsx';
 import { addMonthsYM, currentMonth, monthLabel } from '../../format.js';
+import { outlook } from '../../monthLogic.js';
 import { useWorkspace } from '../../workspace.jsx';
 import { BalanceTrend } from '../charts.jsx';
 
@@ -28,6 +29,7 @@ export default function HeroWidget({ summary, forecast, size }) {
   const open = pinned || hover;
   const negative = s.balance < 0;
   const netSince = s.balance - Number(settings?.opening_balance ?? 0);
+  const look = outlook(months, s.balance);
 
   const rows = [
     ['Starting balance', money(Number(settings?.opening_balance ?? 0)), ''],
@@ -46,6 +48,14 @@ export default function HeroWidget({ summary, forecast, size }) {
           <AnimatedNumber value={s.balance} format={money} />
           {negative && <Icon name="alert" size={22} />}
         </div>
+        {look && (
+          <div className={`hero-status ${look.status === 'ok' ? 'ok' : 'warn'}`}>
+            <Icon name={look.status === 'ok' ? 'check' : 'alert'} size={14} />
+            {look.status === 'below' && 'Below zero today'}
+            {look.status === 'dip' && `Dips below zero in ${monthLabel(look.firstNegative.month, { month: 'long' })}`}
+            {look.status === 'ok' && `No dip ahead, lowest ${money(look.lowest.balance)} in ${monthLabel(look.lowest.month, { month: 'long' })}`}
+          </div>
+        )}
         <div className="hero-meta">
           {moved != null && Math.abs(moved) >= 0.005 && (
             <span className={`hero-moved ${moved >= 0 ? 'good' : 'bad'}`}>

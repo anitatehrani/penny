@@ -112,3 +112,17 @@ export function compareFromSummaries(current, previous, month) {
     totals: { expenses: sum(current?.byCategory ?? []), expensesPrevious: sum(previous?.byCategory ?? []) },
   };
 }
+
+/**
+ * A one-line answer to "am I going to be all right?" from the forecast: is the balance below zero today, does it dip below zero in a
+ * month still to come (and when first), or does it stay above (and where is the lowest point). Past months are not looked at.
+ * Returns null when there is no forecast to go on.
+ */
+export function outlook(months, balanceToday) {
+  const ahead = (months ?? []).filter((m) => m.kind !== 'actual');
+  if (!ahead.length) return null;
+  const lowest = ahead.reduce((low, m) => (m.endBalance < low.endBalance ? m : low), ahead[0]);
+  const firstNegative = ahead.find((m) => m.endBalance < 0) ?? null;
+  const status = balanceToday < 0 ? 'below' : firstNegative ? 'dip' : 'ok';
+  return { status, firstNegative: firstNegative && { month: firstNegative.month, balance: firstNegative.endBalance }, lowest: { month: lowest.month, balance: lowest.endBalance } };
+}

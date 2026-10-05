@@ -1,0 +1,68 @@
+/* ==========================================================================
+   Page-level touches: the forecast's controls, the debts' progress.
+   ========================================================================== */
+
+/* "Look ahead" next to its choices */
+.look-ahead {
+  gap: var(--s-3);
+}
+
+/* the two estimate switches: a title and what it does, the switch at the end */
+.est-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+}
+.est-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding: var(--s-3) var(--s-5);
+}
+.est-row + .est-row {
+  border-top: 1px solid var(--line);
+}
+.est-row p {
+  margin: 2px 0 0;
+  max-width: 72ch;
+}
+
+/* a debt's progress: a bar you can see, and what it says */
+.debt-progress {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+.debt-progress .progress {
+  flex: 1;
+}
+.debt-pct {
+  min-width: 5.5em;
+  text-align: right;
+  color: var(--ink-2);
+  font-size: var(--fs-2);
+}
+.progress {
+  height: 10px;
+  background: color-mix(in srgb, var(--line-strong) 55%, transparent);
+  border-radius: 5px;
+}
+.progress > div {
+  border-radius: 5px;
+  min-width: 0;
+  transition: width var(--t-slow, 400ms) var(--ease);
+}
+.debt .who {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  vertical-align: middle;
+}
+
+@media (max-width: 520px) {
+  .est-row {
+    padding: var(--s-3) var(--s-4);
+  }
+}

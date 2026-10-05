@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { addMonthsYM } from '../src/format.js';
 import {
-  clampYM, compareFromSummaries, dashboardBounds, dashboardMonth, forecastWindow, isYM, maxYM, minYM, monthChoice, monthDiff, monthFigures, monthsOfYear, nextPickable, windowAround, yearHasChoice, yearOf,
+  clampYM, compareFromSummaries, dashboardBounds, dashboardMonth, forecastWindow, isYM, maxYM, minYM, monthChoice, monthDiff, monthFigures, monthsOfYear, nextPickable, outlook, windowAround, yearHasChoice, yearOf,
 } from '../src/monthLogic.js';
 
 describe('months', () => {
@@ -179,5 +179,38 @@ describe('spending for any month from two summaries', () => {
   it('keeps uncategorized spending apart from a category of the same name', () => {
     const c = compareFromSummaries({ byCategory: [{ category_id: null, name: 'Other', color: '#1', total: 5 }, { category_id: 9, name: 'Other', color: '#2', total: 8 }] }, { byCategory: [{ category_id: 9, name: 'Other', color: '#2', total: 3 }] }, '2026-10');
     assert.deepEqual(c.categories.map((x) => [x.category_id, x.current, x.previous]), [[9, 8, 3], [null, 5, 0]]);
+  });
+});
+
+describe('outlook', () => {
+  const m = (month, kind, endBalance) => ({ month, kind, endBalance });
+  const months = [m('2026-08', 'actual', -50), m('2026-09', 'actual', 100), m('2026-10', 'current', 120), m('2026-11', 'forecast', 40), m('2026-12', 'forecast', -30), m('2027-01', 'forecast', -90), m('2027-02', 'forecast', 10)];
+  it('says "dip" with the first month below zero and the lowest point', () => {
+    const o = outlook(months, 100);
+    assert.equal(o.status, 'dip');
+    assert.deepEqual(o.firstNegative, { month: '2026-12', balance: -30 });
+    assert.deepEqual(o.lowest, { month: '2027-01', balance: -90 });
+  });
+  it('ignores months that are already behind us, even negative ones', () => {
+    const o = outlook(months.filter((x) => x.month !== '2026-12' && x.month !== '2027-01'), 100);
+    assert.equal(o.status, 'ok');
+    assert.equal(o.firstNegative, null);
+    assert.equal(o.lowest.month, '2027-02');
+    assert.equal(o.lowest.balance, 10);
+  });
+  it('is "below" when the balance is under zero today, whatever comes next', () => {
+    assert.equal(outlook(months, -0.01).status, 'below');
+    assert.equal(outlook([m('2026-10', 'current', 500)], -20).status, 'below');
+  });
+  it('treats exactly zero as fine', () => {
+    assert.equal(outlook([m('2026-10', 'current', 0), m('2026-11', 'forecast', 0)], 0).status, 'ok');
+  });
+  it('takes the earliest of equal lowest points', () => {
+    assert.equal(outlook([m('2026-10', 'current', 5), m('2026-11', 'forecast', 5)], 5).lowest.month, '2026-10');
+  });
+  it('has nothing to say without a forecast', () => {
+    assert.equal(outlook([], 10), null);
+    assert.equal(outlook(undefined, 10), null);
+    assert.equal(outlook([m('2026-08', 'actual', 1)], 10), null);
   });
 });

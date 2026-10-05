@@ -23,6 +23,7 @@ import './design/base.css';
 import './design/components.css';
 import './design/calendar.css';
 import './design/filters.css';
+import './design/pages.css';
 import './design/shell.css';
 import './design/dashboard.css';
 import './design/assistant.css';

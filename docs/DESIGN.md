@@ -254,3 +254,21 @@ filters were switched on.
 
 Choosing writes to the address as before (`?category=3&type=expense`), so a filtered list can be linked. The matching and keyboard rules are
 plain functions in `client/src/filterLogic.js` so they can be tested without a browser. Nothing changes on the server.
+
+## 14. Clearer balance card, forecast page and debts (design pass)
+
+**What was wrong.** The balance figure sat at the bottom of an empty block beside its chart; two charts on the forecast page were an older
+design than the dashboard's, with a browser dropdown and checkboxes; months with the same name in a range longer than a year (two
+Octobers) shared one place on the chart axis, which squashed the months and hid the "dips below zero" marker; the progress bar on a debt
+was almost invisible.
+
+**What changed.**
+
+- The balance is a card as tall as its chart, with a one-line status under the figure answering "will I be all right?": *Below zero today*,
+  *Dips below zero in {month}*, or *No dip ahead, lowest {amount} in {month}*. It is worked out from the forecast by `outlook()` in
+  `monthLogic.js` (months already behind us are ignored; exactly zero is fine).
+- The chart axes are keyed on the whole month (`2027-10`), only the printed label is short, so every month has its own place whatever the
+  range. The dip label sits beside its marker instead of on the line.
+- The forecast page uses the dashboard's charts, a segmented "Look ahead" (3 months, 6 months, 1 year, 2 years) and two switches for the
+  estimates, each with a sentence saying what it does.
+- A debt shows a visible progress bar with the percentage paid, and the "·" before the person's name no longer collides with the text.

@@ -1,10 +1,17 @@
 import { useState } from 'react';
 import { api, qs } from '../api.js';
-import { BalanceChart, CashflowChart } from '../components/Charts.jsx';
-import { ErrorBox, Icon, Loading } from '../components/ui.jsx';
+import { BalanceTrend, CashFlowChart } from '../dashboard/charts.jsx';
+import { ErrorBox, Icon, Loading, Segmented, Switch } from '../components/ui.jsx';
 import { useApp } from '../context.jsx';
 import { monthLabel } from '../format.js';
 import { useFetch } from '../hooks.js';
+
+const LOOK_AHEAD = [
+  { value: 3, label: '3 mo' },
+  { value: 6, label: '6 mo' },
+  { value: 12, label: '1 yr' },
+  { value: 24, label: '2 yrs' },
+];
 
 export default function Forecast() {
   const { money } = useApp();
@@ -32,17 +39,11 @@ export default function Forecast() {
             Built from your pending payments, recurring items and installments{showEst ? ', plus an estimate of everyday spending' : ''}.
           </p>
         </div>
-        <div className="head-actions">
-          <label className="inline-select">
+        <div className="head-actions look-ahead">
+          <span className="muted" aria-hidden="true">
             Look ahead
-            <select value={months} onChange={(e) => setMonths(Number(e.target.value))}>
-              {[3, 6, 12, 18, 24].map((n) => (
-                <option key={n} value={n}>
-                  {n} months
-                </option>
-              ))}
-            </select>
-          </label>
+          </span>
+          <Segmented label="Look ahead" value={months} onChange={setMonths} options={LOOK_AHEAD} />
         </div>
       </header>
 
@@ -84,41 +85,54 @@ export default function Forecast() {
         </div>
       </section>
 
-      <section className="card">
-        <div className="card-head">
-          <h2>Estimates</h2>
+      <section className="card est-card" aria-label="Estimates">
+        <div className="est-row">
+          <div>
+            <strong id="est-spend">Estimate everyday spending</strong>
+            <p className="muted small">
+              {estimates.monthsUsed > 0 ? `About ${money(estimates.expenses)} a month: the average of your last ${estimates.monthsUsed} month${estimates.monthsUsed > 1 ? 's' : ''} of one-off expenses in categories not already covered by recurring items or installments.` : 'Needs at least one full month of history.'}
+            </p>
+          </div>
+          <Switch checked={estExpenses} onChange={setEstExpenses} label="Estimate everyday spending" />
         </div>
-        <div className="options">
-          <label className="check">
-            <input type="checkbox" checked={estExpenses} onChange={(e) => setEstExpenses(e.target.checked)} />
-            <span>
-              Estimate everyday spending{' '}
-              <span className="muted">
-                {estimates.monthsUsed > 0 ? `(≈ ${money(estimates.expenses)}/month, average of your last ${estimates.monthsUsed} month${estimates.monthsUsed > 1 ? 's' : ''} of one-off expenses in categories not already covered by recurring items or installments)` : '(needs at least one full month of history)'}
-              </span>
-            </span>
-          </label>
-          <label className="check">
-            <input type="checkbox" checked={estIncome} onChange={(e) => setEstIncome(e.target.checked)} />
-            <span>
-              Estimate one-off income <span className="muted">(off by default — only turn on if extra income is regular)</span>
-            </span>
-          </label>
+        <div className="est-row">
+          <div>
+            <strong id="est-income">Estimate one-off income</strong>
+            <p className="muted small">Off by default. Only turn it on if your extra income is regular.</p>
+          </div>
+          <Switch checked={estIncome} onChange={setEstIncome} label="Estimate one-off income" />
         </div>
       </section>
 
       <section className="card">
         <div className="card-head">
           <h2>Balance at the end of each month</h2>
+          <span className="legend-inline">
+            <i className="line solid" /> Actual <i className="line dashed" /> Forecast
+          </span>
         </div>
-        <BalanceChart months={data.months} />
+        <BalanceTrend months={data.months} height={270} />
       </section>
 
       <section className="card">
         <div className="card-head">
           <h2>Income and expenses per month</h2>
         </div>
-        <CashflowChart months={data.months} showEstimates={showEst} />
+        <CashFlowChart months={data.months} height={270} />
+        <ul className="legend-inline cf-legend">
+          <li>
+            <i className="swatch" style={{ background: 'var(--series-1)' }} /> Income
+          </li>
+          <li>
+            <i className="swatch" style={{ background: 'var(--series-2)' }} /> Expenses
+          </li>
+          <li>
+            <i className="line solid ink" /> Net
+          </li>
+          <li>
+            <i className="swatch hatch" /> Forecast (lighter, dashed)
+          </li>
+        </ul>
       </section>
 
       <section className="card flush">

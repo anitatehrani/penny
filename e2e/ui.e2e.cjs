@@ -1020,6 +1020,82 @@ async function sessionFor(db, email) {
     await small.close();
   });
 
+  console.log('\nBalance card and forecast page');
+  await check('the balance card says whether the balance dips below zero, and its figure is not squeezed against the chart', async () => {
+    page = await open('/');
+    await page.waitForSelector('.hero-figure');
+    const hero = await page.$eval('.hero-figure', (e) => ({ status: e.querySelector('.hero-status')?.textContent.trim(), tone: e.querySelector('.hero-status')?.className, box: e.getBoundingClientRect().height, chart: document.querySelector('.hero-chart')?.getBoundingClientRect().height }));
+    truthy(/below zero|No dip ahead/i.test(hero.status ?? ''), 'a status line: ' + hero.status);
+    truthy(/ok|warn/.test(hero.tone), 'with a tone');
+    truthy(Math.abs(hero.box - hero.chart) <= 2, 'the card is as tall as the chart beside it: ' + JSON.stringify([hero.box, hero.chart]));
+    eq(await count(page, '.hero-status'), 1, 'only once');
+  });
+  await check('the forecast looks ahead with a segmented choice, not a browser menu, and estimates are switches', async () => {
+    page = await open('/forecast');
+    await page.waitForSelector('.est-card');
+    eq(await count(page, 'select'), 0, 'no native selects');
+    eq(await count(page, '[role=radiogroup][aria-label="Look ahead"] [role=radio]'), 4, 'four lengths');
+    eq(await page.$eval('[aria-label="Look ahead"] [aria-checked=true]', (e) => e.textContent), '1 yr', 'a year by default');
+    eq(await count(page, '.est-card [role=switch]'), 2, 'two switches');
+    eq(await count(page, '.est-card input[type=checkbox]'), 0, 'no checkboxes');
+    eq(await page.$eval('.est-card [role=switch]', (e) => e.getAttribute('aria-checked')), 'true', 'everyday spending is on');
+    await page.evaluate(() => [...document.querySelectorAll('[aria-label="Look ahead"] button')].find((b) => b.textContent === '6 mo').click());
+    await page.waitForFunction(() => /Balance in 6 months/.test(document.querySelector('.kpis')?.textContent ?? ''), { timeout: 6000 });
+    await page.evaluate(() => [...document.querySelectorAll('[aria-label="Look ahead"] button')].find((b) => b.textContent === '2 yrs').click());
+    await page.waitForFunction(() => /Balance in 24 months/.test(document.querySelector('.kpis')?.textContent ?? ''), { timeout: 6000 });
+  });
+  await check('over two years each month has its own place on the chart (two Octobers are not one)', async () => {
+    await sleep(500);
+    const dots = await page.$$eval('.chart-box .recharts-line-dots circle', (cs) => cs.map((c) => Math.round(Number(c.getAttribute('cx')))));
+    truthy(dots.length >= 25, 'a point for each month: ' + dots.length);
+    eq(new Set(dots).size, dots.length, 'every point at its own place');
+    const sorted = [...dots].sort((a, b) => a - b);
+    eq(JSON.stringify(dots), JSON.stringify(sorted), 'in order, left to right');
+    const gaps = sorted.slice(1).map((v, i) => v - sorted[i]);
+    truthy(Math.max(...gaps) - Math.min(...gaps) <= 2, 'evenly spaced: ' + JSON.stringify([Math.min(...gaps), Math.max(...gaps)]));
+    // each label under the chart sits right under a month's point: with two months of the same name the labels used to drift away from the points
+    const ticks = await page.evaluate(() => [...document.querySelector('.chart-box .recharts-line-dots').closest('.chart-box').querySelectorAll('.recharts-xAxis .recharts-cartesian-axis-tick-value')].map((t) => Math.round(Number(t.getAttribute('x')))));
+    truthy(ticks.length >= 6, 'labels under the chart: ' + ticks.length);
+    const stray = ticks.filter((t) => !dots.some((d) => Math.abs(d - t) <= 2));
+    eq(stray.length, 0, 'every label is under a point; strays at ' + JSON.stringify(stray));
+  });
+  await check('a balance that goes below zero is marked on the chart, also over two years', async () => {
+    const made = await api(page, 'POST', '/transactions', { type: 'expense', description: 'E2E dip', amount: 90000, date: NEXT + '-20', category_id: null });
+    eq(made.status, 201, 'a big payment next month');
+    try {
+      page = await open('/forecast');
+      await page.waitForSelector('[aria-label="Look ahead"]');
+      await page.evaluate(() => [...document.querySelectorAll('[aria-label="Look ahead"] button')].find((b) => b.textContent === '2 yrs').click());
+      await page.waitForFunction(() => /Balance in 24 months/.test(document.querySelector('.kpis')?.textContent ?? ''), { timeout: 6000 });
+      await page.waitForSelector('.recharts-reference-dot', { timeout: 6000 });
+      eq(await count(page, '.recharts-reference-dot'), 1, 'one marker');
+      truthy(/Dips below zero/.test(await page.$eval('.chart-box', (e) => e.textContent)), 'with its label');
+    } finally {
+      await api(page, 'DELETE', '/transactions/' + made.json.id + '?hard=1');
+    }
+  });
+  await check('the estimate switches ask the server for a different forecast', async () => {
+    const asked = page.waitForResponse((r) => r.url().includes('/forecast') && r.url().includes('estimateIncome=1'), { timeout: 6000 });
+    await page.evaluate(() => document.querySelectorAll('.est-card [role=switch]')[1].click());
+    await asked;
+    eq(await page.$$eval('.est-card [role=switch]', (x) => x[1].getAttribute('aria-checked')), 'true', 'the income estimate is on');
+    const off = page.waitForResponse((r) => r.url().includes('/forecast') && r.url().includes('estimateExpenses=0'), { timeout: 6000 });
+    await page.evaluate(() => document.querySelectorAll('.est-card [role=switch]')[0].click());
+    await off;
+  });
+  await check('on a phone the forecast controls and cards fit the screen', async () => {
+    const small = await open('/forecast', { width: 390, height: 800 });
+    await small.waitForSelector('.est-card');
+    eq(await small.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, 'nothing scrolls sideways');
+    const r = await small.$eval('[aria-label="Look ahead"]', (e) => { const b = e.getBoundingClientRect(); return b.right <= innerWidth && b.left >= 0; });
+    truthy(r, 'the choice is on screen');
+    const home = await open('/', { width: 390, height: 800 });
+    await home.waitForSelector('.hero-status');
+    eq(await home.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, 'the dashboard does not scroll sideways either');
+    await small.close();
+    await home.close();
+  });
+
   console.log('\nSettings and avatar');
   await check('notification settings: every type has an in-app and an email switch, and changes save', async () => {
     page = await open('/settings?tab=notifications');
