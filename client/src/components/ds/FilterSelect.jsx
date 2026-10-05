@@ -11,7 +11,7 @@ import { Avatar, Icon } from '../ui.jsx';
  * The popup is drawn outside the page flow so nothing clips it, flips above the button when there is no room below, and is a
  * bottom sheet on a phone. Escape closes it (without also closing a dialog behind it) and gives focus back to the button.
  */
-export default function FilterSelect({ label, value, onChange, options, icon, searchable = options.length > 7, searchLabel }) {
+export default function FilterSelect({ label, value, onChange, options, icon, searchable = options.length > 7, searchLabel, variant = 'filter', disabled = false, id: buttonId }) {
   const [open, setOpen] = useState(false);
   const [term, setTerm] = useState('');
   const [hi, setHi] = useState(-1);
@@ -24,7 +24,7 @@ export default function FilterSelect({ label, value, onChange, options, icon, se
   const shown = useMemo(() => filterOptions(options, term), [options, term]);
   const runs = useMemo(() => groupOptions(shown), [shown]);
   const current = String(value ?? '');
-  const active = current !== '';
+  const active = variant === 'filter' && current !== '';
 
   const place = useCallback(() => {
     if (!button.current) return;
@@ -134,7 +134,9 @@ export default function FilterSelect({ label, value, onChange, options, icon, se
       <button
         type="button"
         ref={button}
-        className={`filter-btn${active ? ' active' : ''}`}
+        id={buttonId}
+        disabled={disabled}
+        className={`filter-btn${variant === 'filter' ? '' : ` as-${variant}`}${active ? ' active' : ''}`}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? `${id}-pop` : undefined}
@@ -148,6 +150,7 @@ export default function FilterSelect({ label, value, onChange, options, icon, se
         }}
       >
         {icon && <Icon name={icon} size={16} />}
+        {variant !== 'filter' && (() => { const o = options.find((x) => x.value === current) ?? options[0]; return o?.person ? <Avatar user={o.person} size={20} showStatus={false} /> : o?.dot !== undefined ? <span className="dot" style={{ background: o.dot || 'var(--ink-3)' }} /> : null; })()}
         <span className="filter-btn-text">{labelOf(options, current)}</span>
         <Icon name="chevron" size={14} />
       </button>

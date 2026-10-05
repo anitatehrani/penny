@@ -4,6 +4,7 @@ import { useApp } from '../context.jsx';
 import { dateLabel, timeAgo } from '../format.js';
 import { pushSupported, useNotifications } from '../notifications.jsx';
 import EmailStatus from './EmailStatus.jsx';
+import Select from './ds/Select.jsx';
 import { ErrorBox, Field, Icon, Loading, Switch } from './ui.jsx';
 
 // One row per kind of notification: the in-app switch and the email switch that go with it.
@@ -229,13 +230,14 @@ export default function NotificationSettings() {
           <Switch id="inc" checked={!!settings.include_income} onChange={(v) => update({ include_income: v })} label="Remind me about expected income" />
         </Row>
       <Row label="Weekly summary day" hint="Which day the weekly summary arrives (needs the weekly summary switched on above)." htmlFor="wday">
-          <select id="wday" value={settings.weekly_day} disabled={!settings.weekly_summary} onChange={(e) => update({ weekly_day: Number(e.target.value) })}>
-            {WEEKDAYS.map((d, i) => (
-              <option key={d} value={i}>
-                {d}
-              </option>
-            ))}
-          </select>
+          <Select
+            id="wday"
+            label="Weekly summary day"
+            value={String(settings.weekly_day)}
+            disabled={!settings.weekly_summary}
+            onChange={(v) => update({ weekly_day: Number(v) })}
+            options={WEEKDAYS.map((d, i) => ({ value: String(i), label: d }))}
+          />
         </Row>
       </Section>
 
@@ -314,13 +316,13 @@ export default function NotificationSettings() {
             <div className="form-grid">
               {settings.email_frequency === 'daily' && (
                 <Field label="Send the summary at">
-                  <select value={settings.email_hour} onChange={(e) => update({ email_hour: Number(e.target.value) })}>
-                    {Array.from({ length: 24 }, (_, h) => (
-                      <option key={h} value={h}>
-                        {hourLabel(h)}
-                      </option>
-                    ))}
-                  </select>
+                  <Select
+                    label="Send the summary at"
+                    value={String(settings.email_hour)}
+                    onChange={(v) => update({ email_hour: Number(v) })}
+                    options={Array.from({ length: 24 }, (_, h) => ({ value: String(h), label: hourLabel(h) }))}
+                    searchable={false}
+                  />
                 </Field>
               )}
               <Field label="Your time zone" hint={device && device !== settings.timezone ? `Your device uses ${device}.` : 'Used for “today” and the summary time.'}>

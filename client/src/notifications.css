@@ -247,9 +247,8 @@
   grid-template-columns: minmax(0, 1fr) auto auto auto;
 }
 .cat-alert {
-  font-size: 0.82rem;
-  padding: 4px 8px;
-  max-width: 150px;
+  display: inline-flex;
+  max-width: 170px;
 }
 @media (max-width: 560px) {
   .cat-list li {

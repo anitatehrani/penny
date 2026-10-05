@@ -4,6 +4,7 @@ import { api, qs } from '../api.js';
 import { describeAlert, saveAlertChoice } from '../components/Alerts.jsx';
 import NotificationSettings from '../components/NotificationSettings.jsx';
 import { KIND_ICON, KIND_TONE } from '../components/notifMeta.js';
+import Select from '../components/ds/Select.jsx';
 import { CategoryDot, Empty, ErrorBox, Icon, Loading } from '../components/ui.jsx';
 import { useApp } from '../context.jsx';
 import { dateLabel, makeMoney, relativeDay, timeAgo, todayYMD } from '../format.js';
@@ -192,13 +193,13 @@ function Inbox() {
             </button>
           ))}
         </div>
-        <select value={filter.kind} onChange={(e) => setFilter((f) => ({ ...f, kind: e.target.value }))} aria-label="Type of notification">
-          {KIND_FILTERS.map(([v, l]) => (
-            <option key={v} value={v}>
-              {l}
-            </option>
-          ))}
-        </select>
+        <Select
+          variant="inline"
+          label="Type of notification"
+          value={filter.kind}
+          onChange={(kind) => setFilter((f) => ({ ...f, kind }))}
+          options={KIND_FILTERS.map(([v, l]) => ({ value: v, label: l }))}
+        />
         <span className="spacer" />
         <button className="btn sm" onClick={checkNow} disabled={busy} title="Look for newly due payments right now">
           <Icon name="repeat" size={14} /> Check now
@@ -386,13 +387,13 @@ function Upcoming() {
                       </span>
                     </td>
                     <td>
-                      <select value={i.own_mode ?? 'default'} onChange={(e) => setMode(i, e.target.value)} aria-label={`Alert for ${i.description} on ${i.date}`}>
-                        {MODE_OPTIONS.map(([v, l]) => (
-                          <option key={v} value={v}>
-                            {l}
-                          </option>
-                        ))}
-                      </select>
+                      <Select
+                        variant="inline"
+                        label={`Alert for ${i.description} on ${i.date}`}
+                        value={i.own_mode ?? 'default'}
+                        onChange={(v) => setMode(i, v)}
+                        options={MODE_OPTIONS.map(([v, l]) => ({ value: v, label: l }))}
+                      />
                     </td>
                   </tr>
                 ))}

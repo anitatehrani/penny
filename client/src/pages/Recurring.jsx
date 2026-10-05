@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { api } from '../api.js';
 import { AlertPicker, useAlertChoice } from '../components/Alerts.jsx';
 import { Avatar, CategoryDot, CategorySelect, Empty, ErrorBox, Field, Icon, Loading, Modal, Segmented } from '../components/ui.jsx';
+import Select from '../components/ds/Select.jsx';
 import { useAuth } from '../auth.jsx';
 import { useApp } from '../context.jsx';
 import { dateLong, describeRule, todayYMD } from '../format.js';
@@ -123,22 +124,21 @@ function RuleForm({ initial, onSaved, onCancel }) {
       </div>
       {isGroup && (
         <Field label={f.type === 'income' ? 'Whose income' : 'Paid by'} hint="Both go into the shared balance; this records who it belongs to.">
-          <select value={f.paid_by} onChange={(e) => set({ paid_by: e.target.value })}>
-            {members.map((m) => (
-              <option key={m.username} value={m.username}>
-                {m.username === user.username ? `${m.name} (you)` : m.name}
-              </option>
-            ))}
-          </select>
+          <Select label={f.type === 'income' ? 'Whose income' : 'Paid by'} value={f.paid_by} onChange={(paid_by) => set({ paid_by })} options={members.map((m) => ({ value: m.username, label: m.username === user.username ? `${m.name} (you)` : m.name, person: m }))} />
         </Field>
       )}
       <div className="form-grid three">
         <Field label="Repeats">
-          <select value={f.frequency} onChange={(e) => set({ frequency: e.target.value })}>
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-            <option value="yearly">Yearly</option>
-          </select>
+          <Select
+            label="Repeats"
+            value={f.frequency}
+            onChange={(frequency) => set({ frequency })}
+            options={[
+              { value: 'weekly', label: 'Weekly' },
+              { value: 'monthly', label: 'Monthly' },
+              { value: 'yearly', label: 'Yearly' },
+            ]}
+          />
         </Field>
         <Field label={`Every … ${unit}`}>
           <input type="number" min="1" max="60" value={f.interval_count} onChange={(e) => set({ interval_count: e.target.value })} required />

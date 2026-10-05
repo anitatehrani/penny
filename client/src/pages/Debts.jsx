@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../api.js';
 import { Avatar, CategoryDot, CategorySelect, Empty, ErrorBox, Field, Icon, Loading, Modal, Segmented } from '../components/ui.jsx';
+import Select from '../components/ds/Select.jsx';
 import { useAuth } from '../auth.jsx';
 import { useApp } from '../context.jsx';
 import { budgetStatus, describePlan, previewPlan, timelineSteps } from '../debtLogic.js';
@@ -139,13 +140,7 @@ function DebtForm({ initial, onSaved, onCancel }) {
       </div>
       {isGroup && (
         <Field label="In the name of" hint="Repayments come out of the shared balance; this records who the debt is with.">
-          <select value={paidBy} onChange={(e) => setPaidBy(e.target.value)}>
-            {members.map((m) => (
-              <option key={m.username} value={m.username}>
-                {m.username === user.username ? `${m.name} (you)` : m.name}
-              </option>
-            ))}
-          </select>
+          <Select label="In the name of" value={paidBy} onChange={setPaidBy} options={members.map((m) => ({ value: m.username, label: m.username === user.username ? `${m.name} (you)` : m.name, person: m }))} />
         </Field>
       )}
       <div className="form-actions">

@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { api } from '../api.js';
 import { AlertPicker, useAlertChoice } from '../components/Alerts.jsx';
 import { CategoryDot, CategorySelect, Empty, ErrorBox, Field, Icon, Loading, Modal, Segmented } from '../components/ui.jsx';
+import Select from '../components/ds/Select.jsx';
 import { useAuth } from '../auth.jsx';
 import { useApp } from '../context.jsx';
 import { dateLong, todayYMD } from '../format.js';
@@ -121,13 +122,7 @@ function PlanForm({ initial, onSaved, onCancel }) {
       </div>
       {isGroup && !editing && (
         <Field label="Paid by" hint="The installments come out of the shared balance; this records who the plan is in the name of.">
-          <select value={paidBy} onChange={(e) => setPaidBy(e.target.value)}>
-            {members.map((m) => (
-              <option key={m.username} value={m.username}>
-                {m.username === user.username ? `${m.name} (you)` : m.name}
-              </option>
-            ))}
-          </select>
+          <Select label="Paid by" value={paidBy} onChange={setPaidBy} options={members.map((m) => ({ value: m.username, label: m.username === user.username ? `${m.name} (you)` : m.name, person: m }))} />
         </Field>
       )}
       <AlertPicker value={alerts.choice} onChange={alerts.setChoice} label="Alerts for each installment" idPrefix="plan-alert" />

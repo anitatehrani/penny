@@ -204,3 +204,31 @@
     animation: none;
   }
 }
+
+/* ---------- the same dropdown inside a form or a table (docs/DESIGN.md section 20) ---------- */
+.filter-btn.as-field {
+  display: flex;
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 10px 8px 12px;
+  border-color: var(--line-strong);
+}
+.filter-btn.as-field:hover,
+.filter-btn.as-field[aria-expanded='true'] {
+  background: var(--surface);
+}
+.filter-btn.as-inline {
+  min-height: 34px;
+  padding: 4px 8px 4px 10px;
+  font-size: var(--fs-2);
+}
+.filter-btn.as-field:disabled,
+.filter-btn.as-inline:disabled {
+  background: var(--surface-2);
+  color: var(--ink-3);
+  cursor: not-allowed;
+}
+.filter-btn.as-field .dot,
+.filter-btn.as-inline .dot {
+  flex: none;
+}

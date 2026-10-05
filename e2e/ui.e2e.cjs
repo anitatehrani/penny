@@ -1217,6 +1217,36 @@ async function sessionFor(db, email) {
     }
   });
 
+  console.log('\nDropdowns');
+  await check('forms use the same dropdown as the filters: coloured categories, Escape closes only the list, the choice shows', async () => {
+    page = await open('/payments');
+    await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => /Add payment/.test(b.textContent))?.click());
+    await page.waitForSelector('.modal');
+    eq(await count(page, '.modal select'), 0, 'no browser dropdowns in the form');
+    const openList = async () => {
+      await page.evaluate(() => document.querySelector('.modal .filter-btn.as-field[aria-label^="Category"]').click());
+      await page.waitForSelector('.filter-pop [role=option]');
+    };
+    await openList();
+    const opts = await page.$$eval('.filter-pop [role=option]', (o) => o.map((x) => ({ text: x.textContent.trim(), dot: !!x.querySelector('.dot') })));
+    truthy(opts.length >= 3, 'a list of categories: ' + opts.length);
+    eq(opts[0].text, 'No category', 'the empty choice comes first');
+    truthy(opts.slice(1).every((x) => x.dot), 'every category shows its colour');
+    await page.keyboard.press('Escape');
+    await sleep(150);
+    eq(await count(page, '.filter-pop'), 0, 'Escape closes the list');
+    eq(await count(page, '.modal'), 1, 'and leaves the form open');
+    await openList();
+    const second = opts[1].text;
+    await page.evaluate(() => document.querySelectorAll('.filter-pop [role=option]')[1].click());
+    await sleep(150);
+    const shown = await page.$eval('.modal .filter-btn.as-field[aria-label^="Category"]', (b) => b.textContent.trim());
+    eq(shown, second, 'the chosen category is shown on the button');
+    await page.keyboard.press('Escape');
+    await sleep(200);
+    eq(await count(page, '.modal'), 0, 'a second Escape closes the form');
+  });
+
   console.log('\nSettings and avatar');
   await check('notification settings: every type has an in-app and an email switch, and changes save', async () => {
     page = await open('/settings?tab=notifications');

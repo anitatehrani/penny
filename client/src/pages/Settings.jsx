@@ -4,6 +4,7 @@ import { api } from '../api.js';
 import AccountCard from '../components/AccountCard.jsx';
 import AppearanceSettings from '../components/AppearanceSettings.jsx';
 import NotificationSettings from '../components/NotificationSettings.jsx';
+import Select from '../components/ds/Select.jsx';
 import { Field, Icon, Modal, Segmented } from '../components/ui.jsx';
 import { useApp } from '../context.jsx';
 import { useNotifications } from '../notifications.jsx';
@@ -175,11 +176,7 @@ export default function Settings() {
               <input type="number" step="0.01" inputMode="decimal" value={opening} onChange={(e) => setOpening(e.target.value)} required />
             </Field>
             <Field label="Currency">
-              <select value={currency} onChange={(e) => setCurrency(e.target.value)}>
-                {currencies.map((c) => (
-                  <option key={c}>{c}</option>
-                ))}
-              </select>
+              <Select label="Currency" value={currency} onChange={setCurrency} options={currencies.map((c) => ({ value: c, label: c }))} />
             </Field>
           </div>
           <div className="form-grid">
@@ -213,17 +210,19 @@ export default function Settings() {
                     {c.name}
                   </span>
                   <span className="muted small">{c.usage_count} payment{c.usage_count === 1 ? '' : 's'}</span>
-                  <select
-                    className="cat-alert"
-                    value={catAlerts[c.id] ?? 'default'}
-                    onChange={(e) => setCategoryAlert(c, e.target.value)}
-                    aria-label={`Alerts for ${c.name}`}
-                    title="Payment alerts for this category (only for you)"
-                  >
-                    <option value="default">Alerts: default</option>
-                    <option value="on">Alerts: always</option>
-                    <option value="off">Alerts: never</option>
-                  </select>
+                  <span className="cat-alert" title="Payment alerts for this category (only for you)">
+                    <Select
+                      variant="inline"
+                      label={`Alerts for ${c.name}`}
+                      value={catAlerts[c.id] ?? 'default'}
+                      onChange={(v) => setCategoryAlert(c, v)}
+                      options={[
+                        { value: 'default', label: 'Alerts: default' },
+                        { value: 'on', label: 'Alerts: always' },
+                        { value: 'off', label: 'Alerts: never' },
+                      ]}
+                    />
+                  </span>
                   <span className="row-actions">
                     <button className="btn icon ghost" onClick={() => setEditingCat(c)} aria-label={`Edit ${c.name}`}>
                       <Icon name="edit" />

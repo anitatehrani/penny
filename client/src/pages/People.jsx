@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../api.js';
+import Select from '../components/ds/Select.jsx';
 import { Avatar, Empty, ErrorBox, Field, Icon, Loading, Modal } from '../components/ui.jsx';
 import { useAuth } from '../auth.jsx';
 import { useApp } from '../context.jsx';
@@ -18,13 +19,9 @@ export const relationLabel = (r) => RELATIONS.find(([v]) => v === r)?.[1] ?? r;
 
 export function RelationSelect({ value, onChange, label = 'Relationship' }) {
   return (
-    <select value={value} onChange={(e) => onChange(e.target.value)} aria-label={label} className="relation-select">
-      {RELATIONS.map(([v, l]) => (
-        <option key={v} value={v}>
-          {l}
-        </option>
-      ))}
-    </select>
+    <span className="relation-select">
+      <Select variant="inline" label={label} value={value} onChange={onChange} options={RELATIONS.map(([v, l]) => ({ value: v, label: l }))} />
+    </span>
   );
 }
 
@@ -359,14 +356,15 @@ function GroupCard({ group, connections, onChanged }) {
             if (pick) run(() => api.post(`/workspaces/${group.id}/invites`, { username: pick }), 'Invitation sent').then(() => setPick(''));
           }}
         >
-          <select value={pick} onChange={(e) => setPick(e.target.value)} aria-label="Invite a connection">
-            <option value="">{invitable.length ? 'Invite someone you are connected with…' : 'No one left to invite'}</option>
-            {invitable.map((c) => (
-              <option key={c.id} value={c.user.username}>
-                {c.user.name} (@{c.user.username})
-              </option>
-            ))}
-          </select>
+          <Select
+            label="Invite a connection"
+            value={pick}
+            onChange={setPick}
+            options={[
+              { value: '', label: invitable.length ? 'Invite someone you are connected with…' : 'No one left to invite' },
+              ...invitable.map((c) => ({ value: c.user.username, label: `${c.user.name} (@${c.user.username})`, person: c.user })),
+            ]}
+          />
           <button className="btn sm primary" disabled={!pick}>
             Send invitation
           </button>

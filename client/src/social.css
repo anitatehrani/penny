@@ -223,9 +223,8 @@
   flex-wrap: wrap;
 }
 .relation-select {
+  display: inline-flex;
   width: auto;
-  padding: 5px 8px;
-  font-size: 0.88rem;
 }
 .block {
   display: block;

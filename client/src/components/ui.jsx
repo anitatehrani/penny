@@ -3,6 +3,7 @@ import { addMonthsYM, currentMonth, monthLabel } from '../format.js';
 import { useApp } from '../context.jsx';
 import { useTheme } from '../theme.js';
 import { Avatar } from './Avatar.jsx';
+import Select from './ds/Select.jsx';
 
 export { Avatar };
 
@@ -152,17 +153,12 @@ export function Modal({ title, onClose, children, wide }) {
 export function CategorySelect({ kind, value, onChange, allowAll, allLabel = 'All categories', label = 'Category' }) {
   const { categories } = useApp();
   const list = kind ? categories.filter((c) => c.kind === kind) : categories;
-  return (
-    <select value={value ?? ''} onChange={(e) => onChange(e.target.value)} aria-label={label}>
-      <option value="">{allowAll ? allLabel : 'No category'}</option>
-      {allowAll && <option value="none">Uncategorized</option>}
-      {list.map((c) => (
-        <option key={c.id} value={c.id}>
-          {kind ? c.name : `${c.name} (${c.kind})`}
-        </option>
-      ))}
-    </select>
-  );
+  const options = [
+    { value: '', label: allowAll ? allLabel : 'No category' },
+    ...(allowAll ? [{ value: 'none', label: 'Uncategorized' }] : []),
+    ...list.map((c) => ({ value: String(c.id), label: kind ? c.name : `${c.name} (${c.kind})`, dot: c.color })),
+  ];
+  return <Select label={label} value={value ?? ''} onChange={onChange} options={options} />;
 }
 
 export function CategoryDot({ color, name }) {

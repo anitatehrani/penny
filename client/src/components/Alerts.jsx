@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import { useApp } from '../context.jsx';
 import { useNotifications } from '../notifications.jsx';
+import Select from './ds/Select.jsx';
 import { Field, Icon, Modal } from './ui.jsx';
 
 /** A saved override ({mode, days}) or nothing, as the form's choice. */
@@ -38,11 +39,17 @@ export function AlertPicker({ value, onChange, label = 'Alerts', hint, idPrefix 
     <div className="alert-picker">
       <div className="form-grid">
         <Field label={label} hint={hint}>
-          <select value={value.mode} onChange={(e) => set({ mode: e.target.value })} id={`${idPrefix}-mode`}>
-            <option value="default">Follow my default ({lead === 0 ? 'on the day' : `${lead} day${lead === 1 ? '' : 's'} before`})</option>
-            <option value="on">Always remind me</option>
-            <option value="off">Never remind me</option>
-          </select>
+          <Select
+            label={label}
+            id={`${idPrefix}-mode`}
+            value={value.mode}
+            onChange={(mode) => set({ mode })}
+            options={[
+              { value: 'default', label: `Follow my default (${lead === 0 ? 'on the day' : `${lead} day${lead === 1 ? '' : 's'} before`})` },
+              { value: 'on', label: 'Always remind me' },
+              { value: 'off', label: 'Never remind me' },
+            ]}
+          />
         </Field>
         {value.mode === 'on' ? (
           <Field label="Remind me" hint="Days before it is due. 0 = on the day.">

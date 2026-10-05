@@ -9,6 +9,7 @@ import { useFetch } from '../hooks.js';
 import { useWorkspace } from '../workspace.jsx';
 import { AlertPicker, choiceFrom, NO_CHOICE, sameChoice, saveAlertChoice } from './Alerts.jsx';
 import Receipts, { uploadQueued, useReceiptList } from './Receipts.jsx';
+import Select from './ds/Select.jsx';
 import { Avatar, CategorySelect, Field, Segmented } from './ui.jsx';
 
 const cents = (v) => Math.round((Number(v) || 0) * 100);
@@ -180,22 +181,21 @@ export default function TransactionForm({ initial, defaultDate, onSaved, onCance
           <CategorySelect kind={type} value={categoryId} onChange={setCategoryId} />
         </Field>
         <Field label="Status">
-          <select value={effectiveStatus} onChange={(e) => setStatus(e.target.value)}>
-            <option value="paid">{type === 'income' ? 'Received' : 'Paid'}</option>
-            <option value="pending">{type === 'income' ? 'Expected' : 'Pending (still to pay)'}</option>
-          </select>
+          <Select
+            label="Status"
+            value={effectiveStatus}
+            onChange={setStatus}
+            options={[
+              { value: 'paid', label: type === 'income' ? 'Received' : 'Paid' },
+              { value: 'pending', label: type === 'income' ? 'Expected' : 'Pending (still to pay)' },
+            ]}
+          />
         </Field>
       </div>
 
       {isGroup && (
         <Field label={type === 'income' ? 'Whose income' : 'Paid by'} hint="Everything lands in the shared balance; this just records who it came from.">
-          <select value={paidBy} onChange={(e) => setPaidBy(e.target.value)}>
-            {members.map((m) => (
-              <option key={m.username} value={m.username}>
-                {m.username === user.username ? `${m.name} (you)` : m.name}
-              </option>
-            ))}
-          </select>
+          <Select label={type === 'income' ? 'Whose income' : 'Paid by'} value={paidBy} onChange={setPaidBy} options={members.map((m) => ({ value: m.username, label: m.username === user.username ? `${m.name} (you)` : m.name, person: m }))} />
         </Field>
       )}
 

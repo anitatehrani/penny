@@ -390,3 +390,24 @@ kept its own copy of the monthly-equivalent sum that section 17 moved into one f
 **Where the logic is.** `payingOff(debts, plans, today)` in `client/src/payingOffLogic.js` picks, orders and describes the rows and works
 out the lead figure. A plain function, so it is tested without a browser. No new server route: the page reads `GET /api/debts` and
 `GET /api/installments`.
+
+## 20. One dropdown everywhere (defined before implementation)
+
+**What was wrong.** The Payments filters use Penny's own dropdown (`FilterSelect`: a rounded popup with a search box for long lists,
+coloured category dots, people's pictures, a bottom sheet on a phone). Every *form* still used the browser's built-in `<select>`: a plain
+grey list that ignores the theme, shows no category colours and looks different on every browser and phone. Sixteen of them remained.
+
+**What changes** (look and feel only; the values, labels and what gets saved are unchanged):
+
+- `FilterSelect` gets a `variant`: `filter` (as before), `field` (looks like the other inputs in a form: full width, same height,
+  never tinted as "active"), and `inline` (compact, for a table cell or a line of text). It also accepts `disabled` and `id`, so a
+  form label can point at it. `components/ds/Select.jsx` is the form-facing name: `<Select label value onChange options />`, where
+  `onChange` gets the chosen value as a string, exactly like the native element did.
+- All 16 native dropdowns are replaced: category, status, "paid by" (with the person's picture), repeats, alerts, currency, the
+  weekly-summary day, the e-mail hour, a category's alert setting, the notification filter and per-payment alert, a connection's
+  relationship, and the invite picker. Categories show their colour dot and, in a long list, a search box.
+- Keyboard and screen readers work as in the filters: Arrow keys move, Enter chooses, Escape closes the list without closing the
+  dialog it was opened from, and the control is a button announced as "{label}: {chosen}" with a listbox.
+
+**Where the code is.** `CategorySelect` in `ui.jsx` keeps its props and builds its options from the categories. The pure option
+logic stays in `filterLogic.js`, already tested.
