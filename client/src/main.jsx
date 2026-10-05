@@ -8,6 +8,7 @@ import { AuthProvider, useAuth } from './auth.jsx';
 import { CommandProvider } from './command/command.jsx';
 import { AppProvider } from './context.jsx';
 import { NotificationsProvider } from './notifications.jsx';
+import { installNumberWheelGuard } from './numberInputs.js';
 import AuthPages from './pages/Auth.jsx';
 import { Unsubscribe, VerifyEmail } from './pages/EmailLinks.jsx';
 import { PreferencesProvider } from './prefs.jsx';
@@ -69,6 +70,8 @@ function Root() {
     </PreferencesProvider>
   );
 }
+
+installNumberWheelGuard(); // scrolling over a focused number box must not change the number
 
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>

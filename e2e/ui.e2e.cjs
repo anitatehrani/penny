@@ -1327,6 +1327,105 @@ async function sessionFor(db, email) {
     }
   });
 
+  console.log('\nCard purchases in installments');
+  await check('a card purchase paid in installments is one line in the purchase month at its price, counted once, and shows its interest', async () => {
+    page = await open('/payments');
+    const made = await api(page, 'POST', '/installments', { description: 'E2E card inst', installment_amount: 260, installment_count: 4, first_due_date: '2031-07-10', charged_on: '2031-06-02', purchase_amount: 1000, category_id: null });
+    eq(made.status, 201, 'a plan of 4 x 260 for a 1000 purchase');
+    try {
+      const digits = (t) => t.replace(/[^0-9]/g, '');
+      page = await open('/payments?month=2031-06');
+      await page.waitForSelector('.tx-row');
+      const june = await page.evaluate(() => {
+        const rows = [...document.querySelectorAll('.tx-row')].filter((r) => r.textContent.includes('E2E card inst'));
+        const r = rows[0];
+        return { n: rows.length, title: r?.querySelector('.tx-title')?.textContent.trim(), amount: r?.querySelector('.tx-amount')?.textContent ?? '', meta: r?.querySelector('.tx-meta')?.textContent ?? '', strip: document.querySelector('.summary-strip')?.textContent ?? '' };
+      });
+      eq(june.n, 1, 'one line in the purchase month');
+      truthy(!/\(1\/4\)/.test(june.title), 'without the installment number: ' + june.title);
+      eq(digits(june.amount), '100000', 'at the price, not the installment');
+      truthy(/paid in 4 installments/.test(june.meta), 'says how it is paid: ' + june.meta);
+      truthy(/Bought with credit card\s*[€$£]?\s*1,?000\.00/.test(june.strip), 'bought with credit card counts the price once: ' + june.strip.replace(/\s+/g, ' '));
+      page = await open('/payments?month=2031-08');
+      await page.waitForSelector('.tx-row');
+      const aug = await page.evaluate(() => {
+        const rows = [...document.querySelectorAll('.tx-row')].filter((r) => r.textContent.includes('E2E card inst'));
+        return { n: rows.length, title: rows[0]?.querySelector('.tx-title')?.textContent.trim(), amount: rows[0]?.querySelector('.tx-amount')?.textContent ?? '', strip: document.querySelector('.summary-strip')?.textContent ?? '' };
+      });
+      eq(aug.n, 1, 'one installment in August');
+      truthy(/\(2\/4\)/.test(aug.title), 'the second of four: ' + aug.title);
+      eq(digits(aug.amount), '26000', 'with its interest in the amount');
+      eq(/Bought with credit card/.test(aug.strip), false, 'later installments are not bought again');
+      page = await open('/installments');
+      await page.waitForSelector('.card.plan');
+      const plan = await page.evaluate(() => [...document.querySelectorAll('.card.plan')].find((c) => c.querySelector('h3')?.textContent === 'E2E card inst')?.textContent ?? '');
+      truthy(/Bought with the credit card on/.test(plan) && /interest/.test(plan) && /40\.00/.test(plan), 'the plan shows the interest: ' + plan.replace(/\s+/g, ' ').slice(0, 220));
+    } finally {
+      await api(page, 'DELETE', '/installments/' + made.json.id);
+    }
+    eq((await api(page, 'GET', '/installments')).json.some((p) => p.description === 'E2E card inst'), false, 'cleaned up');
+  });
+  await check('the payment form offers installments for a card purchase, works out the interest, and refuses less than the price', async () => {
+    page = await open('/payments');
+    await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => /Add payment/.test(b.textContent))?.click());
+    await page.waitForSelector('.modal');
+    await page.type('.modal input[maxlength="200"]', 'E2E form card');
+    await page.type('.modal input[inputmode="decimal"]', '1000');
+    await page.click('.card-box input[type=checkbox]');
+    await page.waitForSelector('.card-box [role=radiogroup]');
+    await page.evaluate(() => [...document.querySelectorAll('.card-box [role=radio]')].find((b) => /In installments/.test(b.textContent)).click());
+    await page.waitForSelector('.card-box input[max="36"]');
+    await page.click('.card-box input[max="36"]', { clickCount: 3 });
+    await page.type('.card-box input[max="36"]', '5');
+    await sleep(200);
+    truthy(/no interest/.test(await text(page, '.card-box .banner')), 'starts with no interest: ' + (await text(page, '.card-box .banner')));
+    await page.evaluate(() => { const i = [...document.querySelectorAll('.card-box input[type=number]')].find((x) => x.max !== '36'); i.focus(); });
+    await page.keyboard.type('220');
+    await sleep(200);
+    truthy(/interest/.test(await text(page, '.card-box .banner')) && /100\.00/.test(await text(page, '.card-box .banner')) && /10%/.test(await text(page, '.card-box .banner')), 'interest 100.00 (10%): ' + (await text(page, '.card-box .banner')));
+    await page.keyboard.down('Control');
+    await page.keyboard.press('KeyA');
+    await page.keyboard.up('Control');
+    await page.keyboard.type('150');
+    await sleep(200);
+    truthy(/less than the price/.test(await text(page, '.card-box .banner')), 'refuses less than the price: ' + (await text(page, '.card-box .banner')));
+    eq(await count(page, '.modal .receipt-section'), 0, 'receipts are not offered for the plan');
+    await page.keyboard.press('Escape');
+    await sleep(200);
+    eq(await count(page, '.modal'), 0, 'closed without saving');
+    eq((await api(page, 'GET', '/installments')).json.some((p) => /E2E form card/.test(p.description)), false, 'nothing was created');
+  });
+
+  console.log('\nNumber boxes');
+  await check('scrolling with the mouse wheel over the amount box does not change the number', async () => {
+    page = await open('/payments');
+    await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => /Add payment/.test(b.textContent))?.click());
+    await page.waitForSelector('.modal');
+    const amount = '.modal input[inputmode="decimal"]';
+    await page.click(amount);
+    await page.type(amount, '100');
+    const box = await page.$eval(amount, (e) => { const r = e.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+    await page.mouse.move(box.x, box.y);
+    for (const deltaY of [-120, -120, 120, 240, -60]) {
+      await page.mouse.wheel({ deltaY });
+      await sleep(60);
+    }
+    eq(await page.$eval(amount, (e) => e.value), '100', 'still 100 after scrolling over it');
+    // the same for a count box and a pay-day box elsewhere
+    await page.keyboard.press('Escape');
+    await sleep(200);
+    page = await open('/settings');
+    const day = 'input[type=number][max="28"]';
+    await page.waitForSelector(day);
+    const before = await page.$eval(day, (e) => e.value);
+    await page.click(day);
+    const d = await page.$eval(day, (e) => { const r = e.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+    await page.mouse.move(d.x, d.y);
+    await page.mouse.wheel({ deltaY: -200 });
+    await sleep(100);
+    eq(await page.$eval(day, (e) => e.value), before, 'the card pay day is left alone too');
+  });
+
   console.log('\nSettings and avatar');
   await check('notification settings: every type has an in-app and an email switch, and changes save', async () => {
     page = await open('/settings?tab=notifications');

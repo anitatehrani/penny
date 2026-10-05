@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 import { carriedInto } from '../src/lib/carryover.js';
-import { Client, fails, ok, shutdown, signup, startServer } from './helpers.js';
+import { Client, connect, fails, ok, shutdown, signup, startServer } from './helpers.js';
 
 describe('the carry-over rule', () => {
   it('is nothing before the first month with payments, and in it', () => {
@@ -23,6 +23,10 @@ describe('the carry-over rule', () => {
     assert.equal(carriedInto({ '2031-03': 10000, '2031-04': -30000 }, '2031-05'), 0);
     assert.equal(carriedInto({ '2031-03': -5000 }, '2031-04'), 0);
     assert.equal(carriedInto({ '2031-03': -5000, '2031-04': 8000 }, '2031-05'), 8000, 'a shortfall before it is not paid back out of later money');
+  });
+  it('is exact however long ago the first payment was, and ignores the empty months in between', () => {
+    assert.equal(carriedInto({ '1900-01': 12345 }, '2031-03'), 12345);
+    assert.equal(carriedInto({ '1900-01': 12345, '2030-12': -2345 }, '2031-03'), 10000);
   });
   it('counts only months before the one asked for', () => {
     assert.equal(carriedInto({ '2031-03': 10000, '2031-05': 99999 }, '2031-05'), 10000);
@@ -137,5 +141,34 @@ describe('GET /api/carryover', () => {
   it('rejects a carry_over that is not true or false', async () => {
     const c = await fresh();
     fails(await c.put('/settings', { opening_balance: 0, currency: 'EUR', carry_over: 'yes' }), 400);
+  });
+});
+
+describe('carry-over in a shared budget', () => {
+  it('is one setting for the whole budget, separate from each person\'s own budget', async () => {
+    const owner = await signup(srv);
+    const mate = await signup(srv);
+    await connect(owner, mate);
+    const group = ok(await owner.client.post('/workspaces', { name: 'Home' }), 201);
+    ok(await owner.client.post(`/workspaces/${group.id}/invites`, { username: mate.user.username }), 201);
+    const inv = ok(await mate.client.get('/inbox')).group_invites[0];
+    ok(await mate.client.post(`/workspace-invites/${inv.id}/accept`));
+    owner.client.ws = group.id;
+    mate.client.ws = group.id;
+
+    // each person's own payment in the shared budget counts toward the same leftover
+    ok(await pay(owner.client, 'income', 1500, '2031-12-05'), 201);
+    ok(await pay(mate.client, 'expense', 400, '2031-12-06', { paid_by: mate.user.username }), 201);
+    assert.equal((await carry(owner.client, '2032-01')).amount, 1100);
+    assert.equal((await carry(mate.client, '2032-01')).amount, 1100, 'the other member sees the same figure');
+
+    // switching it off in the shared budget switches it off for both, and leaves their personal budgets alone
+    const s = ok(await owner.client.get('/settings'));
+    ok(await owner.client.put('/settings', { opening_balance: s.opening_balance, currency: s.currency, carry_over: false }));
+    assert.equal((await carry(mate.client, '2032-01')).enabled, false);
+    const ownPersonal = new Client(owner.client.root);
+    ownPersonal.jar = owner.client.jar;
+    assert.equal((await carry(ownPersonal, '2032-01')).enabled, true, 'their personal budget is still on');
+    assert.equal((await carry(ownPersonal, '2032-01')).amount, 0, 'and has none of the shared payments');
   });
 });

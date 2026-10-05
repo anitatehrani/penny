@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { billMonthOptions, byListDate, cardPayDate, defaultBillMonth, listDate, monthTotals, paymentDates, rowState } from '../src/cardLogic.js';
+import { billMonthOptions, byListDate, cardPayDate, defaultBillMonth, listDate, monthTotals, paymentDates, rowState, billsBehind, cardInstallmentSummary, suggestEach } from '../src/cardLogic.js';
+import { installmentDates } from '../../server/src/lib/schedule.js';
 
 describe('the day the card bill is paid', () => {
   it('is the pay day in that month', () => {
@@ -165,5 +166,84 @@ describe('how a payment row reads at a glance', () => {
     assert.equal(rowState(tx({ status: 'skipped', date: '2020-01-01' }), TODAY), '');
     assert.equal(rowState(tx({ purchase_only: true, date: '2020-01-01' }), TODAY), '');
     assert.equal(rowState(tx({ status: 'paid', purchase_only: true }), TODAY), '');
+  });
+});
+
+describe('a card purchase paid in installments', () => {
+  const inst = (over) => ({ id: 1, type: 'expense', amount: 190, status: 'pending', date: '2032-01-10', pay_method: 'credit_card', charged_on: '2031-12-02', installment_no: 1, plan_purchase_amount: 1000, ...over });
+
+  it('counts the price once, in the purchase month, whatever the installments add up to', () => {
+    const dec = monthTotals([inst({ purchase_only: true })], '2031-12');
+    assert.deepEqual([dec.boughtCredit, dec.expenses], [1000, 0], 'the price, and nothing spent yet');
+  });
+
+  it('adds nothing for the later installments in their own months, but counts each in expenses', () => {
+    const feb = monthTotals([inst({ id: 2, installment_no: 2, date: '2032-02-10' })], '2032-02');
+    assert.deepEqual([feb.boughtCredit, feb.expenses], [0, 190]);
+  });
+
+  it('counts the first installment as the price even when its bill is in the same month', () => {
+    const t = monthTotals([inst({ date: '2031-12-20' })], '2031-12');
+    assert.deepEqual([t.boughtCredit, t.expenses], [1000, 190]);
+  });
+
+  it('does not fall over on an installment row from an older server with no plan price', () => {
+    assert.equal(monthTotals([inst({ plan_purchase_amount: undefined, purchase_only: true })], '2031-12').boughtCredit, 190);
+  });
+});
+
+describe('the summary of card installments', () => {
+  it('starts each installment as the price over the count, to the cent', () => {
+    assert.equal(suggestEach(1000, 6), 166.67);
+    assert.equal(suggestEach(600, 3), 200);
+    assert.equal(suggestEach(0, 3), 0);
+    assert.equal(suggestEach(100, 0), 0);
+  });
+
+  it('with no amount typed, divides the price with no interest', () => {
+    assert.deepEqual(cardInstallmentSummary({ price: 600, each: '', count: 3 }), { valid: true, n: 3, each: 200, total: 600, interest: 0, pct: 0 });
+  });
+
+  it('works out the interest in money and percent from the amount the bank charges', () => {
+    assert.deepEqual(cardInstallmentSummary({ price: 1000, each: 190, count: 6 }), { valid: true, n: 6, each: 190, total: 1140, interest: 140, pct: 14 });
+    assert.equal(cardInstallmentSummary({ price: 333, each: 60, count: 6 }).pct, 8.1);
+  });
+
+  it('adds in whole cents', () => {
+    assert.equal(cardInstallmentSummary({ price: 0.3, each: 0.1, count: 3 }).interest, 0);
+    assert.equal(cardInstallmentSummary({ price: 1, each: 0.34, count: 3 }).interest, 0.02);
+  });
+
+  it('says so when the installments add up to less than the price', () => {
+    assert.deepEqual(cardInstallmentSummary({ price: 1000, each: 150, count: 6 }), { valid: false, n: 6, total: 900, price: 1000 });
+  });
+
+  it('is nothing for numbers that cannot be a plan', () => {
+    assert.equal(cardInstallmentSummary({ price: 1000, each: 100, count: 1 }), null);
+    assert.equal(cardInstallmentSummary({ price: 1000, each: 100, count: 37 }), null);
+    assert.equal(cardInstallmentSummary({ price: 0, each: 100, count: 3 }), null);
+    assert.equal(cardInstallmentSummary({ price: 1000, each: 0, count: 3 }), null);
+    assert.equal(cardInstallmentSummary({ price: 1000, each: '', count: 'abc' }), null);
+  });
+});
+
+describe('which monthly card bills are already behind us', () => {
+  it('counts the bills on or before today', () => {
+    assert.equal(billsBehind('2031-01-10', 6, '2031-01-09'), 0, 'none yet');
+    assert.equal(billsBehind('2031-01-10', 6, '2031-01-10'), 1, 'today counts');
+    assert.equal(billsBehind('2031-01-10', 6, '2031-03-15'), 3);
+    assert.equal(billsBehind('2031-01-10', 6, '2040-01-01'), 6, 'never more than there are');
+  });
+  it('keeps the pay day in short months, like the server', () => {
+    for (const first of ['2031-01-31', '2032-02-29', '2031-12-30']) {
+      const dates = installmentDates(first, 8);
+      for (const today of ['2030-01-01', first, dates[3], dates[7], '2040-01-01']) {
+        assert.equal(billsBehind(first, 8, today), dates.filter((d) => d <= today).length, first + ' on ' + today);
+      }
+    }
+  });
+  it('is zero for nothing to count', () => {
+    assert.equal(billsBehind('2031-01-10', 0, '2031-06-01'), 0);
+    assert.equal(billsBehind('2031-01-10', -3, '2031-06-01'), 0);
   });
 });

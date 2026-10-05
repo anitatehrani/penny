@@ -33,6 +33,7 @@ const baseSchema = z.object({
 export const SELECT = `
   SELECT t.id, t.type, t.description, t.amount, t.date, t.status, t.note, t.source, t.pay_method, t.charged_on, t.debt_id,
          t.category_id, t.recurring_id, t.installment_plan_id, t.installment_no,
+         pl.purchase_amount AS plan_purchase_amount, pl.installment_count AS plan_installment_count,
          c.name AS category_name, c.color AS category_color,
          t.member_id, mu.name AS member_name, mu.username AS member_username, mu.avatar_url AS member_avatar,
          (SELECT count(*)::int FROM receipts rc WHERE rc.transaction_id = t.id) AS receipt_count,
@@ -43,7 +44,8 @@ export const SELECT = `
                    WHERE p.transaction_id = t.id), '[]'::json) AS participants
   FROM transactions t
   LEFT JOIN categories c ON c.id = t.category_id
-  LEFT JOIN users mu ON mu.id = t.member_id`;
+  LEFT JOIN users mu ON mu.id = t.member_id
+  LEFT JOIN installment_plans pl ON pl.id = t.installment_plan_id`;
 
 const findOne = async (workspaceId, id) =>
   (await query(`${SELECT} WHERE t.id = $1 AND t.workspace_id = $2`, [id, workspaceId])).rows[0];
@@ -155,7 +157,7 @@ function filters(q, workspaceId) {
       params.push(monthStart(q.month), monthEnd(q.month));
       const a = `$${params.length - 1}`;
       const b = `$${params.length}`;
-      where.push(`((t.date >= ${a} AND t.date <= ${b}) OR (t.pay_method = 'credit_card' AND t.charged_on >= ${a} AND t.charged_on <= ${b}))`);
+      where.push(`((t.date >= ${a} AND t.date <= ${b}) OR (t.pay_method = 'credit_card' AND t.charged_on >= ${a} AND t.charged_on <= ${b} AND (t.installment_no IS NULL OR t.installment_no = 1)))`);
     } else {
       add('t.date >= ?', monthStart(q.month));
       add('t.date <= ?', monthEnd(q.month));

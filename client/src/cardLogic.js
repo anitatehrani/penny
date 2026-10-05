@@ -1,4 +1,5 @@
 import { addMonthsYM } from './format.js';
+import { addMonths } from './recurrenceLogic.js';
 
 const pad = (n) => String(n).padStart(2, '0');
 const daysIn = (ym) => {
@@ -58,7 +59,10 @@ export function monthTotals(rows, month) {
   for (const r of rows) {
     if (r.status === 'skipped') continue;
     const credit = r.pay_method === 'credit_card';
-    if (credit && (!month || (r.charged_on ?? r.date).slice(0, 7) === month)) boughtCredit += cents(r);
+    if (credit && (!month || (r.charged_on ?? r.date).slice(0, 7) === month)) {
+      // a purchase paid in installments counts once, at its price, with the first installment; the later ones add nothing here
+      if (!(r.installment_no > 1)) boughtCredit += r.installment_no === 1 && r.plan_purchase_amount != null ? Math.round(r.plan_purchase_amount * 100) : cents(r);
+    }
     if (r.purchase_only) continue;
     if (r.type === 'income') income += cents(r);
     else {
@@ -77,4 +81,44 @@ export function rowState(tx, today) {
   if (tx.purchase_only || tx.status === 'skipped') return '';
   if (tx.status === 'paid') return 'paid';
   return tx.status === 'pending' && tx.date < today ? 'overdue' : '';
+}
+
+const toCents = (v) => Math.round((Number(v) || 0) * 100);
+
+/** The price divided over `count` installments, to the cent: where the "each installment" box starts. */
+export function suggestEach(price, count) {
+  const n = Math.floor(Number(count));
+  const c = toCents(price);
+  return n >= 1 && c > 0 ? Math.round(c / n) / 100 : 0;
+}
+
+/**
+ * What paying a card purchase in installments comes to. `each` is what the bank charges each month; with no `each` the price is
+ * simply divided with no interest. Returns null when the numbers cannot be a plan (2 to 36 installments, a price and an amount),
+ * `{ valid: false }` when the installments add up to less than the price, otherwise the total, the interest in money and in percent.
+ */
+export function cardInstallmentSummary({ price, each, count }) {
+  const n = Math.floor(Number(count));
+  const priceC = toCents(price);
+  if (!(n >= 2 && n <= 36) || priceC <= 0) return null;
+  const hasEach = each !== '' && each != null;
+  const eachC = hasEach ? toCents(each) : null;
+  if (hasEach && eachC <= 0) return null;
+  const totalC = hasEach ? eachC * n : priceC;
+  if (totalC < priceC) return { valid: false, n, total: totalC / 100, price: priceC / 100 };
+  const interestC = totalC - priceC;
+  return {
+    valid: true,
+    n,
+    each: hasEach ? eachC / 100 : suggestEach(price, n),
+    total: totalC / 100,
+    interest: interestC / 100,
+    pct: Math.round((interestC * 1000) / priceC) / 10,
+  };
+}
+
+/** How many of a card purchase's monthly bills (the first on `first`) fall on or before `today`: those are already paid. */
+export function billsBehind(first, count, today) {
+  const day = Number(first.slice(8));
+  return Array.from({ length: Math.max(0, Math.floor(count)) }, (_, i) => addMonths(first, i, day)).filter((d) => d <= today).length;
 }

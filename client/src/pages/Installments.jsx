@@ -200,6 +200,12 @@ export default function Installments() {
         <div className={`progress${facts.segments ? ' steps' : ''}`} role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={`${p.paid_count} of ${p.installment_count} installments paid`}>
           {facts.segments ? facts.segments.map((state, i) => <span key={i} className={`step ${state}`} aria-hidden="true" />) : <div style={{ width: `${pct}%` }} />}
         </div>
+        {p.purchase_amount != null && (
+          <span className="muted small">
+            Bought with the credit card on {dateLong(p.charged_on)} for {money(p.purchase_amount)}
+            {p.total_amount > p.purchase_amount ? ` · interest ${money(p.total_amount - p.purchase_amount)} (${Math.round(((p.total_amount - p.purchase_amount) * 1000) / p.purchase_amount) / 10}%)` : ' · no interest'}
+          </span>
+        )}
         <span className="muted small">
           {p.paid_count} of {p.installment_count} paid
           {facts.finished ? '' : ` · about ${money(facts.each)} each`}

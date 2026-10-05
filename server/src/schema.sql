@@ -453,3 +453,7 @@ END $$;
 
 -- Carry what is left over at the end of a month into the next one (shown on the Payments page; nothing is stored as a payment)
 ALTER TABLE workspace_settings ADD COLUMN IF NOT EXISTS carry_over boolean NOT NULL DEFAULT true;
+
+-- A credit card purchase paid in installments: the price before interest and the day it was bought (the plan's payments are card payments)
+ALTER TABLE installment_plans ADD COLUMN IF NOT EXISTS purchase_amount numeric(12,2) CHECK (purchase_amount > 0);
+ALTER TABLE installment_plans ADD COLUMN IF NOT EXISTS charged_on date;

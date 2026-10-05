@@ -471,3 +471,47 @@ filter keeps its wording ("Credit card", "Cash and bank"); only the two figures 
 says "bought with credit card" for the same number. `monthTotals(rows, month)` in `client/src/cardLogic.js` returns
 `boughtCredit` and `boughtDebit` in place of `onCard` and `bought`; the month is needed to tell a purchase made in it from a bill
 that falls in it for something bought earlier.
+
+## 23. Credit card purchases paid in installments, with interest (defined before implementation)
+
+**What was missing.** A card purchase was always one payment, on one bill. Real cards also let you spread a purchase over several
+monthly bills, often with interest, and the amount charged each month is what the bank prints on the statement.
+
+**Entering one.** In the payment form, "Paid with credit card" gets a choice, **In one bill** (as before) or **In installments**:
+
+- **How many** installments (2 to 36) and **each installment**, the amount the bank charges each month. It starts as the price divided
+  by the number and is yours to change, which is how interest gets in: the form shows *"6 × €190.00 = €1,140.00 · interest €140.00
+  (14.0% of the price)"*. An amount lower than the price is refused (that is a discount, not an installment).
+- The bill chooser stays and now says which bill the **first** installment is on (so "pay from March" works as it does for one bill).
+  The rest follow monthly on the same card pay day.
+- Sharing with people, receipts and a payment alert are not offered while adding installments (they belong to one payment). They can
+  be added to any single installment afterwards; the form says so.
+- It is only for adding. Editing one installment edits that payment only, as for every installment plan.
+
+**What it creates.** An installment plan (so it also appears under Installments, with its steps and the last date) whose payments are
+credit card payments: each installment is on its bill day, bought on the purchase day (`charged_on`), and is marked paid or still to pay
+by the same rule as any payment (a bill day that has passed is paid). The plan remembers the **purchase price** (`purchase_amount`)
+and the **purchase day** (`charged_on`); interest is the total less the price, and is shown on the Installments page.
+
+**How it is counted.**
+
+- **Expenses** count each installment, with its interest, in the month it is charged. Nothing about the balance or forecast changes:
+  they already add up payments.
+- **Bought with credit card** (section 22) counts the **price once**, in the purchase month, not once per installment. The purchase
+  month lists one line for it (the first installment, shown with the price and *"paid in 6 installments from 10 Jan"*); the other
+  installments are listed only in their own months. `GET /api/transactions` leaves installments 2 and later out of the "bought this
+  month" extras, and adds `plan_purchase_amount` and `plan_installment_count` to each installment.
+
+**Not in this step: paying part of a bill and rolling the rest over with interest.** That needs its own screen ("Pay only part of
+this bill"), because it moves or splits several purchases at once. It is described and asked about separately.
+
+## 24. Scrolling over a number box must not change the number (bug fix)
+
+**The bug.** While typing an amount, the figure sometimes went up or down by itself (100 became 100.01, then 99.99). Browsers change a
+*focused* `<input type="number">` when the mouse wheel or a two-finger trackpad scroll passes over it, so scrolling a form with the
+cursor resting on the amount quietly edits it. It affected every number box (amounts, counts, the card pay day, alert days).
+
+**The fix.** One page-wide listener (`installNumberWheelGuard` in `client/src/numberInputs.js`, installed in `main.jsx`) lets go of a
+focused number box when a wheel event happens on it. The page then scrolls as expected and the number is untouched. Typing and the
+arrow keys still work. A browser check scrolls over the amount and the card pay day and asserts the value is unchanged; it fails
+(100 → 100.01) without the listener.

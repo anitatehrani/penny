@@ -69,6 +69,9 @@ describe('upgrading from the first versions', () => {
     const legacy = (await q(`SELECT pay_method, charged_on, debt_id FROM transactions WHERE description = 'Legacy payment'`)).rows[0];
     assert.deepEqual(legacy, { pay_method: 'cash', charged_on: null, debt_id: null }, 'an old payment is a plain cash payment');
     assert.equal((await q('SELECT card_pay_day FROM workspace_settings WHERE workspace_id = $1', [w1])).rows[0].card_pay_day, 10, 'the card pay day starts at the 10th');
+    assert.equal((await q('SELECT carry_over FROM workspace_settings WHERE workspace_id = $1', [w1])).rows[0].carry_over, true, 'carrying leftovers over is on for an old budget');
+    const cols = (await q(`SELECT column_name FROM information_schema.columns WHERE table_name = 'installment_plans' AND column_name IN ('purchase_amount', 'charged_on')`)).rows.map((r) => r.column_name).sort();
+    assert.deepEqual(cols, ['charged_on', 'purchase_amount'], 'installment plans can remember a card purchase');
     const slot = (await q(`SELECT date::text AS date, occurrence_date::text AS slot FROM transactions WHERE recurring_id = $1`, [ruleId])).rows[0];
     assert.deepEqual(slot, { date: '2026-02-05', slot: '2026-02-05' }, 'the old payment now knows which schedule slot it belongs to');
     assert.equal((await q(`SELECT count(*)::int AS n FROM transactions WHERE recurring_id IS NOT NULL AND occurrence_date IS NULL`)).rows[0].n, 0, 'none left without one');

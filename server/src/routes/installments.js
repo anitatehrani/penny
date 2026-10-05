@@ -20,6 +20,21 @@ const createSchema = z
     note,
     paid_count: z.coerce.number().int().min(0).default(0),
     paid_by: usernameField.nullable().optional(), // group budgets: who pays
+    // A credit card purchase paid in installments: the day it was bought, and the price before interest (default: no interest).
+    charged_on: ymd.optional(),
+    purchase_amount: money.optional(),
+  })
+  .refine((p) => p.charged_on || !p.purchase_amount, {
+    path: ['purchase_amount'],
+    message: 'only applies to a credit card purchase',
+  })
+  .refine((p) => !p.charged_on || p.charged_on <= p.first_due_date, {
+    path: ['charged_on'],
+    message: 'cannot be after the first card bill',
+  })
+  .refine((p) => !p.charged_on || (p.installment_count >= 2 && p.installment_count <= 36), {
+    path: ['installment_count'],
+    message: 'a card purchase can be paid in 2 to 36 installments',
   })
   .refine((p) => p.total_amount || p.installment_amount, {
     path: ['total_amount'],
@@ -33,7 +48,7 @@ const createSchema = z
 const updateSchema = z.object({ description: text(150), category_id: categoryId, note });
 
 const SELECT = `
-  SELECT p.id, p.description, p.total_amount, p.installment_count, p.first_due_date, p.category_id, p.note,
+  SELECT p.id, p.description, p.total_amount, p.installment_count, p.first_due_date, p.category_id, p.note, p.purchase_amount, p.charged_on,
     c.name AS category_name, c.color AS category_color,
     p.member_id, mu.name AS member_name, mu.username AS member_username, mu.avatar_url AS member_avatar,
     COALESCE(s.paid_count, 0)::int AS paid_count,
@@ -84,24 +99,28 @@ router.post(
     const totalCents = p.total_amount
       ? Math.round(p.total_amount * 100)
       : Math.round(p.installment_amount * 100) * p.installment_count;
+    if (p.charged_on && p.purchase_amount && Math.round(p.purchase_amount * 100) > totalCents) {
+      throw new HttpError(400, 'The installments add up to less than the price. Interest can only add to it.');
+    }
     const amounts = splitInstallments(totalCents, p.installment_count);
     const dates = installmentDates(p.first_due_date, p.installment_count);
 
     const planId = await withTransaction(async (client) => {
       const plan = (
         await client.query(
-          `INSERT INTO installment_plans (user_id, workspace_id, member_id, description, total_amount, installment_count, first_due_date, category_id, note)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
-          [req.user.id, ws, memberId, p.description, totalCents / 100, p.installment_count, p.first_due_date, p.category_id ?? null, p.note || null],
+          `INSERT INTO installment_plans (user_id, workspace_id, member_id, description, total_amount, installment_count, first_due_date, category_id, note, purchase_amount, charged_on)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
+          [req.user.id, ws, memberId, p.description, totalCents / 100, p.installment_count, p.first_due_date, p.category_id ?? null, p.note || null, p.charged_on ? (p.purchase_amount ?? totalCents / 100) : null, p.charged_on ?? null],
         )
       ).rows[0];
       await client.query(
         `INSERT INTO transactions
-           (user_id, workspace_id, member_id, type, description, amount, category_id, date, status, note, source, installment_plan_id, installment_no)
+           (user_id, workspace_id, member_id, type, description, amount, category_id, date, status, note, source, installment_plan_id, installment_no, pay_method, charged_on)
          SELECT $9::int, $10::int, $11::int, 'expense', $1::text || ' (' || n || '/' || $2::int || ')', a / 100.0, $3::int, d,
-                CASE WHEN n <= $4::int THEN 'paid' ELSE 'pending' END, $5::text, 'installment', $6::int, n
+                CASE WHEN n <= $4::int THEN 'paid' ELSE 'pending' END, $5::text, 'installment', $6::int, n,
+                CASE WHEN $12::date IS NULL THEN 'cash' ELSE 'credit_card' END, $12::date
          FROM unnest($7::int[], $8::date[]) WITH ORDINALITY AS u(a, d, n)`,
-        [p.description, p.installment_count, p.category_id ?? null, p.paid_count, p.note || null, plan.id, amounts, dates, req.user.id, ws, memberId],
+        [p.description, p.installment_count, p.category_id ?? null, p.paid_count, p.note || null, plan.id, amounts, dates, req.user.id, ws, memberId, p.charged_on ?? null],
       );
       return plan.id;
     });

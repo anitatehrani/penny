@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { api } from '../api.js';
 import { useAuth } from '../auth.jsx';
-import { billMonthOptions, defaultBillMonth, paymentDates } from '../cardLogic.js';
+import { billMonthOptions, billsBehind, cardInstallmentSummary, defaultBillMonth, paymentDates, suggestEach } from '../cardLogic.js';
 import { MonthCalendar } from './ds/MonthPicker.jsx';
 import { useApp } from '../context.jsx';
 import { dateLong, monthLabel, todayYMD } from '../format.js';
@@ -31,6 +31,10 @@ export default function TransactionForm({ initial, defaultDate, onSaved, onCance
   const [onCard, setOnCard] = useState(wasCard);
   const [date, setDate] = useState(wasCard ? initial.charged_on : (initial?.date ?? defaultDate ?? todayYMD()));
   const [billChoice, setBillChoice] = useState(wasCard ? initial.date.slice(0, 7) : null);
+  // A new card purchase can be paid in one bill or in installments (docs/DESIGN.md section 23).
+  const [cardMode, setCardMode] = useState('one');
+  const [instCount, setInstCount] = useState('3');
+  const [eachInput, setEachInput] = useState(''); // '' = not typed yet: the price divided by the count, no interest
   const [categoryId, setCategoryId] = useState(initial?.category_id ? String(initial.category_id) : '');
   const [note, setNote] = useState(initial?.note ?? '');
   const [status, setStatus] = useState(initial?.status === 'paid' ? 'paid' : initial?.status ? 'pending' : null);
@@ -78,12 +82,38 @@ export default function TransactionForm({ initial, defaultDate, onSaved, onCance
   // New items: past/today dates default to "paid", future dates to "pending" until the user picks.
   // (A card payment is judged by the day its bill is paid, not the day it was bought.)
   const effectiveStatus = status ?? (dates.date <= todayYMD() ? 'paid' : 'pending');
+  const inInstallments = onCard && !editing && cardMode === 'installments';
+  const summary = inInstallments ? cardInstallmentSummary({ price: amount, each: eachInput, count: instCount }) : null;
 
   async function submit(e) {
     e.preventDefault();
-    if (overShared) return notify('The shares add up to more than the payment.', 'error');
+    if (overShared && !inInstallments) return notify('The shares add up to more than the payment.', 'error');
+    if (inInstallments) {
+      if (!summary) return notify('Choose 2 to 36 installments and an amount for each.', 'error');
+      if (!summary.valid) return notify('The installments add up to less than the price. Interest can only add to it.', 'error');
+    }
     setSaving(true);
     try {
+      if (inInstallments) {
+        const n = summary.n;
+        const first = dates.date;
+        const paid = billsBehind(first, n, todayYMD()); // bills already behind us are paid
+        const plan = await api.post('/installments', {
+          description,
+          installment_count: n,
+          first_due_date: first,
+          charged_on: date,
+          purchase_amount: Number(amount),
+          ...(eachInput !== '' ? { installment_amount: Number(eachInput) } : { total_amount: Number(amount) }),
+          paid_count: paid,
+          category_id: categoryId ? Number(categoryId) : null,
+          note: note || null,
+          ...(isGroup ? { paid_by: paidBy } : {}),
+        });
+        notify('Installments added');
+        onSaved(plan);
+        return;
+      }
       const body = {
         type,
         description,
@@ -157,10 +187,62 @@ export default function TransactionForm({ initial, defaultDate, onSaved, onCance
               <span className="muted block small">It counts in the month you pay the card bill, not the day you bought it.</span>
             </span>
           </label>
+          {onCard && !editing && (
+            <Segmented
+              label="How is it paid?"
+              value={cardMode}
+              onChange={setCardMode}
+              options={[
+                { value: 'one', label: 'In one bill' },
+                { value: 'installments', label: 'In installments' },
+              ]}
+            />
+          )}
+          {inInstallments && (
+            <>
+              <div className="form-grid">
+                <Field label="Number of installments" hint="2 to 36, one on each monthly bill.">
+                  <input type="number" min="2" max="36" step="1" inputMode="numeric" value={instCount} onChange={(e) => setInstCount(e.target.value)} required />
+                </Field>
+                <Field label="Each installment" hint="What the bank charges each month. Raise it if there is interest.">
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    inputMode="decimal"
+                    value={eachInput !== '' ? eachInput : amount ? String(suggestEach(amount, instCount) || '') : ''}
+                    onChange={(e) => setEachInput(e.target.value)}
+                    placeholder="0.00"
+                  />
+                </Field>
+              </div>
+              {summary && (
+                <div className={`banner ${summary.valid ? 'info' : 'warn'}`} aria-live="polite">
+                  {summary.valid ? (
+                    <span>
+                      {summary.n} × <strong>{money(summary.each)}</strong> = <strong>{money(summary.total)}</strong>
+                      {summary.interest > 0 ? (
+                        <>
+                          {' · interest '}
+                          <strong>{money(summary.interest)}</strong> ({summary.pct}% of the price)
+                        </>
+                      ) : (
+                        ' · no interest'
+                      )}
+                    </span>
+                  ) : (
+                    <span>
+                      {summary.n} installments add up to {money(summary.total)}, less than the price of {money(summary.price)}. Interest can only add to it.
+                    </span>
+                  )}
+                </div>
+              )}
+            </>
+          )}
           {onCard && (
             <div className="field">
               <span className="field-label">
-                Counts in <strong>{monthLabel(billMonth)}</strong>
+                {inInstallments ? 'The first installment is in' : 'Counts in'} <strong>{monthLabel(billMonth)}</strong>
                 {billMonth === defaultBillMonth(date) ? ' (the next bill)' : ''}
               </span>
               <MonthCalendar
@@ -180,6 +262,7 @@ export default function TransactionForm({ initial, defaultDate, onSaved, onCance
         <Field label="Category">
           <CategorySelect kind={type} value={categoryId} onChange={setCategoryId} />
         </Field>
+        {!inInstallments && (
         <Field label="Status">
           <Select
             label="Status"
@@ -191,6 +274,7 @@ export default function TransactionForm({ initial, defaultDate, onSaved, onCance
             ]}
           />
         </Field>
+        )}
       </div>
 
       {isGroup && (
@@ -199,6 +283,7 @@ export default function TransactionForm({ initial, defaultDate, onSaved, onCance
         </Field>
       )}
 
+      {!inInstallments && (
       <div className="split-box">
         <label className="check">
           <input type="checkbox" checked={splitOpen} onChange={(e) => setSplitOpen(e.target.checked)} />
@@ -263,8 +348,11 @@ export default function TransactionForm({ initial, defaultDate, onSaved, onCance
             </>
           ))}
       </div>
+      )}
 
-      {effectiveStatus === 'pending' && (
+      {inInstallments && <p className="field-hint">Sharing the purchase, a receipt or an alert belong to one payment: open any installment afterwards to add them.</p>}
+
+      {effectiveStatus === 'pending' && !inInstallments && (
         <AlertPicker
           value={alertChoice}
           onChange={setAlertChoice}
@@ -274,10 +362,12 @@ export default function TransactionForm({ initial, defaultDate, onSaved, onCance
         />
       )}
 
-      <div className="receipt-section">
-        <span className="field-label">Receipts</span>
-        <Receipts txId={editing ? initial.id : null} items={receiptList ?? []} onChange={refreshReceipts} queue={queue} setQueue={setQueue} />
-      </div>
+      {!inInstallments && (
+        <div className="receipt-section">
+          <span className="field-label">Receipts</span>
+          <Receipts txId={editing ? initial.id : null} items={receiptList ?? []} onChange={refreshReceipts} queue={queue} setQueue={setQueue} />
+        </div>
+      )}
 
       <Field label="Note (optional)">
         <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={1000} />
@@ -287,7 +377,7 @@ export default function TransactionForm({ initial, defaultDate, onSaved, onCance
           Cancel
         </button>
         <button type="submit" className="btn primary" disabled={saving || overShared}>
-          {editing ? 'Save changes' : 'Add payment'}
+          {editing ? 'Save changes' : inInstallments ? 'Add installments' : 'Add payment'}
         </button>
       </div>
     </form>
