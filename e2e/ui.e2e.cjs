@@ -486,7 +486,7 @@ async function sessionFor(db, email) {
     eq(row.badge, 'Credit card', 'badge');
     truthy(/bought/.test(row.meta), 'says when it was bought: ' + row.meta);
     truthy(/counts when the bill is paid/i.test(row.title), 'the tooltip explains it');
-    truthy(/Paid with the card bill/.test(await text(page, '.summary-strip')) && /123\.45/.test(await text(page, '.summary-strip')), 'the card total is shown');
+    eq(/Paid with the card bill|Bought on card/.test(await text(page, '.summary-strip')), false, 'the old tile names are gone');
     await pickFilter(page, 'Paid with', 'Credit card');
     await sleep(600);
     const rows = await page.$$eval('.tx-row', (rs) => rs.map((r) => !!r.querySelector('.badge.card')));
@@ -505,7 +505,7 @@ async function sessionFor(db, email) {
     truthy(/counts on/.test(bought.meta), 'says when it counts: ' + bought.meta);
     eq(bought.buttons.some((t) => /Mark paid|Received|Paid/.test(t)), false, 'no "Mark paid" on a purchase that is not due yet');
     const strip = await text(page, '.summary-strip');
-    truthy(/Bought on card/.test(strip) && /123\.45/.test(strip), 'the strip shows it as bought on card: ' + strip.replace(/\s+/g, ' '));
+    truthy(/Bought with credit card\s*[€$£]?\s*123\.45/.test(strip), 'the strip shows it as bought with the credit card: ' + strip.replace(/\s+/g, ' '));
     const summary = (await api(page, 'GET', '/summary?month=' + THIS)).json.totals;
     const expensesShown = Number(/Expenses\s*[€$£]?\s*([\d,]+\.\d\d)/.exec(strip.replace(/\s+/g, ' '))[1].replace(/,/g, ''));
     eq(Math.round(expensesShown * 100), Math.round((summary.expensePaid + summary.expensePending) * 100), 'the month\'s expenses do not include it');
@@ -1301,6 +1301,30 @@ async function sessionFor(db, email) {
     await page.evaluate(() => [...document.querySelectorAll('.form-actions .btn.primary')].find((b) => /^Save$/.test(b.textContent.trim())).click());
     await sleep(700);
     eq((await api(page, 'GET', '/settings')).json.carry_over, true, 'and back on');
+  });
+
+  console.log('\nBought with each card');
+  await check('the strip shows what was bought with the credit card and with the debit card, by purchase day', async () => {
+    page = await open('/payments');
+    const made = [];
+    try {
+      const card = await api(page, 'POST', '/transactions', { type: 'expense', description: 'E2E card buy', amount: 100, date: '2031-06-10', charged_on: '2031-05-02', pay_method: 'credit_card', status: 'pending', category_id: null });
+      const cash = await api(page, 'POST', '/transactions', { type: 'expense', description: 'E2E debit buy', amount: 30, date: '2031-05-03', status: 'pending', category_id: null });
+      eq(card.status + ',' + cash.status, '201,201', 'a card purchase and a cash one');
+      made.push(card.json.id, cash.json.id);
+      page = await open('/payments?month=2031-05');
+      await page.waitForSelector('.summary-strip');
+      const tiles = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('.summary-strip > div')].map((d) => [d.querySelector('.muted')?.textContent.trim(), d.querySelector('strong')?.textContent.trim()])));
+      truthy(/100[.]00/.test(tiles['Bought with credit card'] ?? ''), 'credit card: ' + JSON.stringify(tiles));
+      truthy(/30[.]00/.test(tiles['Bought with debit card'] ?? ''), 'debit card: ' + JSON.stringify(tiles));
+      eq('Paid with the card bill' in tiles || 'Bought on card' in tiles, false, 'the old labels are gone');
+      page = await open('/payments?month=2031-06');
+      await page.waitForSelector('.summary-strip');
+      const june = await page.evaluate(() => [...document.querySelectorAll('.summary-strip > div .muted')].map((d) => d.textContent.trim()));
+      eq(june.includes('Bought with credit card'), false, 'the bill in June is not counted as bought in June');
+    } finally {
+      for (const id of made) await api(page, 'DELETE', '/transactions/' + id + '?hard=1');
+    }
   });
 
   console.log('\nSettings and avatar');

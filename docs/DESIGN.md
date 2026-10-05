@@ -452,3 +452,22 @@ carry the money. It is worked out on request by `GET /api/carryover?month=YYYY-M
 is `0` when the setting is off, when there was nothing left, or when the month is the budget's first). The pure rule is
 `carriedInto(netCents, month)` in `server/src/lib/carryover.js`; the client adds it to the strip with `withCarry()` in
 `client/src/carryLogic.js`, which is tested without a browser.
+
+## 22. Payments totals: bought with the credit card, bought with the debit card (defined before implementation)
+
+**What was wrong.** The two small figures next to Net were "Paid with the card bill" (the card bills that fall in this month) and
+"Bought on card" (card purchases made this month that are paid by a later bill). Neither answers the plain question "how much did I
+spend with each card this month?", and "Bought on card" sounded like it should be inside the other.
+
+**What changes.** The two figures become one like-for-like pair, both counted by the day you *bought* something:
+
+- **Bought with credit card** = expenses paid with the credit card whose purchase day falls in the chosen month, even when part of
+  it is paid with next month's bill (so it is not a part of the Expenses figure, which counts what leaves the account this month).
+- **Bought with debit card** = expenses paid from cash or the bank (Penny's "Cash and bank", which covers the debit card) in the
+  chosen month.
+
+Skipped payments are left out, and income is never counted. Each figure shows only when it is more than zero. The "Paid with"
+filter keeps its wording ("Credit card", "Cash and bank"); only the two figures change. The dashboard's "Payments this month" line
+says "bought with credit card" for the same number. `monthTotals(rows, month)` in `client/src/cardLogic.js` returns
+`boughtCredit` and `boughtDebit` in place of `onCard` and `bought`; the month is needed to tell a purchase made in it from a bill
+that falls in it for something bought earlier.

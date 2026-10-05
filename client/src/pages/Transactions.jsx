@@ -110,8 +110,8 @@ export default function Transactions() {
   };
 
   const rows = [...(data ?? [])].sort(byListDate); // a purchase sits on the day it was bought, not on the day its bill is paid
-  const totals = monthTotals(rows);
-  const { income, expenses, net, onCard, bought, carried = 0 } = showCarry ? withCarry(totals, carryData.data.amount) : totals;
+  const totals = monthTotals(rows, month);
+  const { income, expenses, net, boughtCredit, boughtDebit, carried = 0 } = showCarry ? withCarry(totals, carryData.data.amount) : totals;
 
   return (
     <>
@@ -176,16 +176,16 @@ export default function Transactions() {
             <span className="muted">Net</span>
             <strong className={`num ${net < 0 ? 'neg' : ''}`}>{money(net, { signed: true })}</strong>
           </div>
-          {onCard > 0 && (
-            <div>
-              <span className="muted">Paid with the card bill</span>
-              <strong className="num">{money(onCard)}</strong>
+          {boughtCredit > 0 && (
+            <div title="Everything you bought with the credit card this month, including what is paid with a later bill, so it is not part of the Expenses figure.">
+              <span className="muted">Bought with credit card</span>
+              <strong className="num">{money(boughtCredit)}</strong>
             </div>
           )}
-          {bought > 0 && (
-            <div title="Bought with the credit card this month. It counts in the month the bill is paid, so it is not in the figures on the left.">
-              <span className="muted">Bought on card</span>
-              <strong className="num">{money(bought)}</strong>
+          {boughtDebit > 0 && (
+            <div title="Everything paid from cash or your bank account this month, such as with your debit card.">
+              <span className="muted">Bought with debit card</span>
+              <strong className="num">{money(boughtDebit)}</strong>
             </div>
           )}
         </div>

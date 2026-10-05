@@ -45,26 +45,28 @@ export const byListDate = (a, b) => listDate(a).localeCompare(listDate(b)) || a.
 
 /**
  * The strip above the list. A purchase listed only because it was bought this month (`purchase_only`) is not counted in the month's
- * income, expenses or net: it counts in the month its bill is paid. It is totalled separately as "bought on card".
- * Everything is added in whole cents so the sums are exact.
+ * income, expenses or net: it counts in the month its bill is paid. Beside them, "bought with credit card" is everything bought with
+ * the credit card on a day of `month` (whenever its bill is paid) and "bought with debit card" is everything paid from cash or the
+ * bank that month. Skipped payments are left out; everything is added in whole cents so the sums are exact.
  */
-export function monthTotals(rows) {
+export function monthTotals(rows, month) {
   const cents = (r) => Math.round(r.amount * 100);
   let income = 0;
   let expenses = 0;
-  let onCard = 0; // credit card payments counted in this month
-  let bought = 0; // credit card purchases made this month that count in another one
+  let boughtCredit = 0;
+  let boughtDebit = 0;
   for (const r of rows) {
     if (r.status === 'skipped') continue;
-    if (r.purchase_only) {
-      bought += cents(r);
-      continue;
-    }
+    const credit = r.pay_method === 'credit_card';
+    if (credit && (!month || (r.charged_on ?? r.date).slice(0, 7) === month)) boughtCredit += cents(r);
+    if (r.purchase_only) continue;
     if (r.type === 'income') income += cents(r);
-    else expenses += cents(r);
-    if (r.pay_method === 'credit_card') onCard += cents(r);
+    else {
+      expenses += cents(r);
+      if (!credit) boughtDebit += cents(r);
+    }
   }
-  return { income: income / 100, expenses: expenses / 100, net: (income - expenses) / 100, onCard: onCard / 100, bought: bought / 100 };
+  return { income: income / 100, expenses: expenses / 100, net: (income - expenses) / 100, boughtCredit: boughtCredit / 100, boughtDebit: boughtDebit / 100 };
 }
 
 /**

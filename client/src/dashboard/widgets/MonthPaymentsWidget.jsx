@@ -23,7 +23,7 @@ export default function MonthPaymentsWidget({ month, rows }) {
   if (!rows) return <Skeleton w="100%" h={190} r={8} />;
   const name = monthLabel(month);
   const sorted = [...rows].sort(byListDate);
-  const totals = monthTotals(sorted);
+  const totals = monthTotals(sorted, month);
   const shown = expanded ? sorted : sorted.slice(0, FIRST);
 
   if (sorted.length === 0) {
@@ -37,10 +37,10 @@ export default function MonthPaymentsWidget({ month, rows }) {
     <>
       <p className="widget-lead">
         <span className="num">{money(totals.expenses)}</span> out, <span className="num">{money(totals.income)}</span> in · {sorted.length} payment{sorted.length === 1 ? '' : 's'}
-        {totals.bought > 0 && (
+        {totals.boughtCredit > 0 && (
           <span className="muted">
             {' '}
-            · <span className="num">{money(totals.bought)}</span> bought on card
+            · <span className="num">{money(totals.boughtCredit)}</span> bought with credit card
           </span>
         )}
       </p>

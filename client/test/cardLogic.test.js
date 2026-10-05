@@ -91,20 +91,40 @@ describe('the monthly list with card purchases in it', () => {
     assert.deepEqual([...rows].sort(byListDate).map((r) => r.id), [2, 4, 1, 3], 'both purchases on the 1st (by id), then the 10th, then the 15th');
   });
 
-  it('does not count a purchase in this month, but totals it separately', () => {
-    const t = monthTotals([
-      row({ id: 1, type: 'income', amount: 1500 }),
-      row({ id: 2, amount: 1000 }),
-      row({ id: 3, amount: 335, pay_method: 'credit_card', charged_on: '2026-09-01' }), // paid this month, bought before
-      row({ id: 4, amount: 71, purchase_only: true, pay_method: 'credit_card', charged_on: '2026-10-01', date: '2026-11-10' }),
-      row({ id: 5, amount: 89, purchase_only: true, pay_method: 'credit_card', charged_on: '2026-10-01', date: '2026-11-10' }),
-    ]);
-    assert.deepEqual(t, { income: 1500, expenses: 1335, net: 165, onCard: 335, bought: 160 });
+  it('does not count a purchase in this month, but totals it as bought with the credit card', () => {
+    const t = monthTotals(
+      [
+        row({ id: 1, type: 'income', amount: 1500 }),
+        row({ id: 2, amount: 1000 }),
+        row({ id: 3, amount: 335, pay_method: 'credit_card', charged_on: '2026-09-01' }), // paid this month, bought before
+        row({ id: 4, amount: 71, purchase_only: true, pay_method: 'credit_card', charged_on: '2026-10-01', date: '2026-11-10' }),
+        row({ id: 5, amount: 89, purchase_only: true, pay_method: 'credit_card', charged_on: '2026-10-01', date: '2026-11-10' }),
+      ],
+      '2026-10',
+    );
+    // expenses are what leaves the account this month (1000 cash + the 335 bill); credit card is what was bought this month (71 + 89)
+    assert.deepEqual(t, { income: 1500, expenses: 1335, net: 165, boughtCredit: 160, boughtDebit: 1000 });
+  });
+
+  it('counts a card purchase made and billed in the same month under credit card, once, and not under debit', () => {
+    const t = monthTotals([row({ id: 1, amount: 50, pay_method: 'credit_card', charged_on: '2026-10-02', date: '2026-10-20' }), row({ id: 2, amount: 7 })], '2026-10');
+    assert.deepEqual(t, { income: 0, expenses: 57, net: -57, boughtCredit: 50, boughtDebit: 7 });
+  });
+
+  it('does not count a bill for something bought in an earlier month as bought this month', () => {
+    const t = monthTotals([row({ amount: 335, pay_method: 'credit_card', charged_on: '2026-09-01' })], '2026-10');
+    assert.equal(t.boughtCredit, 0);
+    assert.equal(t.expenses, 335);
+  });
+
+  it('never counts income as bought with either card', () => {
+    const t = monthTotals([row({ type: 'income', amount: 900 })], '2026-10');
+    assert.deepEqual([t.boughtCredit, t.boughtDebit], [0, 0]);
   });
 
   it('leaves skipped rows out of everything', () => {
-    const t = monthTotals([row({ amount: 50, status: 'skipped' }), row({ amount: 70, status: 'skipped', purchase_only: true, pay_method: 'credit_card' }), row({ amount: 5 })]);
-    assert.deepEqual(t, { income: 0, expenses: 5, net: -5, onCard: 0, bought: 0 });
+    const t = monthTotals([row({ amount: 50, status: 'skipped' }), row({ amount: 70, status: 'skipped', purchase_only: true, pay_method: 'credit_card' }), row({ amount: 5 })], '2026-10');
+    assert.deepEqual(t, { income: 0, expenses: 5, net: -5, boughtCredit: 0, boughtDebit: 5 });
   });
 
   it('adds in whole cents: amounts that are not exact in floating point still add up to the cent', () => {
@@ -112,8 +132,10 @@ describe('the monthly list with card purchases in it', () => {
     const t = monthTotals([row({ id: 1, amount: 1.15 }), row({ id: 2, amount: 0.57 }), row({ id: 3, amount: 8.2 })]);
     assert.equal(t.expenses, 9.92);
     assert.equal(t.net, -9.92);
-    const u = monthTotals([row({ id: 1, amount: 1.15, purchase_only: true }), row({ id: 2, amount: 0.57, purchase_only: true }), row({ id: 3, amount: 8.2, purchase_only: true })]);
-    assert.equal(u.bought, 9.92);
+    const card = { purchase_only: true, pay_method: 'credit_card', charged_on: '2026-10-03' };
+    const u = monthTotals([row({ id: 1, amount: 1.15, ...card }), row({ id: 2, amount: 0.57, ...card }), row({ id: 3, amount: 8.2, ...card })], '2026-10');
+    assert.equal(u.boughtCredit, 9.92);
+    assert.equal(t.boughtDebit, 9.92);
   });
 
   it('adds in whole cents, so ten cents ten times is exactly one', () => {
@@ -124,7 +146,7 @@ describe('the monthly list with card purchases in it', () => {
   });
 
   it('is zero for an empty month', () => {
-    assert.deepEqual(monthTotals([]), { income: 0, expenses: 0, net: 0, onCard: 0, bought: 0 });
+    assert.deepEqual(monthTotals([], '2026-10'), { income: 0, expenses: 0, net: 0, boughtCredit: 0, boughtDebit: 0 });
   });
 });
 
