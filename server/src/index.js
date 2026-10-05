@@ -4,15 +4,19 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import { initDb, pool } from './db.js';
 import { authenticate, purgeExpiredSessions, requireAuth, sameOriginOnly } from './lib/auth.js';
+import { startBackupSchedule } from './lib/backup.js';
 import { errorHandler, wrap } from './lib/http.js';
 import { materializeAll } from './lib/materialize.js';
 import { runAlertScan } from './lib/notifications.js';
 import { resolveWorkspace } from './lib/workspace.js';
 import auth from './routes/auth.js';
 import avatars from './routes/avatars.js';
+import backups from './routes/backups.js';
 import notifications, { publicRouter as publicNotifications } from './routes/notifications.js';
 import receipts, { fileRouter as receiptFiles } from './routes/receipts.js';
 import cardBills from './routes/cardBills.js';
+import reconcile from './routes/reconcile.js';
+import safeToSpend from './routes/safeToSpend.js';
 import carryover from './routes/carryover.js';
 import debts from './routes/debts.js';
 import installments from './routes/installments.js';
@@ -56,9 +60,9 @@ app.use('/api', sameOriginOnly, authenticate);
 app.use('/api/auth', auth);
 app.use('/api', publicNotifications); // one-click unsubscribe from an e-mail (signed link, no login)
 app.use('/api', requireAuth);
-for (const r of [profile, avatars, people, workspaces, notifications, receiptFiles, preferences]) app.use('/api', r);
+for (const r of [profile, avatars, people, workspaces, notifications, receiptFiles, preferences, backups]) app.use('/api', r);
 app.use('/api', resolveWorkspace);
-for (const r of [settings, carryover, cardBills, transactions, receipts, recurring, installments, debts, reports, shared, insights]) app.use('/api', r);
+for (const r of [settings, carryover, cardBills, safeToSpend, reconcile, transactions, receipts, recurring, installments, debts, reports, shared, insights]) app.use('/api', r);
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found' }));
 
 // Serve the built React app when present (npm run build).
@@ -85,6 +89,9 @@ setInterval(
   () => Promise.all([materializeAll(), purgeExpiredSessions()]).catch((e) => console.error(e)),
   6 * 60 * 60 * 1000,
 ).unref();
+
+// Backups of the database: one a day while the server runs (BACKUPS=off switches it off)
+startBackupSchedule();
 
 // Alerts: look for due/overdue payments and negative balances, and send e-mail alerts, every hour
 // (ALERT_SCAN_MINUTES can shorten that, mainly for testing).

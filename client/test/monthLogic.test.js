@@ -208,6 +208,36 @@ describe('outlook', () => {
   it('takes the earliest of equal lowest points', () => {
     assert.equal(outlook([m('2026-10', 'current', 5), m('2026-11', 'forecast', 5)], 5).lowest.month, '2026-10');
   });
+  describe('with a safety buffer', () => {
+    const f = [m('2026-10', 'current', 500), m('2026-11', 'forecast', 300), m('2026-12', 'forecast', 150), m('2027-01', 'forecast', 400)];
+    it('is "low" when it stays above zero but dips under the buffer, with the first such month', () => {
+      const o = outlook(f, 500, 200);
+      assert.equal(o.status, 'low');
+      assert.deepEqual(o.firstLow, { month: '2026-12', balance: 150 });
+      assert.equal(o.firstNegative, null);
+      assert.equal(o.buffer, 200);
+    });
+    it('is "under" when the balance today is under the buffer but not below zero', () => {
+      assert.equal(outlook(f, 150, 200).status, 'under');
+      assert.equal(outlook(f, 0, 200).status, 'under');
+    });
+    it('keeps below zero stronger than the buffer, today and ahead', () => {
+      assert.equal(outlook(f, -1, 200).status, 'below');
+      assert.equal(outlook([m('2026-10', 'current', 500), m('2026-11', 'forecast', -5)], 500, 200).status, 'dip');
+    });
+    it('treats a balance exactly at the buffer as fine, today and ahead', () => {
+      assert.equal(outlook(f, 200, 200).status, 'low', 'today is fine but December is under');
+      assert.equal(outlook([m('2026-10', 'current', 200), m('2026-11', 'forecast', 200)], 200, 200).status, 'ok');
+    });
+    it('behaves exactly as before with no buffer, a zero one, or a silly one', () => {
+      for (const b of [undefined, 0, -50, 'x', null]) assert.deepEqual(outlook(f, 500, b), { ...outlook(f, 500), buffer: 0 });
+      assert.equal(outlook(f, 500).status, 'ok');
+    });
+    it('still reports the lowest point and ignores past months', () => {
+      assert.deepEqual(outlook([m('2026-08', 'actual', 10), ...f], 500, 200).lowest, { month: '2026-12', balance: 150 });
+      assert.equal(outlook([m('2026-08', 'actual', 10), m('2026-10', 'current', 500)], 500, 200).status, 'ok', 'a low month behind us does not count');
+    });
+  });
   it('has nothing to say without a forecast', () => {
     assert.equal(outlook([], 10), null);
     assert.equal(outlook(undefined, 10), null);

@@ -123,11 +123,17 @@ describe('Docker packaging', () => {
     const used = new Set();
     for (const f of walk('server/src').filter((x) => x.endsWith('.js'))) for (const m of read(f).matchAll(/process\.env\.([A-Z_]+)/g)) used.add(m[1]);
     // Not wired on purpose: PORT is fixed inside the container (the host port is mapped instead), the rest are set in the Dockerfile,
-    // are test-only, or are developer switches.
-    const notNeeded = new Set(['PORT', 'MAIL_PREVIEW_DIR', 'ALERT_SCAN_MINUTES', 'SMTP_IGNORE_TLS', 'NODE_ENV']);
+    // are test-only, or are developer switches. The backup settings only matter where the app makes its own backups (not in the
+    // container, which has BACKUPS=off and no pg_dump): BACKUP_DIR, BACKUP_COPY_DIR and PG_BIN.
+    const notNeeded = new Set(['PORT', 'MAIL_PREVIEW_DIR', 'ALERT_SCAN_MINUTES', 'SMTP_IGNORE_TLS', 'NODE_ENV', 'BACKUP_DIR', 'BACKUP_COPY_DIR', 'PG_BIN']);
     const unwired = [...used].filter((n) => !notNeeded.has(n) && !compose.includes(`${n}:`));
     assert.deepEqual(unwired, [], 'a new setting was added to the server but not to docker-compose.yml');
     assert.ok(used.has('DATABASE_URL') && used.has('SMTP_HOST'), 'the scan itself is working');
+  });
+
+  it('switches the app\'s own backups off in the container, which has no pg_dump, and says how to back up the database instead', () => {
+    assert.match(compose, /BACKUPS: "off"/);
+    assert.match(compose, /docker compose exec -T db pg_dump/);
   });
 
   it('points the app at the db service and waits for it to be healthy', () => {

@@ -47,6 +47,9 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       MAIL_FROM: ${MAIL_FROM:-Penny <no-reply@localhost>}
+      # The app image has no PostgreSQL command-line tools, so it cannot make its own backups here. Back up the database service instead:
+      #   docker compose exec -T db pg_dump -U penny -Fc penny > penny.dump
+      BACKUPS: "off"
     volumes:
       - penny-mail:/data/mail-preview
 

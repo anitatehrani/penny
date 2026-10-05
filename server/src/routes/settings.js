@@ -17,13 +17,15 @@ const settingsSchema = z.object({
   card_pay_day: z.number().int('must be a whole number').min(1, 'must be between 1 and 28').max(28, 'must be between 1 and 28').optional(),
   // Carry what is left over at the end of a month into the next one (default on). Left out = unchanged.
   carry_over: z.boolean().optional(),
+  // The balance you do not want to go below; warnings use it instead of zero. Left out = unchanged.
+  min_balance: strictNumber.refine((v) => v >= 0 && v <= 9_999_999_999, 'must be 0 or more').optional(),
 });
 
 router.get(
   '/settings',
   wrap(async (req, res) => {
     await query('INSERT INTO workspace_settings (workspace_id) VALUES ($1) ON CONFLICT DO NOTHING', [req.workspace.id]);
-    const { rows } = await query('SELECT opening_balance, currency, card_pay_day, carry_over FROM workspace_settings WHERE workspace_id = $1', [req.workspace.id]);
+    const { rows } = await query('SELECT opening_balance, currency, card_pay_day, carry_over, min_balance FROM workspace_settings WHERE workspace_id = $1', [req.workspace.id]);
     res.json(rows[0]);
   }),
 );
@@ -33,11 +35,12 @@ router.put(
   wrap(async (req, res) => {
     const s = settingsSchema.parse(req.body);
     const { rows } = await query(
-      `INSERT INTO workspace_settings (workspace_id, opening_balance, currency, card_pay_day, carry_over) VALUES ($1, $2, $3, COALESCE($4, 10), COALESCE($5, true))
+      `INSERT INTO workspace_settings (workspace_id, opening_balance, currency, card_pay_day, carry_over, min_balance) VALUES ($1, $2, $3, COALESCE($4, 10), COALESCE($5, true), COALESCE($6, 0))
        ON CONFLICT (workspace_id) DO UPDATE SET opening_balance = EXCLUDED.opening_balance, currency = EXCLUDED.currency,
-         card_pay_day = COALESCE($4, workspace_settings.card_pay_day), carry_over = COALESCE($5, workspace_settings.carry_over)
-       RETURNING opening_balance, currency, card_pay_day, carry_over`,
-      [req.workspace.id, Math.round(s.opening_balance * 100) / 100, s.currency, s.card_pay_day ?? null, s.carry_over ?? null],
+         card_pay_day = COALESCE($4, workspace_settings.card_pay_day), carry_over = COALESCE($5, workspace_settings.carry_over),
+         min_balance = COALESCE($6, workspace_settings.min_balance)
+       RETURNING opening_balance, currency, card_pay_day, carry_over, min_balance`,
+      [req.workspace.id, Math.round(s.opening_balance * 100) / 100, s.currency, s.card_pay_day ?? null, s.carry_over ?? null, s.min_balance === undefined ? null : Math.round(s.min_balance * 100) / 100],
     );
     res.json(rows[0]);
   }),

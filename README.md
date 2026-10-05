@@ -34,6 +34,10 @@ installments) and see where your balance is heading — including when it goes n
 | **Payment filters** | The Payments page filters (type, paid with, category, member) are styled dropdowns: the active ones are tinted, a long list such as the categories has a search box (type to narrow it, arrows and Enter to choose), and **Clear filters** resets them. The search box for descriptions and notes has a clear button. Works with the keyboard and as a bottom sheet on a phone. |
 | **Clearer forecast** | The balance card says at a glance whether you will dip below zero (and when), the forecast page uses the same charts as the dashboard with a Look-ahead choice (3 months to 2 years) and switches for the estimates, and a debt shows how much of it is paid. |
 | **Avatars** | Your photo, initials, a generated pattern or a small illustration; an "active now" dot for people you are connected to (you can switch it off). |
+| **Safety buffer** | Settings → *Safety buffer*: the balance you do not want to go below (default 0). The balance card, the forecast page and chart (a dashed buffer line), the low-balance alerts, the assistant and the insights all warn when the balance is, or is heading, below it, not only below zero. Below zero stays the stronger warning. |
+| **Safe to spend** | A line on the balance card: how much you can spend a day until the next income, after the payments still to come and the buffer (*"Safe to spend €18.00 a day for 12 days, until Mo — salary on 10 Nov"*, or how much you are short). Hover it for the arithmetic. |
+| **Match my bank balance** | On the balance card: type what your bank shows. Penny shows the difference and, if you say so, adds one paid *Balance adjustment* dated today (income or expense). It counts in the balance but not as spending; delete it to undo. Overdue unpaid payments, the usual cause of a gap, are pointed out first. |
+| **Backups** | Once a day (and at start-up if there is none from the last 24 hours) the server writes a compressed copy of the whole database to `backups/`, checks it can be read back, and keeps the newest 14 days plus the first backup of each of the last 6 months. Settings shows when the last one was made. `npm run backup` makes one now; `npm run restore` puts one back. See "Backups and restoring". |
 | **Themes** | Light, Dark or System (follows your device), switchable from the sidebar, the sign-in page and Profile. |
 
 The balance **can be negative** everywhere; negative values are shown in red with a warning icon.
@@ -128,6 +132,31 @@ Three ways to provide Postgres:
    ```
 2. **Docker** – `docker compose up -d db`, then set `DATABASE_URL=postgres://penny:penny@127.0.0.1:5434/penny` (the container publishes Postgres on 127.0.0.1:5434; change it with `DB_PORT`). To run the whole app in Docker instead, see "With Docker".
 3. **Your own Postgres** – create a database and point `DATABASE_URL` at it.
+
+### Backups and restoring
+
+All of the data is in one database on one computer, so Penny copies it for you.
+
+* **Automatic.** When the server starts, and then every hour, it checks the newest backup; if there is none from the last 24 hours it makes one
+  with `pg_dump` (compressed) named `penny-YYYY-MM-DD-HHMM.dump` in `backups/` next to the app. Every backup is read back with `pg_restore --list`
+  before it is kept. The folder is in `.gitignore`: a backup holds real financial data and must never be committed.
+* **Kept:** the newest 14 days of backups, plus the first backup of each of the last 6 months. Older ones are deleted, never the newest.
+* **Settings → Backups** shows when the last one was made and warns if there is none, the newest is more than 2 days old, or the last attempt failed.
+  It is read-only on purpose: any signed-in person could otherwise start or delete a backup of everyone's data.
+* **Keep a second copy somewhere else.** A backup on the same disk does not help if the disk fails. Set `BACKUP_DIR` to another drive, or set
+  `BACKUP_COPY_DIR` to a synced folder (OneDrive, Dropbox, a USB drive) and every backup is copied there as well. Both go in `server/.env`.
+* **By hand:** `npm run backup` makes one now and tidies the old ones.
+* **Restoring:**
+  1. **Stop the server.**
+  2. `npm run restore -- latest` shows what it would do and changes nothing. To go ahead: `npm run restore -- latest --yes`
+     (or `npm run restore -- penny-2026-10-05-2210.dump --yes` for a particular one).
+  3. A restore **replaces** what is in the database. It first makes a `pre-restore` backup of what is there now (kept 90 days, so even a wrong
+     restore can be undone), then restores in a single step: if anything fails, the database is left exactly as it was.
+  4. Start the server again.
+* **In Docker** the app's own backups are off (its image has no PostgreSQL command-line tools). Back up the database service instead:
+  `docker compose exec -T db pg_dump -U penny -Fc penny > penny.dump`, and keep that file somewhere safe.
+* **Switch off:** `BACKUPS=off` in `server/.env`. The tools `pg_dump` and `pg_restore` are found through `PG_BIN`, the usual Windows folders
+  (`C:\Program Files\PostgreSQL\17\bin`) or the PATH.
 
 ## The interface
 

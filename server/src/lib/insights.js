@@ -57,7 +57,7 @@ export async function gatherFacts(workspaceId, { today = todayYMD() } = {}) {
               COALESCE(sum(t.amount) FILTER (WHERE t.status = 'paid' AND extract(day FROM t.date) <= $4 AND t.date <= $5), 0)::float AS mtd,
               count(*) FILTER (WHERE t.status = 'paid')::int AS paid_count
        FROM transactions t LEFT JOIN categories c ON c.id = t.category_id
-       WHERE t.workspace_id = $1 AND t.type = 'expense' AND t.status IN ('paid', 'pending') AND t.date >= $2 AND t.date < $3
+       WHERE t.workspace_id = $1 AND t.type = 'expense' AND t.status IN ('paid', 'pending') AND t.source <> 'adjustment' AND t.date >= $2 AND t.date < $3
        GROUP BY 1, 2, 3, 4`,
       [workspaceId, from, to, dayOfMonth, today],
     ),
@@ -66,7 +66,7 @@ export async function gatherFacts(workspaceId, { today = todayYMD() } = {}) {
               COALESCE(sum(t.amount) FILTER (WHERE t.status = 'paid'), 0)::float AS paid,
               COALESCE(sum(t.amount) FILTER (WHERE t.status = 'paid' AND extract(day FROM t.date) <= $4 AND t.date <= $5), 0)::float AS mtd
        FROM transactions t
-       WHERE t.workspace_id = $1 AND t.type = 'income' AND t.status IN ('paid', 'pending') AND t.date >= $2 AND t.date < $3
+       WHERE t.workspace_id = $1 AND t.type = 'income' AND t.status IN ('paid', 'pending') AND t.source <> 'adjustment' AND t.date >= $2 AND t.date < $3
        GROUP BY 1`,
       [workspaceId, from, to, dayOfMonth, today],
     ),
@@ -152,8 +152,9 @@ export async function gatherFacts(workspaceId, { today = todayYMD() } = {}) {
     balance: {
       current: f.currentBalance,
       endOfMonth: f.months[0]?.endBalance ?? f.currentBalance,
-      firstNegative: f.insights.firstNegativeMonth ?? null,
+      firstNegative: f.insights.firstNegativeMonth ?? null, // the first month below the safety buffer (below zero when there is none)
       lowest: f.insights.lowest ?? null,
+      min: f.minBalance ?? 0, // the safety buffer
     },
   };
 }
@@ -183,6 +184,21 @@ export function buildInsights(facts) {
       ask: ['Will I go negative?', 'What is due soon?'],
     });
   }
+  if (balance.current >= 0 && balance.min > 0 && balance.current < balance.min) {
+    out.push({
+      key: k('below-buffer'),
+      type: 'below-buffer',
+      severity: 'alert',
+      title: `Your balance (${fmt(balance.current)}) is below your safety buffer of ${fmt(balance.min)}`,
+      body: 'It is not below zero, but it is under the cushion you chose to keep. Check what is still to pay before spending more.',
+      details: [
+        { label: 'Balance today', value: fmt(balance.current), tone: 'neg' },
+        { label: 'Safety buffer', value: fmt(balance.min) },
+      ],
+      action: { label: 'Open forecast', to: '/forecast' },
+      ask: ['Will I go negative?', 'What is due soon?'],
+    });
+  }
   if (facts.overdue.count > 0) {
     const n = facts.overdue.count;
     out.push({
@@ -198,7 +214,7 @@ export function buildInsights(facts) {
   }
 
   // 2. forecast
-  if (balance.current >= 0 && balance.firstNegative) {
+  if (balance.current >= Math.max(0, balance.min ?? 0) && balance.firstNegative) {
     const fn = balance.firstNegative;
     const monthsAway = Math.max(0, parseYMD(`${fn.month}-01`).y * 12 + parseYMD(`${fn.month}-01`).m - (parseYMD(`${facts.month}-01`).y * 12 + parseYMD(`${facts.month}-01`).m));
     const lowest = balance.lowest && balance.lowest.balance < fn.balance ? balance.lowest : fn;
@@ -206,7 +222,7 @@ export function buildInsights(facts) {
       key: k('forecast-negative', fn.month),
       type: 'forecast-negative',
       severity: monthsAway <= 2 ? 'alert' : 'watch',
-      title: `You may run below ${fmt(0)} in ${monthName(fn.month, { year: monthsAway > 6 })}`,
+      title: fn.balance < 0 ? `You may run below ${fmt(0)} in ${monthName(fn.month, { year: monthsAway > 6 })}` : `You may dip below your safety buffer of ${fmt(balance.min)} in ${monthName(fn.month, { year: monthsAway > 6 })}`,
       body: `The forecast reaches ${fmt(fn.balance)}${lowest.month !== fn.month ? ` and bottoms out at ${fmt(lowest.balance)} in ${monthName(lowest.month)}` : ''}. Moving or trimming a large planned payment would help.`,
       details: [
         { label: `Lowest point (${monthName(lowest.month)})`, value: fmt(lowest.balance), tone: 'neg' },
@@ -348,7 +364,7 @@ export function buildSummary(facts) {
     t.incomeCur > 0 ? `${fmt(t.incomePaidCur)} of ${fmt(t.incomeCur)} expected income has arrived.` : null,
     stillToPay > 0 ? `${fmt(stillToPay)} is still to pay.` : 'Everything planned for this month is paid.',
     top && top.cur > 0 ? `${top.name} is the biggest category at ${fmt(top.cur)}.` : null,
-    balance.endOfMonth < 0 ? `At this pace the balance ends the month at ${fmt(balance.endOfMonth)}, below zero.` : `The balance is expected to end the month at ${fmt(balance.endOfMonth)}.`,
+    balance.endOfMonth < 0 ? `At this pace the balance ends the month at ${fmt(balance.endOfMonth)}, below zero.` : balance.min > 0 && balance.endOfMonth < balance.min ? `At this pace the balance ends the month at ${fmt(balance.endOfMonth)}, below your safety buffer of ${fmt(balance.min)}.` : `The balance is expected to end the month at ${fmt(balance.endOfMonth)}.`,
   ].filter(Boolean);
   return {
     title: `${name} so far`,
@@ -394,7 +410,7 @@ export function buildCompare(facts) {
 export async function periodFigures(workspaceId, fromDate, toDateExclusive) {
   const { rows } = await query(
     `SELECT type, sum(amount)::float AS total, count(*)::int AS n FROM transactions
-     WHERE workspace_id = $1 AND status = 'paid' AND date >= $2 AND date < $3 GROUP BY type`,
+     WHERE workspace_id = $1 AND status = 'paid' AND source <> 'adjustment' AND date >= $2 AND date < $3 GROUP BY type`,
     [workspaceId, fromDate, toDateExclusive],
   );
   const get = (ty) => rows.find((r) => r.type === ty) ?? { total: 0, n: 0 };

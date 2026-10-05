@@ -14,7 +14,9 @@
     "test:server": "cd server && npm test",
     "test:client": "cd client && npm test",
     "seed:demo": "cd server && npm run seed:demo",
-    "e2e": "cd e2e && npm install --no-audit --no-fund && npm run ui"
+    "e2e": "cd e2e && npm install --no-audit --no-fund && npm run ui",
+    "backup": "node server/scripts/backup.mjs",
+    "restore": "node server/scripts/restore.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.0.0"

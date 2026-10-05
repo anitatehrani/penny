@@ -457,3 +457,16 @@ ALTER TABLE workspace_settings ADD COLUMN IF NOT EXISTS carry_over boolean NOT N
 -- A credit card purchase paid in installments: the price before interest and the day it was bought (the plan's payments are card payments)
 ALTER TABLE installment_plans ADD COLUMN IF NOT EXISTS purchase_amount numeric(12,2) CHECK (purchase_amount > 0);
 ALTER TABLE installment_plans ADD COLUMN IF NOT EXISTS charged_on date;
+
+-- The balance a person does not want to go below: warnings use it instead of zero (0 = as before)
+ALTER TABLE workspace_settings ADD COLUMN IF NOT EXISTS min_balance numeric(14,2) NOT NULL DEFAULT 0 CHECK (min_balance >= 0);
+
+-- A payment made by "match my bank balance": it fixes the balance but is not spending or income
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'transactions'::regclass AND contype = 'c'
+                 AND pg_get_constraintdef(oid) LIKE '%source%' AND pg_get_constraintdef(oid) LIKE '%adjustment%') THEN
+    ALTER TABLE transactions DROP CONSTRAINT IF EXISTS transactions_source_check;
+    ALTER TABLE transactions ADD CONSTRAINT transactions_source_check CHECK (source IN ('manual', 'recurring', 'installment', 'debt', 'adjustment'));
+  END IF;
+END $$;

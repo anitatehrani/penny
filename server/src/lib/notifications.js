@@ -288,11 +288,22 @@ async function scanBalances(userId) {
           dedupeKey: `negnow:${w.workspace_id}:${now.month}`,
         });
         if (id) created += 1;
+      } else if (f.minBalance > 0 && f.currentBalance < f.minBalance) {
+        if (!u.low) continue;
+        const id = await insertNotification(pool, u.id, {
+          kind: 'balance_warning',
+          title: `${label} is below your safety buffer`,
+          body: `Currently ${formatMoney(f.currentBalance, f.currency)}; your buffer is ${formatMoney(f.minBalance, f.currency)}${w.kind === 'group' ? ` in ${w.name}` : ''}.`,
+          link: '/forecast',
+          data: { workspace_id: w.workspace_id, month: now.month, balance: f.currentBalance, buffer: f.minBalance },
+          dedupeKey: `lowbuffer:${w.workspace_id}:${now.month}`,
+        });
+        if (id) created += 1;
       } else if (warn && u.forecast) {
         const monthLabel = new Date(`${warn.month}-15T12:00:00Z`).toLocaleDateString('en', { month: 'long', year: 'numeric', timeZone: 'UTC' });
         const id = await insertNotification(pool, u.id, {
           kind: 'forecast_warning',
-          title: `${w.kind === 'group' ? w.name : 'Your balance'} is projected to go negative in ${monthLabel}`,
+          title: warn.balance < 0 ? `${w.kind === 'group' ? w.name : 'Your balance'} is projected to go negative in ${monthLabel}` : `${w.kind === 'group' ? w.name : 'Your balance'} is projected to go below your safety buffer in ${monthLabel}`,
           body: `Expected to reach ${formatMoney(warn.balance, f.currency)}. Review upcoming payments in the forecast.`,
           link: '/forecast',
           data: { workspace_id: w.workspace_id, month: warn.month, balance: warn.balance },
@@ -314,7 +325,7 @@ const mondayOf = (ymd) => {
   return addDays(ymd, -back);
 };
 // Insights the other alerts already cover are left out, so the same warning does not arrive twice.
-const COVERED_ELSEWHERE = new Set(['overdue', 'below-zero', 'forecast-negative', 'saved', 'savings']);
+const COVERED_ELSEWHERE = new Set(['overdue', 'below-zero', 'below-buffer', 'forecast-negative', 'saved', 'savings']);
 
 /**
  * Once a day per person (in their own time zone): tell them about the one or two most useful new insights, and

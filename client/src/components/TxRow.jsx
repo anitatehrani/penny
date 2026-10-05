@@ -68,6 +68,11 @@ export default function TxRow({ tx, onChange, onEdit, compact }) {
               <Icon name="card" size={12} /> Installment
             </span>
           )}
+          {tx.source === 'adjustment' && (
+            <span className="badge" title="Added to match the bank balance. Delete it to undo.">
+              <Icon name="check" size={12} /> Adjustment
+            </span>
+          )}
           {tx.source === 'debt' && (
             <span className="badge" title="Part of paying off a debt">
               <Icon name="debt" size={12} /> Debt

@@ -1593,6 +1593,114 @@ async function sessionFor(db, email) {
     eq((await api(page, 'GET', '/installments')).json.some((p) => p.description === 'E2E months'), false, 'cleaned up');
   });
 
+  console.log('\nSafety buffer');
+  await check('a safety buffer is set in Settings, warns on the balance card and shows as a line on the chart', async () => {
+    page = await open('/settings');
+    const field = 'xpath/.//label[contains(., "Safety buffer")]//input';
+    await page.waitForSelector(field);
+    const original = (await api(page, 'GET', '/settings')).json;
+    eq(original.min_balance, 0, 'no buffer to start with');
+    try {
+      const bal = (await api(page, 'GET', '/summary')).json.balance;
+      const buffer = Math.ceil(bal) + 500;
+      await page.click(field, { clickCount: 3 });
+      await page.type(field, String(buffer));
+      await page.evaluate(() => [...document.querySelectorAll('.form-actions .btn.primary')].find((b) => /^Save$/.test(b.textContent.trim())).click());
+      await sleep(800);
+      eq((await api(page, 'GET', '/settings')).json.min_balance, buffer, 'saved');
+      page = await open('/');
+      await page.waitForSelector('.hero-status');
+      const status = await page.$eval('.hero-status', (e) => ({ cls: e.className, text: e.textContent.trim() }));
+      truthy(/Below your .*buffer today/.test(status.text) && /caution/.test(status.cls), 'the balance card says so: ' + JSON.stringify(status));
+      truthy(/Buffer/.test(await page.$eval('.hero .chart-box', (e) => e.textContent)), 'the chart has a Buffer line');
+      page = await open('/forecast');
+      await page.waitForSelector('.banner');
+      truthy(/buffer/.test(await text(page, '.banner')), 'the forecast page speaks of the buffer: ' + (await text(page, '.banner')).slice(0, 160));
+    } finally {
+      await api(page, 'PUT', '/settings', { opening_balance: original.opening_balance, currency: original.currency, min_balance: 0 });
+    }
+    page = await open('/');
+    await page.waitForSelector('.hero-status');
+    eq(/buffer/i.test(await page.$eval('.hero-status', (e) => e.textContent)), false, 'with no buffer the old words are back');
+    eq((await api(page, 'GET', '/settings')).json.min_balance, 0, 'restored');
+  });
+
+  console.log('\nSafe to spend');
+  await check('the balance card says how much is safe to spend, matching the server, and the buffer is taken out', async () => {
+    page = await open('/');
+    await page.waitForSelector('.hero-safe');
+    const digits = (t) => t.replace(/[^0-9]/g, '');
+    const line = await text(page, '.hero-safe');
+    const safe = (await api(page, 'GET', '/safe-to-spend')).json;
+    truthy(/Safe to spend|short before|Nothing spare/.test(line), 'a line: ' + line);
+    if (safe.per_day > 0) truthy(digits(line).includes(String(Math.round(safe.per_day * 100))), 'it shows the server figure ' + safe.per_day + ': ' + line);
+    else if (safe.short > 0) truthy(digits(line).includes(String(Math.round(safe.short * 100))), 'it shows the shortfall ' + safe.short + ': ' + line);
+    truthy(/\d+ days?/.test(line) || /short before|Nothing spare/.test(line), 'and for how long');
+    const title = await page.$eval('.hero-safe', (e) => e.getAttribute('title') ?? '');
+    truthy(/Balance today/.test(title) && /Still to pay until/.test(title), 'hovering shows the arithmetic: ' + title.replace(/\n/g, ' | '));
+    // a buffer takes money out of what can be spent
+    const original = (await api(page, 'GET', '/settings')).json;
+    try {
+      const before = safe.available;
+      await api(page, 'PUT', '/settings', { opening_balance: original.opening_balance, currency: original.currency, min_balance: 50 });
+      const after = (await api(page, 'GET', '/safe-to-spend')).json;
+      eq(Math.round((before - after.available) * 100), 5000, 'a 50 buffer takes 50 off what is available');
+      eq(after.buffer, 50, 'and is reported');
+    } finally {
+      await api(page, 'PUT', '/settings', { opening_balance: original.opening_balance, currency: original.currency, min_balance: 0 });
+    }
+  });
+
+  console.log('\nMatch the bank balance');
+  await check('match my bank balance: shows the difference, adds one adjustment payment, and deleting it undoes it', async () => {
+    page = await open('/');
+    await page.waitForSelector('.hero-why');
+    const before = (await api(page, 'GET', '/summary')).json.balance;
+    let adjId = null;
+    try {
+      await page.evaluate(() => [...document.querySelectorAll('.hero-why')].find((b) => /Match my bank balance/.test(b.textContent)).click());
+      await page.waitForSelector('.modal');
+      const submit = () => page.$eval('.modal .form-actions .btn.primary', (b) => b.disabled);
+      eq(await submit(), true, 'nothing to save before a balance is typed');
+      await page.type('.modal input[type=number]', String(before));
+      await sleep(150);
+      truthy(/already match/.test(await text(page, '.modal .banner[aria-live]')), 'the same figure says they match: ' + (await text(page, '.modal')).slice(0, 200));
+      eq(await submit(), true, 'and there is nothing to save');
+      await page.click('.modal input[type=number]', { clickCount: 3 });
+      await page.type('.modal input[type=number]', String(Math.round((before + 25.5) * 100) / 100));
+      await sleep(150);
+      const preview = await text(page, '.modal');
+      truthy(/25\.50/.test(preview) && /more/.test(preview) && /income/.test(preview), 'it says what will happen: ' + preview.slice(0, 260));
+      await page.click('.modal .form-actions .btn.primary');
+      await page.waitForSelector('.modal', { hidden: true });
+      await sleep(600);
+      const after = (await api(page, 'GET', '/summary')).json.balance;
+      eq(Math.round((after - before) * 100), 2550, 'the balance moved by the difference');
+      const adj = (await api(page, 'GET', '/transactions?from=2000-01-01&to=2100-01-01&status=')).json.filter((t) => t.source === 'adjustment');
+      eq(adj.length, 1, 'one adjustment payment');
+      adjId = adj[0].id;
+      page = await open('/payments');
+      await page.waitForSelector('.tx-row');
+      truthy(await page.evaluate(() => [...document.querySelectorAll('.tx-row')].some((r) => /Balance adjustment/.test(r.textContent) && /Adjustment/.test(r.querySelector('.badge')?.textContent ?? ''))), 'the list shows it with an Adjustment badge');
+    } finally {
+      const left = (await api(page, 'GET', '/transactions?from=2000-01-01&to=2100-01-01&status=')).json.filter((t) => t.source === 'adjustment');
+      for (const t of left) await api(page, 'DELETE', '/transactions/' + t.id + '?hard=1');
+    }
+    eq(Math.round(((await api(page, 'GET', '/summary')).json.balance - before) * 100), 0, 'deleting the adjustment puts the balance back');
+  });
+
+  console.log('\nBackups');
+  await check('Settings says when the last backup was made, and the status gives no file or folder names', async () => {
+    const status = (await api(page, 'GET', '/backups/status')).json;
+    eq(Object.keys(status).sort().join(), 'count,enabled,last_at,problem', 'only the safe facts');
+    page = await open('/settings');
+    await page.waitForSelector('.backup-line');
+    const line = await text(page, '.backup-line');
+    if (status.enabled && status.last_at) truthy(/Last automatic backup:/.test(line) && new RegExp(status.count + ' kept').test(line), 'the line: ' + line);
+    else truthy(line.length > 0, 'a line: ' + line);
+    truthy(!/\.dump|penny-20/.test(await text(page, 'main')), 'no file names on the page');
+  });
+
   console.log('\nSettings and avatar');
   await check('notification settings: every type has an in-app and an email switch, and changes save', async () => {
     page = await open('/settings?tab=notifications');

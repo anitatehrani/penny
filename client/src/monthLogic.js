@@ -114,15 +114,24 @@ export function compareFromSummaries(current, previous, month) {
 }
 
 /**
- * A one-line answer to "am I going to be all right?" from the forecast: is the balance below zero today, does it dip below zero in a
- * month still to come (and when first), or does it stay above (and where is the lowest point). Past months are not looked at.
- * Returns null when there is no forecast to go on.
+ * A one-line answer to "am I going to be all right?" from the forecast: is the balance below zero today, under the safety buffer
+ * today, does it dip below zero (or under the buffer) in a month still to come and when first, or does it stay above (and where is the
+ * lowest point). Below zero is always the stronger state. Past months are not looked at. `buffer` is the balance the person wants to
+ * keep (0 = none). Returns null when there is no forecast to go on.
  */
-export function outlook(months, balanceToday) {
+export function outlook(months, balanceToday, buffer = 0) {
   const ahead = (months ?? []).filter((m) => m.kind !== 'actual');
   if (!ahead.length) return null;
+  const min = Math.max(0, Number(buffer) || 0);
   const lowest = ahead.reduce((low, m) => (m.endBalance < low.endBalance ? m : low), ahead[0]);
   const firstNegative = ahead.find((m) => m.endBalance < 0) ?? null;
-  const status = balanceToday < 0 ? 'below' : firstNegative ? 'dip' : 'ok';
-  return { status, firstNegative: firstNegative && { month: firstNegative.month, balance: firstNegative.endBalance }, lowest: { month: lowest.month, balance: lowest.endBalance } };
+  const firstLow = min > 0 ? ahead.find((m) => m.endBalance < min) ?? null : null;
+  const status = balanceToday < 0 ? 'below' : balanceToday < min ? 'under' : firstNegative ? 'dip' : firstLow ? 'low' : 'ok';
+  return {
+    status,
+    firstNegative: firstNegative && { month: firstNegative.month, balance: firstNegative.endBalance },
+    firstLow: firstLow && { month: firstLow.month, balance: firstLow.endBalance },
+    lowest: { month: lowest.month, balance: lowest.endBalance },
+    buffer: min,
+  };
 }

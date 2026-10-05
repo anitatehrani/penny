@@ -213,6 +213,11 @@
   border-color: var(--ok-line);
   color: var(--ok-ink);
 }
+.hero-status.caution {
+  background: var(--warn-bg);
+  border-color: var(--warn-line);
+  color: var(--warn-ink);
+}
 .hero-status.warn {
   background: var(--danger-bg);
   border-color: var(--danger-line);
@@ -1214,4 +1219,25 @@
 .paying-link .progress,
 .paying-next {
   grid-column: 1 / -1;
+}
+
+/* the safe-to-spend line under the balance status */
+.hero-safe {
+  margin: var(--s-2) 0 0;
+  font-size: var(--fs-3);
+  color: var(--ink-2);
+  cursor: help;
+}
+.hero-safe.ok {
+  color: var(--ink);
+}
+.hero-safe.short {
+  color: var(--danger-ink);
+  font-weight: 600;
+}
+
+.hero-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-1) var(--s-4);
 }

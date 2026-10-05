@@ -14,7 +14,7 @@ const LOOK_AHEAD = [
 ];
 
 export default function Forecast() {
-  const { money } = useApp();
+  const { money, settings } = useApp();
   const [months, setMonths] = useState(12);
   const [estExpenses, setEstExpenses] = useState(true);
   const [estIncome, setEstIncome] = useState(false);
@@ -29,6 +29,8 @@ export default function Forecast() {
   const ahead = data.months.filter((m) => m.kind !== 'actual');
   const avgNet = ahead.slice(1).reduce((s, m) => s + m.net, 0) / Math.max(1, ahead.length - 1);
   const showEst = estExpenses && estimates.expenses > 0;
+  const buffer = Number(data.minBalance ?? settings?.min_balance ?? 0);
+  const belowZero = insights.firstNegativeMonth && insights.firstNegativeMonth.balance < 0;
 
   return (
     <>
@@ -48,13 +50,15 @@ export default function Forecast() {
       </header>
 
       {insights.firstNegativeMonth ? (
-        <div className="banner danger" role="alert">
+        <div className={`banner ${belowZero ? 'danger' : 'warn'}`} role="alert">
           <Icon name="alert" />
           <div>
             <strong>
-              Your balance is projected to go negative in {monthLabel(insights.firstNegativeMonth.month)} ({money(insights.firstNegativeMonth.balance)}).
+              {belowZero
+                ? `Your balance is projected to go negative in ${monthLabel(insights.firstNegativeMonth.month)} (${money(insights.firstNegativeMonth.balance)}).`
+                : `Your balance is projected to dip below your ${money(buffer)} buffer in ${monthLabel(insights.firstNegativeMonth.month)} (${money(insights.firstNegativeMonth.balance)}).`}
             </strong>{' '}
-            It stays below zero in {insights.negativeMonths} of the next {data.months.filter((m) => m.kind !== 'actual').length} months; the lowest point is{' '}
+            It stays below {buffer > 0 ? 'your buffer' : 'zero'} in {insights.negativeMonths} of the next {data.months.filter((m) => m.kind !== 'actual').length} months; the lowest point is{' '}
             {money(insights.lowest.balance)} ({monthLabel(insights.lowest.month)}).
           </div>
         </div>
@@ -62,7 +66,7 @@ export default function Forecast() {
         <div className="banner ok">
           <Icon name="check" />
           <div>
-            No negative balance expected. The lowest projected balance is <strong>{money(insights.lowest.balance)}</strong> in {monthLabel(insights.lowest.month)}.
+            {buffer > 0 ? `Your balance stays above your ${money(buffer)} buffer.` : 'No negative balance expected.'} The lowest projected balance is <strong>{money(insights.lowest.balance)}</strong> in {monthLabel(insights.lowest.month)}.
           </div>
         </div>
       )}
@@ -111,7 +115,7 @@ export default function Forecast() {
             <i className="line solid" /> Actual <i className="line dashed" /> Forecast
           </span>
         </div>
-        <BalanceTrend months={data.months} height={270} />
+        <BalanceTrend months={data.months} buffer={buffer} height={270} />
       </section>
 
       <section className="card">

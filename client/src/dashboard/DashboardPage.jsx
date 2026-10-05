@@ -110,6 +110,7 @@ export default function DashboardPage() {
   const forecast = useFetch(() => api.get(`/forecast?past=${win.past}&months=${win.months}`), [win.past, win.months, version]);
   const rules = useFetch(() => api.get('/recurring'), [version]);
   const debts = useFetch(() => api.get('/debts'), [version]);
+  const safe = useFetch(() => api.get('/safe-to-spend'), [version]);
   const plans = useFetch(() => api.get('/installments'), [version]);
   const setMonth = (m) => {
     const next = new URLSearchParams(params);
@@ -170,7 +171,7 @@ export default function DashboardPage() {
       case 'hero':
         return (
           <WidgetFrame key={id} {...common} collapsible={false} className="bare">
-            {monthView ? <HeroMonthWidget month={month} forecast={forecast.data} size={sz} /> : <HeroWidget summary={s} forecast={forecast.data} size={sz} />}
+            {monthView ? <HeroMonthWidget month={month} forecast={forecast.data} size={sz} /> : <HeroWidget summary={s} forecast={forecast.data} safe={safe.data} size={sz} />}
           </WidgetFrame>
         );
       case 'insights':

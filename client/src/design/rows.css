@@ -135,3 +135,15 @@
   min-height: 34px;
   font-size: var(--fs-2);
 }
+
+/* Settings: the backups line */
+.backup-line {
+  margin: 0 0 var(--s-2);
+  font-weight: 600;
+}
+.backup-line.warn {
+  color: var(--danger-ink);
+}
+.backup-line.off {
+  color: var(--ink-3);
+}

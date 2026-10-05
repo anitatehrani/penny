@@ -68,7 +68,7 @@ function TrendTooltip({ active, payload }) {
 }
 
 /** Month-end balance: solid for what happened, dashed for the forecast, a clear zero line, and a flag where it dips below zero. */
-export function BalanceTrend({ months, height = 190, marker }) {
+export function BalanceTrend({ months, height = 190, marker, buffer = 0 }) {
   const { money } = useApp();
   const reduced = useReducedMotion();
   const data = months.map((m, i) => ({
@@ -81,8 +81,9 @@ export function BalanceTrend({ months, height = 190, marker }) {
     forecast: m.kind === 'actual' ? null : m.endBalance,
   }));
   const labels = Object.fromEntries(data.map((d) => [d.month, d.label]));
+  const min = Math.max(0, Number(buffer) || 0);
   const values = data.map((d) => d.balance);
-  const axis = niceAxis(values);
+  const axis = niceAxis(min > 0 ? [...values, min] : values); // the buffer line must be inside the chart
   const dipping = data.some((d) => d.kind !== 'actual' && d.balance < 0);
   if (dipping && axis.ticks.length > 1) {
     // leave room under the lowest point for its label
@@ -91,8 +92,9 @@ export function BalanceTrend({ months, height = 190, marker }) {
     axis.domain = [axis.domain[0] - step, axis.domain[1]];
   }
   const dip = data.find((d) => d.kind !== 'actual' && d.balance < 0);
+  const low = min > 0 && !dip ? data.find((d) => d.kind !== 'actual' && d.balance < min) : null; // under the buffer but not below zero
   const mark = marker ? data.find((d) => d.month === marker) : null; // the month the dashboard is pointed at
-  const label = `${mark ? `${monthLabel(mark.month)} is marked. ` : ''}Month-end balance from ${monthLabel(months[0].month)} to ${monthLabel(months.at(-1).month)}. Lowest ${money(Math.min(...values))}.${dip ? ` It dips below zero in ${monthLabel(dip.month)}.` : ''}`;
+  const label = `${mark ? `${monthLabel(mark.month)} is marked. ` : ''}Month-end balance from ${monthLabel(months[0].month)} to ${monthLabel(months.at(-1).month)}. Lowest ${money(Math.min(...values))}.${dip ? ` It dips below zero in ${monthLabel(dip.month)}.` : ''}${low ? ` It dips below your ${money(min)} buffer in ${monthLabel(low.month)}.` : ''}`;
 
   return (
     <div role="img" aria-label={label} className="chart-box" style={{ height }}>
@@ -102,11 +104,13 @@ export function BalanceTrend({ months, height = 190, marker }) {
           <XAxis dataKey="month" {...AXIS} tickFormatter={(m) => labels[m]} interval="preserveStartEnd" minTickGap={18} tickMargin={8} padding={{ left: 14, right: 6 }} />
           <YAxis {...AXIS} width={54} domain={axis.domain} ticks={axis.ticks} tickFormatter={(v) => money.compact(v)} />
           <ReferenceLine y={0} stroke="var(--ink-3)" strokeDasharray="3 3" />
+          {min > 0 && <ReferenceLine y={min} stroke="var(--caution)" strokeDasharray="6 4" label={{ value: 'Buffer', position: 'insideTopRight', fill: 'var(--caution)', fontSize: 11, fontWeight: 600 }} />}
           <Tooltip content={<TrendTooltip />} cursor={{ stroke: 'var(--ink-3)', strokeDasharray: '2 3' }} isAnimationActive={false} />
           <Area type="monotone" dataKey="actual" stroke="var(--series-3)" strokeWidth={2.25} fill="var(--series-3)" fillOpacity={0.1} dot={false} activeDot={{ r: 5, stroke: 'var(--surface)', strokeWidth: 2 }} isAnimationActive={!reduced} animationDuration={700} connectNulls={false} />
           <Line type="monotone" dataKey="forecast" stroke="var(--forecast)" strokeWidth={2.25} strokeDasharray="5 5" dot={false} activeDot={{ r: 5, stroke: 'var(--surface)', strokeWidth: 2 }} isAnimationActive={!reduced} animationDuration={700} connectNulls={false} />
           {mark && <ReferenceLine x={mark.month} stroke="var(--accent)" strokeDasharray="2 3" />}
           {mark && <ReferenceDot x={mark.month} y={mark.balance} r={6} fill="var(--accent)" stroke="var(--surface)" strokeWidth={2} />}
+          {low && <ReferenceDot x={low.month} y={low.balance} r={5} fill="var(--caution)" stroke="var(--surface)" strokeWidth={2} />}
           {dip && <ReferenceDot x={dip.month} y={dip.balance} r={5} fill="var(--neg)" stroke="var(--surface)" strokeWidth={2} label={{ value: 'Dips below zero', position: 'left', offset: 10, fill: 'var(--neg)', fontSize: 11, fontWeight: 600 }} />}
         </ComposedChart>
       </ResponsiveContainer>

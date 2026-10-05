@@ -5,6 +5,8 @@ import AccountCard from '../components/AccountCard.jsx';
 import AppearanceSettings from '../components/AppearanceSettings.jsx';
 import NotificationSettings from '../components/NotificationSettings.jsx';
 import Select from '../components/ds/Select.jsx';
+import { useFetch } from '../hooks.js';
+import { backupLine } from '../backupLogic.js';
 import { Field, Icon, Modal, Segmented } from '../components/ui.jsx';
 import { useApp } from '../context.jsx';
 import { useNotifications } from '../notifications.jsx';
@@ -81,6 +83,9 @@ export default function Settings() {
   const [currency, setCurrency] = useState(settings.currency);
   const [cardDay, setCardDay] = useState(String(settings.card_pay_day ?? 10));
   const [carryOver, setCarryOver] = useState(settings.carry_over ?? true);
+  const backups = useFetch(() => api.get('/backups/status'), []);
+  const backup = backupLine(backups.data, (iso) => new Date(iso).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }));
+  const [buffer, setBuffer] = useState(String(settings.min_balance ?? 0));
   const [editingCat, setEditingCat] = useState(null);
   const [catAlerts, setCatAlerts] = useState({}); // category id -> 'on' | 'off' (my own choices; missing = follow default)
 
@@ -110,12 +115,13 @@ export default function Settings() {
     setCurrency(settings.currency);
     setCardDay(String(settings.card_pay_day ?? 10));
     setCarryOver(settings.carry_over ?? true);
+    setBuffer(String(settings.min_balance ?? 0));
   }, [settings]);
 
   async function save(e) {
     e.preventDefault();
     try {
-      await api.put('/settings', { opening_balance: Number(opening), currency, card_pay_day: Number(cardDay), carry_over: carryOver });
+      await api.put('/settings', { opening_balance: Number(opening), currency, card_pay_day: Number(cardDay), carry_over: carryOver, min_balance: Number(buffer) || 0 });
       reloadSettings();
       notify('Settings saved');
     } catch (err) {
@@ -186,6 +192,9 @@ export default function Settings() {
               <input type="number" min="1" max="28" step="1" inputMode="numeric" value={cardDay} onChange={(e) => setCardDay(e.target.value)} required />
             </Field>
           </div>
+          <Field label="Safety buffer" hint="The balance you do not want to go below. Warnings, the balance card and the forecast use it instead of zero. Leave it at 0 to be warned only below zero.">
+            <input type="number" step="0.01" min="0" inputMode="decimal" value={buffer} onChange={(e) => setBuffer(e.target.value)} placeholder="0.00" />
+          </Field>
           <div className="split-box">
             <label className="check">
               <input type="checkbox" checked={carryOver} onChange={(e) => setCarryOver(e.target.checked)} />
@@ -204,6 +213,21 @@ export default function Settings() {
           </div>
         </form>
       </section>
+
+      {backup && (
+        <section className="card" aria-labelledby="backups-title">
+          <div className="card-head">
+            <h2 id="backups-title">Backups</h2>
+          </div>
+          <p className={`backup-line ${backup.tone}`} role={backup.tone === 'warn' ? 'alert' : undefined}>
+            {backup.text}
+          </p>
+          <p className="muted small">
+            Penny copies the whole database once a day to a backups folder next to the app. A backup on the same disk does not help if the disk fails, so keep a
+            second copy somewhere else, such as another drive or a synced folder (see the README).
+          </p>
+        </section>
+      )}
 
       {groups.map(([kind, title]) => (
         <section className="card" key={kind}>

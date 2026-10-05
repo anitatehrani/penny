@@ -22,6 +22,7 @@ export function buildForecast({
   months = 12,
   estimateExpenses = true,
   estimateIncome = false,
+  minCents = 0, // the balance the person does not want to go below
 }) {
   const agg = {};
   for (const r of rows) (agg[r.month] ??= emptyMonth())[r.type][r.status] += r.cents;
@@ -86,10 +87,12 @@ export function buildForecast({
 
   const ahead = result.filter((r) => r.kind !== 'actual');
   const lowest = ahead.reduce((lo, r) => (lo === null || r.endBalance < lo.endBalance ? r : lo), null);
-  const firstNegative = ahead.find((r) => r.endBalance < 0) ?? null;
+  // "Negative" means below the person's safety buffer (0 unless they set one)
+  const firstNegative = ahead.find((r) => r.endBalance < minCents) ?? null;
   const units = (c) => c / 100;
 
   return {
+    minBalance: units(minCents),
     currentBalance: units(currentBalance),
     overdueNet: units(overdueNet),
     estimates: {
@@ -112,7 +115,8 @@ export function buildForecast({
     insights: {
       lowest: lowest && { month: lowest.month, balance: units(lowest.endBalance) },
       firstNegativeMonth: firstNegative && { month: firstNegative.month, balance: units(firstNegative.endBalance) },
-      negativeMonths: ahead.filter((r) => r.endBalance < 0).length,
+      negativeMonths: ahead.filter((r) => r.endBalance < minCents).length,
+      minBalance: units(minCents),
     },
   };
 }

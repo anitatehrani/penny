@@ -4,7 +4,7 @@ import { buildForecast } from './forecast.js';
 
 export async function workspaceSettings(workspaceId) {
   await query('INSERT INTO workspace_settings (workspace_id) VALUES ($1) ON CONFLICT DO NOTHING', [workspaceId]);
-  return (await query('SELECT opening_balance, currency FROM workspace_settings WHERE workspace_id = $1', [workspaceId])).rows[0];
+  return (await query('SELECT opening_balance, currency, min_balance FROM workspace_settings WHERE workspace_id = $1', [workspaceId])).rows[0];
 }
 
 /** The forecast for one budget (used by the API and by the balance-warning alerts). */
@@ -37,6 +37,7 @@ export async function forecastForWorkspace(workspaceId, { past = 3, months = 12,
     rows: toRows(all),
     manualPaidRows: toRows(manual),
     openingCents: Math.round(settings.opening_balance * 100),
+    minCents: Math.round((settings.min_balance ?? 0) * 100),
     currentMonth: monthOf(todayYMD()),
     past,
     months,

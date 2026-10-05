@@ -56,14 +56,17 @@ export async function answerQuestion(rawQuestion, { workspaceId, facts }) {
     if (b.current < 0) {
       return reply('forecast', `Your balance is already below zero: ${fmt(b.current)} today.`, { link: { label: 'Open forecast', to: '/forecast' }, follow_ups: ['What is due soon?', 'How can I save money?'] });
     }
+    if (b.min > 0 && b.current < b.min) {
+      return reply('forecast', `Your balance is ${fmt(b.current)} today, below your safety buffer of ${fmt(b.min)}.`, { link: { label: 'Open forecast', to: '/forecast' }, follow_ups: ['What is due soon?', 'How can I save money?'] });
+    }
     if (b.firstNegative) {
-      return reply('forecast', `Yes. The forecast first drops below zero in ${monthName(b.firstNegative.month, { year: true })}, reaching ${fmt(b.firstNegative.balance)}. Today you have ${fmt(b.current)}, and this month should end at ${fmt(b.endOfMonth)}.`, {
+      return reply('forecast', `Yes. The forecast first drops below ${b.firstNegative.balance < 0 ? 'zero' : `your safety buffer of ${fmt(b.min)}`} in ${monthName(b.firstNegative.month, { year: true })}, reaching ${fmt(b.firstNegative.balance)}. Today you have ${fmt(b.current)}, and this month should end at ${fmt(b.endOfMonth)}.`, {
         blocks: [{ type: 'rows', rows: [row('Balance today', fmt(b.current)), row('Expected end of month', fmt(b.endOfMonth)), row(`Lowest (${monthName(b.lowest.month, { year: true })})`, fmt(b.lowest.balance), { tone: b.lowest.balance < 0 ? 'neg' : undefined })] }],
         link: { label: 'Open forecast', to: '/forecast' },
         follow_ups: ['How can I save money?', 'What is due soon?'],
       });
     }
-    return reply('forecast', `No. Over the next months the forecast stays above zero. Today you have ${fmt(b.current)}, and this month should end at ${fmt(b.endOfMonth)}${b.lowest ? `; the lowest point ahead is ${fmt(b.lowest.balance)} in ${monthName(b.lowest.month, { year: true })}` : ''}.`, {
+    return reply('forecast', `No. Over the next months the forecast stays above ${b.min > 0 ? `your safety buffer of ${fmt(b.min)}` : 'zero'}. Today you have ${fmt(b.current)}, and this month should end at ${fmt(b.endOfMonth)}${b.lowest ? `; the lowest point ahead is ${fmt(b.lowest.balance)} in ${monthName(b.lowest.month, { year: true })}` : ''}.`, {
       link: { label: 'Open forecast', to: '/forecast' },
       follow_ups: ['Give me a summary'],
     });
@@ -144,7 +147,7 @@ export async function answerQuestion(rawQuestion, { workspaceId, facts }) {
     if (term) {
       const { rows } = await query(
         `SELECT to_char(date, 'YYYY-MM') AS month, sum(amount)::float AS total, count(*)::int AS n FROM transactions
-         WHERE workspace_id = $1 AND type = 'expense' AND status = 'paid' AND description ILIKE $2 AND date >= date_trunc('month', current_date) - interval '6 months'
+         WHERE workspace_id = $1 AND type = 'expense' AND status = 'paid' AND source <> 'adjustment' AND description ILIKE $2 AND date >= date_trunc('month', current_date) - interval '6 months'
          GROUP BY 1 ORDER BY 1 DESC`,
         [workspaceId, `%${term.replace(/[%_\\]/g, '\\$&')}%`],
       );

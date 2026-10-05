@@ -1,10 +1,13 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AnimatedNumber } from '../../components/ds/AnimatedNumber.jsx';
+import MatchBankDialog from '../../components/MatchBankDialog.jsx';
 import { Icon, Skeleton } from '../../components/ui.jsx';
 import { useApp } from '../../context.jsx';
-import { addMonthsYM, currentMonth, monthLabel } from '../../format.js';
+import { addMonthsYM, currentMonth, dateLabel, monthLabel } from '../../format.js';
 import { outlook } from '../../monthLogic.js';
+import { safeLine } from '../../safeLogic.js';
+import { useQuick } from '../../quick.jsx';
 import { useWorkspace } from '../../workspace.jsx';
 import { BalanceTrend } from '../charts.jsx';
 
@@ -13,7 +16,7 @@ import { BalanceTrend } from '../charts.jsx';
  * and the balance trend (history solid, forecast dashed) next to it. Hover or focus the figure, or press "How is this made up?",
  * to see the arithmetic behind it.
  */
-export default function HeroWidget({ summary, forecast, size }) {
+export default function HeroWidget({ summary, forecast, size, safe }) {
   const { money, settings } = useApp();
   const { isGroup } = useWorkspace();
   const [pinned, setPinned] = useState(false);
@@ -29,7 +32,11 @@ export default function HeroWidget({ summary, forecast, size }) {
   const open = pinned || hover;
   const negative = s.balance < 0;
   const netSince = s.balance - Number(settings?.opening_balance ?? 0);
-  const look = outlook(months, s.balance);
+  const buffer = Number(settings?.min_balance ?? 0);
+  const look = outlook(months, s.balance, buffer);
+  const spend = safeLine(safe, { money, dateLabel });
+  const { bump } = useQuick();
+  const [matching, setMatching] = useState(false);
 
   const rows = [
     ['Starting balance', money(Number(settings?.opening_balance ?? 0)), ''],
@@ -49,12 +56,20 @@ export default function HeroWidget({ summary, forecast, size }) {
           {negative && <Icon name="alert" size={22} />}
         </div>
         {look && (
-          <div className={`hero-status ${look.status === 'ok' ? 'ok' : 'warn'}`}>
+          <div className={`hero-status ${look.status === 'ok' ? 'ok' : look.status === 'under' || look.status === 'low' ? 'caution' : 'warn'}`}>
             <Icon name={look.status === 'ok' ? 'check' : 'alert'} size={14} />
             {look.status === 'below' && 'Below zero today'}
+            {look.status === 'under' && `Below your ${money(buffer)} buffer today`}
             {look.status === 'dip' && `Dips below zero in ${monthLabel(look.firstNegative.month, { month: 'long' })}`}
+            {look.status === 'low' && `Dips below your buffer in ${monthLabel(look.firstLow.month, { month: 'long' })}`}
             {look.status === 'ok' && `No dip ahead, lowest ${money(look.lowest.balance)} in ${monthLabel(look.lowest.month, { month: 'long' })}`}
           </div>
+        )}
+        {spend && (
+          <p className={`hero-safe ${spend.tone}`} title={spend.arithmetic.map(([k, v]) => `${k}: ${v}`).join('\n')}>
+            {spend.text}
+            <span className="sr-only">. {spend.arithmetic.map(([k, v]) => `${k} ${v}`).join('. ')}.</span>
+          </p>
         )}
         <div className="hero-meta">
           {moved != null && Math.abs(moved) >= 0.005 && (
@@ -72,9 +87,14 @@ export default function HeroWidget({ summary, forecast, size }) {
             <span className={`num forecast-text${s.projectedMonthEnd < 0 ? ' neg' : ''}`}>{money(s.projectedMonthEnd)}</span>
           </span>
         </div>
-        <button className="hero-why" onClick={() => setPinned((p) => !p)} aria-expanded={open} aria-controls="hero-breakdown">
-          How is this made up? <Icon name="chevron" size={13} />
-        </button>
+        <div className="hero-links">
+          <button className="hero-why" onClick={() => setPinned((p) => !p)} aria-expanded={open} aria-controls="hero-breakdown">
+            How is this made up? <Icon name="chevron" size={13} />
+          </button>
+          <button className="hero-why" onClick={() => setMatching(true)}>
+            Match my bank balance
+          </button>
+        </div>
         <div className={`hero-breakdown${open ? ' open' : ''}`} id="hero-breakdown">
           <dl>
             {rows.map(([label, value, tone, strong]) => (
@@ -97,8 +117,19 @@ export default function HeroWidget({ summary, forecast, size }) {
               Full forecast
             </Link>
           </div>
-          {forecast ? <BalanceTrend months={months} height={size === 'm' ? 150 : 176} /> : <Skeleton w="100%" h={160} r={8} />}
+          {forecast ? <BalanceTrend months={months} buffer={buffer} height={size === 'm' ? 150 : 176} /> : <Skeleton w="100%" h={160} r={8} />}
         </div>
+      )}
+      {matching && (
+        <MatchBankDialog
+          balance={s.balance}
+          overdue={s.overdue}
+          onClose={() => setMatching(false)}
+          onDone={() => {
+            setMatching(false);
+            bump();
+          }}
+        />
       )}
     </div>
   );

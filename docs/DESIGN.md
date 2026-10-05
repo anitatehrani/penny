@@ -581,3 +581,82 @@ The monthly bills of an installment plan need not be consecutive: a purchase can
 - `GET /api/installments` adds `last_due` (the day of the last installment, whatever its status) because the last one can no longer be worked
   out from the first.
 - `installmentMonths({ first, count, picked })` in `client/src/cardLogic.js` works out the months (and is tested without a browser).
+
+## 26. A safety buffer: warn before zero (defined before implementation)
+
+**What was wrong.** Every warning waits for the balance to go *below zero*. With rent or a card bill due, "€40 left" is already an
+emergency; zero is too late a line.
+
+**The setting.** *Safety buffer* in Settings (per budget, default **0**, never negative): the balance you do not want to go below. With 0
+everything behaves exactly as before.
+
+**What it changes** (the figure that decides "too low" goes from 0 to the buffer):
+
+- The forecast's **first month below the line** and the **number of months below it** (`insights.firstNegativeMonth`, `negativeMonths`; the
+  names stay so nothing else breaks). The forecast also returns `minBalance`.
+- The dashboard balance card's status line: *"Below your €200.00 buffer today"*, *"Dips below your buffer in March"*, or *"No dip ahead"*; with no
+  buffer the old words (*below zero*) are kept.
+- The forecast page's warning, the assistant's answer to "Will I go negative?", the assistant insight, and the alert notification
+  (*"Your balance is projected to go below your buffer in March"*; a **balance already under the buffer but still above zero** is a new
+  *"Your balance is below your safety buffer"* low-balance alert).
+- A dashed **buffer line** on the balance charts, next to the zero line, when a buffer is set.
+- **Safe to spend** (section 27) keeps the buffer out of what you may spend.
+
+Below **zero** stays its own, stronger state ("Below zero today", the red dip marker); the buffer adds an earlier, calmer one.
+
+## 27. Safe to spend (defined before implementation)
+
+**The question.** "How much can I spend a day until I am paid again?"
+
+```
+until      = the day before the next income that is still to arrive (a pending income dated after today);
+             with none in the next 62 days, the last day of this month
+days       = from today to that day, both included (at least 1)
+bills      = every payment still to pay that falls before then: overdue ones and the ones due up to that day
+available  = balance today − bills − safety buffer
+per day    = available / days   (nothing if available is not above zero; then how much you are short)
+```
+
+- Income still pending dated today or earlier is **not counted** as money you have until you mark it received.
+- Estimates of everyday spending are not subtracted: that spending is exactly what this figure is the allowance for.
+- Everything is whole cents; the per-day figure rounds **down** so the days never add up to more than is available.
+- `GET /api/safe-to-spend` returns `{ today, until, until_kind: 'income' | 'month-end', days, balance, bills, buffer, available, per_day, short,
+  next_income: { date, description, amount } | null }`; the rule is the pure function `safeToSpend()` in `server/src/lib/safeToSpend.js`.
+- On the dashboard's balance card, one line under the status: *"Safe to spend €18.00 a day for 12 days, until Mo — salary on 10 Nov"*,
+  or *"€40.00 short before Mo — salary on 10 Nov"*. Hovering it shows the arithmetic.
+
+## 28. Matching the bank balance (defined before implementation)
+
+**What was missing.** Over time a few forgotten payments make Penny's balance drift away from the real one, and there was no way to say
+"my bank says €1,234.56".
+
+**How it works.** On the balance card, **Match my bank balance** opens a dialog: you type the balance your bank shows; it shows Penny's balance
+and the difference and says exactly what will happen. Saving adds **one paid payment dated today** for the difference (income if the bank
+has more, an expense if it has less) named *"Balance adjustment (matched to the bank)"*, with the **Adjustment** badge, no category, in your
+name. It counts in the balance and in the month's figures like any payment; delete it to undo it.
+
+- If there are **overdue unpaid payments**, the dialog says so first (*"2 payments are overdue (€163.00). If you already paid them,
+  mark them paid first; that may close the gap by itself."*) with a link, because that is the usual cause of a difference.
+- No difference, no payment: it just says they already match.
+- `POST /api/reconcile { balance }` → `{ adjusted, difference, balance_before, balance_after, payment }`. The new payment source is `adjustment`.
+- The balance is the same one shown everywhere: starting balance + everything marked paid.
+
+## 29. Automatic backups and a way back (defined before implementation)
+
+**What was missing.** All the real data is in one database on one computer, and nothing copied it anywhere.
+
+- **Automatic**: when the server starts, and then every hour, it checks the newest backup; if there is none from the last 24 hours it makes
+  one with `pg_dump` (custom format, compressed) named `penny-YYYY-MM-DD-HHMM.dump` in the **backups folder** (`BACKUP_DIR`, default
+  `backups/` next to the app; it is git-ignored). `BACKUPS=off` switches it off.
+- **Kept**: the newest backup of each of the newest 14 days, plus the first backup of each of the last 6 months; older ones are deleted, never the newest.
+  `pre-restore` safety copies are kept for 90 days. (`pruneBackups()` is a pure function so the rule is tested.)
+- **Checked**: each backup is written to a temporary file, read back with `pg_restore --list`, and only then given its name; a failed or empty
+  one leaves nothing behind and is shown as a problem in Settings. `BACKUP_COPY_DIR` makes a second copy in another folder or drive.
+- **By hand**: `npm run backup` makes one now; `npm run restore -- <file> --yes` puts one back. A restore **replaces what is in the database**,
+  so it refuses without `--yes`, and first makes a `pre-restore` backup of what is there. Stop the server before restoring.
+- **Settings** shows a read-only line, *"Last automatic backup: 5 Oct, 22:10 · 15 kept"* (or a warning that there is none), from
+  `GET /api/backups/status` (`{ enabled, last_at, count }`). It does not reveal where the files are and it cannot start or delete one:
+  any signed-in person could otherwise do that to everyone's data.
+- **Where to keep them**: a backup on the same disk as the database is not enough if the disk fails. Point `BACKUP_DIR` at another drive or
+  a synced folder. The README says so.
+- Needs `pg_dump` / `pg_restore`: found through `PG_BIN`, the usual Windows folder, or the PATH. If they are not found, the status says why.

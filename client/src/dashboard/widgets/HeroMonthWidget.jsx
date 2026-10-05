@@ -13,7 +13,7 @@ import { BalanceTrend } from '../charts.jsx';
  * expected), what came in and went out during it, and the arithmetic behind it. The chart marks the month.
  */
 export default function HeroMonthWidget({ month, forecast, size }) {
-  const { money } = useApp();
+  const { money, settings } = useApp();
   const { isGroup } = useWorkspace();
   const [pinned, setPinned] = useState(false);
   const [hover, setHover] = useState(false);
@@ -88,7 +88,7 @@ export default function HeroMonthWidget({ month, forecast, size }) {
               Full forecast
             </Link>
           </div>
-          <BalanceTrend months={windowAround(months, month, 5, 6)} marker={month} height={size === 'm' ? 150 : 176} />
+          <BalanceTrend months={windowAround(months, month, 5, 6)} marker={month} buffer={Number(settings?.min_balance ?? 0)} height={size === 'm' ? 150 : 176} />
         </div>
       )}
     </div>

@@ -8,3 +8,6 @@ server/test-mail-*
 e2e/node_modules
 # real people's sign-in details written by setup scripts: never commit these
 *.local.md
+
+# database backups hold real financial data: never commit them
+backups/

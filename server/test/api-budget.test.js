@@ -17,13 +17,13 @@ const fresh = async () => (await signup(srv)).client;
 describe('settings', () => {
   it('starts at zero in USD', async () => {
     const c = await fresh();
-    assert.deepEqual(ok(await c.get('/settings')), { opening_balance: 0, currency: 'USD', card_pay_day: 10, carry_over: true });
+    assert.deepEqual(ok(await c.get('/settings')), { opening_balance: 0, currency: 'USD', card_pay_day: 10, carry_over: true, min_balance: 0 });
   });
 
   it('accepts a negative starting balance and normalises the currency', async () => {
     const c = await fresh();
     const r = ok(await c.put('/settings', { opening_balance: -250.5, currency: 'eur' }));
-    assert.deepEqual(r, { opening_balance: -250.5, currency: 'EUR', card_pay_day: 10, carry_over: true });
+    assert.deepEqual(r, { opening_balance: -250.5, currency: 'EUR', card_pay_day: 10, carry_over: true, min_balance: 0 });
     assert.equal(ok(await c.get('/summary')).balance, -250.5, 'the balance really starts negative');
   });
 
@@ -44,7 +44,7 @@ describe('settings', () => {
     ]) {
       fails(await c.put('/settings', bad), 400);
     }
-    assert.deepEqual(ok(await c.get('/settings')), { opening_balance: 0, currency: 'USD', card_pay_day: 10, carry_over: true }, 'nothing changed');
+    assert.deepEqual(ok(await c.get('/settings')), { opening_balance: 0, currency: 'USD', card_pay_day: 10, carry_over: true, min_balance: 0 }, 'nothing changed');
   });
 
   it('rounds the starting balance to cents', async () => {

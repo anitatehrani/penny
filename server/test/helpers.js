@@ -50,6 +50,7 @@ export async function startServer(name, env = {}) {
       GOOGLE_CLIENT_ID: '',
       COOKIE_SECURE: 'false',
       ALERT_SCAN_MINUTES: 'off', // tests trigger scans themselves so counts are exact
+      BACKUPS: 'off', // a test database is not worth a backup
       SMTP_HOST: '', // preview mode unless a test provides a fake SMTP server
       MAIL_PREVIEW_DIR: path.join(SERVER_DIR, `test-mail-${dbName}`),
       ...env,
