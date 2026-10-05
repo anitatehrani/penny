@@ -4,26 +4,20 @@ import { EmptyState } from '../../components/ds/States.jsx';
 import { Icon, Skeleton } from '../../components/ui.jsx';
 import { useApp } from '../../context.jsx';
 import { describeRule } from '../../format.js';
+import { monthlyEquivalent } from '../../recurrenceLogic.js';
 
 const SUB = /subscri/i;
-const monthly = (r) => {
-  const n = Math.max(1, r.interval_count || 1);
-  if (r.frequency === 'weekly') return (r.amount * 52) / 12 / n;
-  if (r.frequency === 'yearly') return r.amount / 12 / n;
-  return r.amount / n;
-};
-
 /** What you have committed to every month, biggest first, with subscriptions called out. */
 export default function RecurringWidget({ rules }) {
   const { money } = useApp();
   const { list, total, subs, income } = useMemo(() => {
-    const active = (rules ?? []).filter((r) => r.active && r.type === 'expense').map((r) => ({ ...r, perMonth: monthly(r) }));
+    const active = (rules ?? []).filter((r) => r.active && r.type === 'expense').map((r) => ({ ...r, perMonth: monthlyEquivalent(r) }));
     active.sort((a, b) => b.perMonth - a.perMonth);
     return {
       list: active,
       total: active.reduce((s, r) => s + r.perMonth, 0),
       subs: active.filter((r) => SUB.test(r.category_name ?? '')).reduce((s, r) => s + r.perMonth, 0),
-      income: (rules ?? []).filter((r) => r.active && r.type === 'income').reduce((s, r) => s + monthly(r), 0),
+      income: (rules ?? []).filter((r) => r.active && r.type === 'income').reduce((s, r) => s + monthlyEquivalent(r), 0),
     };
   }, [rules]);
 

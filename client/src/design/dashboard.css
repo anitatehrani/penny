@@ -1172,3 +1172,46 @@
   max-width: 62ch;
   font-size: var(--fs-2);
 }
+
+/* ---------- paying off (debts and installment plans) ---------- */
+.paying-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.paying-row + .paying-row {
+  border-top: 1px solid var(--line);
+}
+.paying-row.overdue {
+  box-shadow: inset 3px 0 0 var(--neg);
+}
+.paying-link {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 5px var(--s-3);
+  padding: var(--s-3) var(--s-2);
+  margin: 0 calc(var(--s-2) * -1);
+  border-radius: var(--r-2);
+  color: var(--ink);
+  text-decoration: none;
+  transition: background var(--t-fast) var(--ease);
+}
+.paying-link:hover {
+  background: var(--hover);
+  text-decoration: none;
+}
+.paying-name {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  min-width: 0;
+  font-size: var(--fs-3);
+  font-weight: 550;
+}
+.paying-left {
+  font-size: var(--fs-3);
+}
+.paying-link .progress,
+.paying-next {
+  grid-column: 1 / -1;
+}

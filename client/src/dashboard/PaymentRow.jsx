@@ -46,11 +46,6 @@ export default function PaymentRow({ tx, onEdit }) {
       <div className="prow-main">
         <div className="prow-title">
           <span>{tx.description}</span>
-          {overdue && (
-            <span className="badge tone-neg">
-              <Icon name="alert" size={11} /> Overdue
-            </span>
-          )}
           {tx.source === 'recurring' && (
             <Tooltip label="Repeats automatically">
               <span className="prow-ico" role="img" aria-label="Recurring">

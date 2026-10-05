@@ -20,6 +20,7 @@ import HeroMonthWidget from './widgets/HeroMonthWidget.jsx';
 import HeroWidget from './widgets/HeroWidget.jsx';
 import InsightsWidget from './widgets/InsightsWidget.jsx';
 import MonthPaymentsWidget from './widgets/MonthPaymentsWidget.jsx';
+import PayingOffWidget from './widgets/PayingOffWidget.jsx';
 import RecurringWidget from './widgets/RecurringWidget.jsx';
 import SpendingWidget from './widgets/SpendingWidget.jsx';
 import UpcomingWidget from './widgets/UpcomingWidget.jsx';
@@ -30,6 +31,7 @@ const TITLES = {
   upcoming: 'Coming up',
   spending: 'Spending',
   recurring: 'Recurring',
+  paying: 'Paying off',
   outlook: 'Cash flow',
 };
 const greeting = () => {
@@ -107,6 +109,8 @@ export default function DashboardPage() {
   const monthRows = useFetch(() => (browsing ? api.get(`/transactions?month=${month}&bought=1&limit=300`) : Promise.resolve(null)), [month, browsing, version]);
   const forecast = useFetch(() => api.get(`/forecast?past=${win.past}&months=${win.months}`), [win.past, win.months, version]);
   const rules = useFetch(() => api.get('/recurring'), [version]);
+  const debts = useFetch(() => api.get('/debts'), [version]);
+  const plans = useFetch(() => api.get('/installments'), [version]);
   const setMonth = (m) => {
     const next = new URLSearchParams(params);
     if (m === today) next.delete('month');
@@ -142,7 +146,7 @@ export default function DashboardPage() {
   const hide = (id) => save({ hidden: [...layout.hidden, id] });
   const show = (id) => save({ hidden: layout.hidden.filter((w) => w !== id) });
   const size = (id, s) => save({ sizes: { ...layout.sizes, [id]: s } });
-  const reset = () => setPrefs({ layout: { order: WIDGETS.slice(), hidden: [], sizes: { hero: 'l', insights: 'l', upcoming: 'm', spending: 'm', recurring: 'm', outlook: 'm' } }, collapsed: [] });
+  const reset = () => setPrefs({ layout: { order: WIDGETS.slice(), hidden: [], sizes: { hero: 'l', insights: 'l', upcoming: 'm', spending: 'm', recurring: 'm', paying: 'm', outlook: 'm' } }, collapsed: [] });
 
   if (summary.error && !summary.data) return <ErrorState error={summary.error} onRetry={summary.reload} title="The dashboard did not load" />;
   if (!summary.data || !ready) return <DashboardSkeleton />;
@@ -195,6 +199,12 @@ export default function DashboardPage() {
         return (
           <WidgetFrame key={id} {...common} eyebrow="Commitments" title="Recurring">
             <RecurringWidget rules={rules.data} />
+          </WidgetFrame>
+        );
+      case 'paying':
+        return (
+          <WidgetFrame key={id} {...common} eyebrow="Debts and plans" title="Paying off">
+            <PayingOffWidget debts={debts.data} plans={plans.data} />
           </WidgetFrame>
         );
       case 'outlook':

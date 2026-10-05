@@ -363,3 +363,30 @@ when the last one lands, so those had to be found on the Payments page.
 
 **Look.** Drawn in Penny's tokens in `client/src/design/rows.css`, after the segmented step indicators in the 21st.dev catalog. Works in
 light and dark, wraps on a phone, adds no controls.
+
+## 19. Dashboard: a "Paying off" widget, and the same row language (defined before implementation)
+
+**What was missing.** Debts and installment plans appeared nowhere on the dashboard, so the answer to "how far along am I with what I owe?"
+needed three clicks. The "Coming up" rows still had the double overdue signal that Payments lost in section 16, and the Recurring widget
+kept its own copy of the monthly-equivalent sum that section 17 moved into one function.
+
+**What changes.**
+
+- **New widget `paying` ("Paying off", eyebrow "Debts and plans")**, a seventh widget. It lists up to five *active* debts and installment
+  plans, overdue first, then by next payment, then those with nothing scheduled. Each row: the name, a progress track (a step track for
+  an installment plan with up to 24 steps, as in section 18; a continuous bar for a debt), "{paid} of {count} paid" or "{pct}% paid", and
+  the next payment ("Oct 10 · €166.67", "Overdue since Sep 10", "Nothing scheduled yet", "Not counted"). The lead line says what is still
+  to pay **in your budget**: counted debts plus installment plans (debts with "count it in my budget" off are listed, tagged "Not counted",
+  but left out of that figure, exactly as the Debts page's "Counted in your budget" does). Links go to Debts and Installments.
+- **Empty:** no active debts or plans shows a calm empty state with links to add one.
+- **Layout.** Like every widget it can be moved, resized (default medium), hidden and collapsed. `normalizeLayout` already appends a new
+  widget to an old saved layout at the end, so nobody's saved dashboard hides or loses it; "Reset layout" places it after Recurring.
+  The server's list of known widgets (`preferences.js`) gains `paying`, or saving a layout that contains it would be rejected.
+- **Month browsing.** The widget is about today, like Recurring; it shows the same thing when another month is chosen.
+- **"Coming up" rows** get the overdue edge (a red strip on the row's left) and lose the "Overdue" badge; "N days overdue" under the date
+  stays, in words and red.
+- **Recurring widget** calls `monthlyEquivalent()` instead of its own copy. The figures do not change.
+
+**Where the logic is.** `payingOff(debts, plans, today)` in `client/src/payingOffLogic.js` picks, orders and describes the rows and works
+out the lead figure. A plain function, so it is tested without a browser. No new server route: the page reads `GET /api/debts` and
+`GET /api/installments`.

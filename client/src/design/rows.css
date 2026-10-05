@@ -72,3 +72,8 @@
   background: transparent;
   box-shadow: inset 0 0 0 2px var(--accent);
 }
+
+/* Dashboard "Coming up": an overdue row gets the same red edge as on the Payments page. */
+.prow.overdue {
+  box-shadow: inset 3px 0 0 var(--neg);
+}

@@ -247,6 +247,33 @@ async function sessionFor(db, email) {
     eq(await count(page, '.sheet'), 0, 'panel closed by Escape');
   });
 
+  await check('"Paying off" lists debts and installment plans with their progress, and "Coming up" has no Overdue badge', async () => {
+    const debt = await api(page, 'POST', '/debts', { name: 'E2E widget debt', total_amount: 300, plan: 'monthly', first_due_date: '2031-01-10', installment_count: 3, count_in_budget: true });
+    const plan = await api(page, 'POST', '/installments', { description: 'E2E widget plan', installment_amount: 40, installment_count: 4, first_due_date: '2031-01-10', paid_count: 1, category_id: null });
+    eq(debt.status + ',' + plan.status, '201,201', 'a debt and a plan');
+    try {
+      page = await open('/');
+      await page.waitForSelector('[data-widget=paying] .paying-row');
+      const info = await page.evaluate(() => {
+        const w = document.querySelector('[data-widget=paying]');
+        const row = (n) => [...w.querySelectorAll('.paying-row')].find((r) => r.textContent.includes(n));
+        const d = row('E2E widget debt');
+        const p = row('E2E widget plan');
+        return { title: w.querySelector('h2, h3')?.textContent ?? '', debtBar: !!d?.querySelector('.progress:not(.steps)'), planSteps: [...(p?.querySelectorAll('.step') ?? [])].map((x) => x.className.replace('step ', '')), planText: p?.textContent ?? '', lead: w.querySelector('.widget-lead')?.textContent ?? '', overdueBadges: document.querySelectorAll('[data-widget=upcoming] .prow .badge.tone-neg').length };
+      });
+      truthy(/Paying off/.test(info.title), 'the widget is titled: ' + info.title);
+      eq(info.debtBar, true, 'a debt gets a plain bar');
+      eq(info.planSteps.join(','), 'paid,next,later,later', 'a plan gets a step per installment');
+      truthy(/1 of 4 paid/.test(info.planText), 'and says how many are paid');
+      truthy(/still to pay in your budget/.test(info.lead), 'the lead says what is left');
+      eq(info.overdueBadges, 0, 'no Overdue badge in Coming up');
+    } finally {
+      await api(page, 'DELETE', '/debts/' + debt.json.id);
+      await api(page, 'DELETE', '/installments/' + plan.json.id);
+      for (const t of (await api(page, 'GET', '/transactions?from=2000-01-01&to=2100-01-01&status=')).json.filter((x) => /E2E widget/.test(x.description))) await api(page, 'DELETE', '/transactions/' + t.id + '?hard=1');
+    }
+  });
+
   console.log('\nTop bar, menus and notifications');
   await check('the notification centre groups items, marks one read on click and leads to it', async () => {
     const before = Number((await text(page, '.bell-count')) || 0);

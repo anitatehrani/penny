@@ -44,6 +44,15 @@ describe('preferences', () => {
     assert.deepEqual(ok(await p.client.get('/preferences')), {});
   });
 
+  it('accept the Paying off widget in a layout and as collapsed', async () => {
+    const p = await signup(srv);
+    const layout = { order: ['hero', 'paying'], hidden: ['paying'], sizes: { paying: 'l' } };
+    ok(await p.client.put('/preferences', { layout, collapsed: ['paying'] }));
+    const got = ok(await p.client.get('/preferences'));
+    assert.deepEqual(got.layout, layout);
+    assert.deepEqual(got.collapsed, ['paying']);
+  });
+
   it('reject anything they do not recognise', async () => {
     const p = await signup(srv);
     for (const bad of [
