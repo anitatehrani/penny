@@ -86,3 +86,52 @@
 .tx-row.carry:hover {
   background: color-mix(in srgb, var(--accent-soft) 45%, transparent);
 }
+
+/* Payments: the card bill of the month, with the way to pay only part of it. */
+.card-bill-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2) var(--s-4);
+  margin: 0 0 var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--line);
+  border-radius: var(--r-3);
+  background: var(--surface);
+  font-size: var(--fs-3);
+}
+.rollover-list {
+  margin: var(--s-2) 0 0;
+  padding-left: 1.1em;
+  font-size: var(--fs-2);
+}
+
+/* Card installments that are not equal: one box per installment. */
+.inst-list {
+  display: grid;
+  gap: var(--s-2);
+  max-height: 260px;
+  overflow: auto;
+  padding: 2px;
+}
+.inst-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 9em;
+  align-items: center;
+  gap: var(--s-3);
+  font-size: var(--fs-3);
+}
+.inst-row:not(.typed) input {
+  color: var(--ink-3);
+}
+
+.inst-when {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+.inst-month {
+  min-height: 34px;
+  font-size: var(--fs-2);
+}

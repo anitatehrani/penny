@@ -1426,6 +1426,173 @@ async function sessionFor(db, email) {
     eq(await page.$eval(day, (e) => e.value), before, 'the card pay day is left alone too');
   });
 
+  console.log('\nPart-paying a card bill');
+  await check('pay only part of the card bill: the preview says what happens, and the rest moves with its interest', async () => {
+    page = await open('/payments');
+    const made = [];
+    const sum = async (month) => {
+      const rows = (await api(page, 'GET', '/transactions?from=' + month + '-01&to=' + month + '-28&status=')).json.filter((t) => t.pay_method === 'credit_card' && /^(E2E bill|Card interest \(rest of the December 2031)/.test(t.description));
+      return Math.round(rows.reduce((a, t) => a + t.amount * 100, 0)) / 100;
+    };
+    try {
+      for (const [d, amount, bought] of [['E2E bill A', 8, '2031-12-01'], ['E2E bill B', 89, '2031-11-20'], ['E2E bill C', 138, '2031-11-02']]) {
+        const r = await api(page, 'POST', '/transactions', { type: 'expense', description: d, amount, date: '2031-12-10', charged_on: bought, pay_method: 'credit_card', status: 'pending', category_id: null });
+        eq(r.status, 201, d);
+        made.push(r.json.id);
+      }
+      page = await open('/payments?month=2031-12');
+      await page.waitForSelector('.card-bill-line');
+      truthy(/235\.00/.test(await text(page, '.card-bill-line')) && /Pay only part/.test(await text(page, '.card-bill-line')), 'the card bill line: ' + (await text(page, '.card-bill-line')));
+      await page.evaluate(() => [...document.querySelectorAll('.card-bill-line button')].find((b) => /Pay only part/.test(b.textContent)).click());
+      await page.waitForSelector('.modal');
+      const submit = () => page.$eval('.modal .form-actions .btn.primary', (b) => b.disabled);
+      eq(await submit(), true, 'cannot move anything before saying what is paid now');
+      const pay = '.modal input[type=number]';
+      await page.type(pay, '235');
+      await sleep(150);
+      truthy(/whole bill|less than/.test(await text(page, '.modal .banner')), 'paying everything is explained: ' + (await text(page, '.modal .banner')));
+      eq(await submit(), true, 'and cannot be saved');
+      await page.click(pay, { clickCount: 3 });
+      await page.type(pay, '100');
+      await page.evaluate(() => { const i = [...document.querySelectorAll('.modal input[type=number]')][1]; i.focus(); });
+      await page.keyboard.type('5');
+      await sleep(200);
+      const banner = await text(page, '.modal .banner');
+      truthy(/100\.00/.test(banner) && /135\.00/.test(banner) && /5\.00/.test(banner) && /interest/.test(banner), 'the preview: ' + banner);
+      truthy(/E2E bill C: [^0-9]*38\.00 of [^0-9]*138\.00 moves/.test(banner), 'it says which purchase is split: ' + banner);
+      eq(await submit(), false, 'now it can be saved');
+      await page.click('.modal .form-actions .btn.primary');
+      await page.waitForSelector('.modal', { hidden: true });
+      await sleep(500);
+      eq(await sum('2031-12'), 100, 'this bill is what is paid now');
+      eq(await sum('2032-01'), 140, 'the later bill has the rest and the interest');
+      const lineAfter = await text(page, '.card-bill-line');
+      truthy(/100\.00/.test(lineAfter), 'the page shows the new bill: ' + lineAfter);
+      page = await open('/payments?month=2032-01');
+      await page.waitForSelector('.tx-row');
+      const later = await page.evaluate(() => [...document.querySelectorAll('.tx-row')].map((r) => r.querySelector('.tx-title')?.textContent.trim()).filter((t) => /E2E bill|Card interest/.test(t ?? '')));
+      truthy(later.some((t) => /Card interest/.test(t)) && later.some((t) => /E2E bill C \(rest\)/.test(t)), 'the later month lists the rest and the interest: ' + JSON.stringify(later));
+    } finally {
+      const rows = (await api(page, 'GET', '/transactions?from=2031-11-01&to=2032-02-28&status=')).json.filter((t) => /^(E2E bill|Card interest \(rest of the December 2031)/.test(t.description));
+      for (const t of rows) await api(page, 'DELETE', '/transactions/' + t.id + '?hard=1');
+    }
+    eq((await api(page, 'GET', '/transactions?from=2031-11-01&to=2032-02-28&status=')).json.some((t) => /^E2E bill|^Card interest \(rest of the December 2031/.test(t.description)), false, 'cleaned up');
+  });
+
+  console.log('\nUnequal card installments');
+  await check('a card purchase can be paid in different amounts: untyped boxes share the rest, interest shows, and it saves exactly', async () => {
+    page = await open('/payments');
+    let planId = null;
+    try {
+      await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => /Add payment/.test(b.textContent))?.click());
+      await page.waitForSelector('.modal');
+      await page.type('.modal input[maxlength="200"]', 'E2E unequal');
+      await page.type('.modal input[inputmode="decimal"]', '42');
+      await page.click('.card-box input[type=checkbox]');
+      await page.waitForSelector('.card-box [role=radiogroup]');
+      await page.evaluate(() => [...document.querySelectorAll('.card-box [role=radio]')].find((b) => /In installments/.test(b.textContent)).click());
+      await page.waitForSelector('.card-box input[max="36"]');
+      await page.evaluate(() => [...document.querySelectorAll('.card-box [role=radio]')].find((b) => /Different amounts/.test(b.textContent)).click());
+      await page.waitForSelector('.inst-list input');
+      const boxes = () => page.$$eval('.inst-list input', (is) => is.map((i) => i.value));
+      eq((await boxes()).join(','), '14,14,14', 'starts as equal parts of the price');
+      await page.click('.inst-list input', { clickCount: 3 });
+      await page.keyboard.type('30');
+      await sleep(200);
+      eq((await boxes()).join(','), '30,6,6', 'the boxes not typed share what is left');
+      truthy(/no interest/.test(await text(page, '.card-box .banner')), 'no interest: ' + (await text(page, '.card-box .banner')));
+      await page.evaluate(() => { const i = document.querySelectorAll('.inst-list input')[2]; i.focus(); });
+      await page.keyboard.down('Control');
+      await page.keyboard.press('KeyA');
+      await page.keyboard.up('Control');
+      await page.keyboard.type('8');
+      await sleep(200);
+      eq((await boxes()).join(','), '30,4,8', 'a typed box is kept as typed, the one left open takes what remains');
+      truthy(/no interest/.test(await text(page, '.card-box .banner')), 'still the price exactly');
+      await page.evaluate(() => { const i = document.querySelectorAll('.inst-list input')[1]; i.focus(); });
+      await page.keyboard.down('Control');
+      await page.keyboard.press('KeyA');
+      await page.keyboard.up('Control');
+      await page.keyboard.type('8');
+      await sleep(200);
+      eq((await boxes()).join(','), '30,8,8', 'typing every box is exactly what was typed');
+      truthy(/interest/.test(await text(page, '.card-box .banner')) && /4\.00/.test(await text(page, '.card-box .banner')), 'the extra is interest: ' + (await text(page, '.card-box .banner')));
+      await page.evaluate(() => [...document.querySelectorAll('.inst-list button')].find((b) => /Share equally again/.test(b.textContent)).click());
+      await sleep(200);
+      eq((await boxes()).join(','), '14,14,14', 'and it can go back to equal');
+      await page.click('.inst-list input', { clickCount: 3 });
+      await page.keyboard.type('30');
+      await sleep(200);
+      await page.click('.modal .form-actions .btn.primary');
+      await page.waitForSelector('.modal', { hidden: true });
+      await sleep(500);
+      const plan = (await api(page, 'GET', '/installments')).json.find((p) => p.description === 'E2E unequal');
+      truthy(plan, 'the plan was made');
+      planId = plan.id;
+      eq(plan.total_amount + ',' + plan.purchase_amount + ',' + plan.installment_count, '42,42,3', 'a total of 42 in three');
+      const rows = (await api(page, 'GET', '/transactions?from=2000-01-01&to=2100-01-01&status=')).json.filter((t) => t.installment_plan_id === planId).sort((a, b) => a.installment_no - b.installment_no);
+      eq(rows.map((t) => t.amount).join(','), '30,6,6', 'each installment is what was typed');
+    } finally {
+      if (planId) await api(page, 'DELETE', '/installments/' + planId);
+      else {
+        const left = (await api(page, 'GET', '/installments')).json.find((p) => p.description === 'E2E unequal');
+        if (left) await api(page, 'DELETE', '/installments/' + left.id);
+      }
+    }
+    eq((await api(page, 'GET', '/installments')).json.some((p) => p.description === 'E2E unequal'), false, 'cleaned up');
+    eq((await api(page, 'GET', '/transactions?from=2000-01-01&to=2100-01-01&status=')).json.some((t) => /^E2E unequal/.test(t.description)), false, 'and no payments left');
+  });
+
+  console.log('\nInstallment months');
+  await check('each installment has its own bill month, consecutive by default and changeable with a calendar', async () => {
+    page = await open('/payments');
+    let planId = null;
+    try {
+      await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => /Add payment/.test(b.textContent))?.click());
+      await page.waitForSelector('.modal');
+      await page.type('.modal input[maxlength="200"]', 'E2E months');
+      await page.type('.modal input[inputmode="decimal"]', '300');
+      await page.click('.card-box input[type=checkbox]');
+      await page.waitForSelector('.card-box [role=radiogroup]');
+      await page.evaluate(() => [...document.querySelectorAll('.card-box [role=radio]')].find((b) => /In installments/.test(b.textContent)).click());
+      await page.waitForSelector('.inst-list');
+      const months = () => page.evaluate(() => [...document.querySelectorAll('.inst-row .inst-when')].map((e) => e.textContent.replace(/\s+/g, ' ').trim()));
+      const first = (await months())[0];
+      const rows = await months();
+      eq(rows.length, 3, 'three installments by default: ' + JSON.stringify(rows));
+      truthy(/1\./.test(rows[0]) && /2\./.test(rows[1]) && /3\./.test(rows[2]), 'numbered');
+      eq(await page.$$eval('.inst-row .inst-month', (b) => b.length), 2, 'every installment after the first has a month button');
+      const before = rows[1];
+      // choose a later month for the second installment: the third follows it
+      await page.evaluate(() => document.querySelectorAll('.inst-row .inst-month')[0].click());
+      await page.waitForSelector('.month-pop button[data-month]');
+      await page.evaluate(() => { const next = document.querySelector('.month-pop button[aria-label^="Next year"]'); if (next && !next.disabled) next.click(); });
+      await sleep(150);
+      const chosen = await page.evaluate(() => { const cells = [...document.querySelectorAll('.month-pop button[data-month]:not([disabled])')]; const c = cells[cells.length - 1]; const m = c.getAttribute('data-month'); c.click(); return m; });
+      await sleep(250);
+      const after = await months();
+      truthy(after[1] !== before, 'the second installment moved: ' + before + ' -> ' + after[1]);
+      truthy(after[2] !== rows[2], 'and the third follows it: ' + after[2]);
+      eq(after[0], first, 'the first is unchanged');
+      truthy(/Back to consecutive months/.test(await text(page, '.inst-list')), 'a way back is offered');
+      await page.click('.modal .form-actions .btn.primary');
+      await page.waitForSelector('.modal', { hidden: true });
+      await sleep(500);
+      const plan = (await api(page, 'GET', '/installments')).json.find((p) => p.description === 'E2E months');
+      truthy(plan, 'the plan was made');
+      planId = plan.id;
+      const tx = (await api(page, 'GET', '/transactions?from=2000-01-01&to=2100-01-01&status=')).json.filter((t) => t.installment_plan_id === planId).sort((a, b) => a.installment_no - b.installment_no);
+      eq(tx.length, 3, 'three payments');
+      eq(tx[1].date.slice(0, 7), chosen, 'the second is in the month that was chosen');
+      eq(tx[2].date.slice(0, 7) > tx[1].date.slice(0, 7), true, 'the third is after it');
+      eq(plan.last_due, tx[2].date, 'the plan reports its real last day');
+    } finally {
+      const left = (await api(page, 'GET', '/installments')).json.find((p) => p.description === 'E2E months');
+      if (left) await api(page, 'DELETE', '/installments/' + left.id);
+    }
+    eq((await api(page, 'GET', '/installments')).json.some((p) => p.description === 'E2E months'), false, 'cleaned up');
+  });
+
   console.log('\nSettings and avatar');
   await check('notification settings: every type has an in-app and an email switch, and changes save', async () => {
     page = await open('/settings?tab=notifications');

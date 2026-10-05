@@ -12,7 +12,7 @@ export function planFacts(plan) {
   const paid = Math.min(count, Math.max(0, Math.floor(Number(plan.paid_count) || 0)));
   const segments =
     count > 0 && count <= MAX_SEGMENTS ? Array.from({ length: count }, (_, i) => (i < paid ? 'paid' : i === paid ? 'next' : 'later')) : null;
-  const lastDue = count > 0 && plan.first_due_date ? addMonths(plan.first_due_date, count - 1, Number(plan.first_due_date.slice(8))) : null;
+  const lastDue = plan.last_due ?? (count > 0 && plan.first_due_date ? addMonths(plan.first_due_date, count - 1, Number(plan.first_due_date.slice(8))) : null);
   return {
     count,
     paid,

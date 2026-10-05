@@ -30,6 +30,10 @@ describe('what an installment plan card shows', () => {
     assert.equal(planFacts(plan({ paid_count: 99 })).paid, 6);
     assert.equal(planFacts(plan({ paid_count: -2 })).paid, 0);
   });
+  it('uses the last day the server reports, since the months need not be consecutive', () => {
+    assert.equal(planFacts(plan({ last_due: '2031-11-10' })).lastDue, '2031-11-10');
+    assert.equal(planFacts(plan({ last_due: null })).lastDue, '2031-06-10', 'falls back to one month after another');
+  });
   it('copes with an empty plan', () => {
     assert.deepEqual(planFacts({ installment_count: 0, total_amount: 0, paid_count: 0 }), { count: 0, paid: 0, pct: 0, segments: null, each: 0, lastDue: null, finished: false });
   });

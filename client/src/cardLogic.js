@@ -97,9 +97,19 @@ export function suggestEach(price, count) {
  * simply divided with no interest. Returns null when the numbers cannot be a plan (2 to 36 installments, a price and an amount),
  * `{ valid: false }` when the installments add up to less than the price, otherwise the total, the interest in money and in percent.
  */
-export function cardInstallmentSummary({ price, each, count }) {
-  const n = Math.floor(Number(count));
+export function cardInstallmentSummary({ price, each, count, amounts }) {
   const priceC = toCents(price);
+  if (Array.isArray(amounts)) {
+    // installments that are not equal: one amount for each, exactly as listed
+    const partsC = amounts.map(toCents);
+    const n = partsC.length;
+    if (!(n >= 2 && n <= 36) || priceC <= 0 || partsC.some((c) => c <= 0)) return null;
+    const totalC = partsC.reduce((t, c) => t + c, 0);
+    if (totalC < priceC) return { valid: false, n, total: totalC / 100, price: priceC / 100 };
+    const interestC = totalC - priceC;
+    return { valid: true, n, parts: partsC.map((c) => c / 100), total: totalC / 100, interest: interestC / 100, pct: Math.round((interestC * 1000) / priceC) / 10 };
+  }
+  const n = Math.floor(Number(count));
   if (!(n >= 2 && n <= 36) || priceC <= 0) return null;
   const hasEach = each !== '' && each != null;
   const eachC = hasEach ? toCents(each) : null;
@@ -111,6 +121,7 @@ export function cardInstallmentSummary({ price, each, count }) {
     valid: true,
     n,
     each: hasEach ? eachC / 100 : suggestEach(price, n),
+    ...(!hasEach && priceC % n !== 0 ? { approx: true } : {}), // the price does not divide evenly: the first installments carry the odd cents
     total: totalC / 100,
     interest: interestC / 100,
     pct: Math.round((interestC * 1000) / priceC) / 10,
@@ -121,4 +132,39 @@ export function cardInstallmentSummary({ price, each, count }) {
 export function billsBehind(first, count, today) {
   const day = Number(first.slice(8));
   return Array.from({ length: Math.max(0, Math.floor(count)) }, (_, i) => addMonths(first, i, day)).filter((d) => d <= today).length;
+}
+
+/**
+ * The boxes of an unequal plan: what was typed in each (`typed`: a string per installment, '' = not typed), and the boxes not typed share what
+ * is left of the price equally, to the cent (the first ones get the odd cents). If the typed boxes already use up the price, the rest are 0.
+ */
+export function spreadAmounts({ price, count, typed = [] }) {
+  const n = Math.max(0, Math.floor(Number(count)) || 0);
+  const priceC = toCents(price);
+  const filled = Array.from({ length: n }, (_, i) => (typed[i] !== undefined && typed[i] !== '' ? toCents(typed[i]) : null));
+  const open = filled.map((c, i) => (c === null ? i : -1)).filter((i) => i >= 0);
+  const left = Math.max(0, priceC - filled.reduce((t, c) => t + (c ?? 0), 0));
+  const share = open.length ? Math.floor(left / open.length) : 0;
+  const extra = open.length ? left - share * open.length : 0;
+  return filled.map((c, i) => (c !== null ? c : share + (open.indexOf(i) < extra ? 1 : 0))).map((c) => c / 100);
+}
+
+/**
+ * The bill month of each installment of a card purchase: the first, then by default one month later each. A month picked for an
+ * installment (`picked[i]`, '' = not picked) replaces its default, but months only go forward: a pick that is not after the installment
+ * before it falls back to the default (the month after that one).
+ */
+export function installmentMonths({ first, count, picked = [] }) {
+  const n = Math.max(0, Math.floor(Number(count)) || 0);
+  const months = [];
+  for (let i = 0; i < n; i++) {
+    if (i === 0) {
+      months.push(first);
+      continue;
+    }
+    const fallback = addMonthsYM(months[i - 1], 1);
+    const want = picked[i] || fallback;
+    months.push(want > months[i - 1] ? want : fallback);
+  }
+  return months;
 }

@@ -14,6 +14,10 @@ const createSchema = z
     // Provide either the total or the per-installment amount.
     total_amount: money.optional(),
     installment_amount: money.optional(),
+    // ...or one amount per installment, in order, when they are not equal (the total is their sum).
+    amounts: z.array(money).min(2).max(360).optional(),
+    // ...and, when the bills are not in consecutive months, the bill day of each installment, in order.
+    dates: z.array(ymd).min(2).max(360).optional(),
     installment_count: z.coerce.number().int().min(1).max(360),
     first_due_date: ymd,
     category_id: categoryId,
@@ -36,9 +40,29 @@ const createSchema = z
     path: ['installment_count'],
     message: 'a card purchase can be paid in 2 to 36 installments',
   })
-  .refine((p) => p.total_amount || p.installment_amount, {
+  .refine((p) => !p.dates || p.dates.length === p.installment_count, {
+    path: ['dates'],
+    message: 'needs one date for each installment',
+  })
+  .refine((p) => !p.dates || p.dates.every((d, i) => i === 0 || d > p.dates[i - 1]), {
+    path: ['dates'],
+    message: 'must go forward, one installment after the other',
+  })
+  .refine((p) => !p.dates || p.dates[0] === p.first_due_date, {
+    path: ['dates'],
+    message: 'the first date must be the first due date',
+  })
+  .refine((p) => p.amounts || p.total_amount || p.installment_amount, {
     path: ['total_amount'],
     message: 'provide a total amount or an amount per installment',
+  })
+  .refine((p) => !p.amounts || (!p.total_amount && !p.installment_amount), {
+    path: ['amounts'],
+    message: 'give either the amounts or a total / amount per installment, not both',
+  })
+  .refine((p) => !p.amounts || p.amounts.length === p.installment_count, {
+    path: ['amounts'],
+    message: 'needs one amount for each installment',
   })
   .refine((p) => p.paid_count <= p.installment_count, {
     path: ['paid_count'],
@@ -55,7 +79,7 @@ const SELECT = `
     COALESCE(s.paid_total, 0)::float8 AS paid_total,
     p.installment_count - COALESCE(s.paid_count, 0)::int AS remaining_count,
     p.total_amount - COALESCE(s.paid_total, 0) AS remaining_total,
-    s.next_due
+    s.next_due, s.last_due
   FROM installment_plans p
   LEFT JOIN categories c ON c.id = p.category_id
   LEFT JOIN users mu ON mu.id = p.member_id
@@ -63,7 +87,8 @@ const SELECT = `
     SELECT installment_plan_id,
       count(*) FILTER (WHERE status = 'paid') AS paid_count,
       sum(amount) FILTER (WHERE status = 'paid') AS paid_total,
-      min(date) FILTER (WHERE status = 'pending') AS next_due
+      min(date) FILTER (WHERE status = 'pending') AS next_due,
+      max(date) AS last_due
     FROM transactions WHERE installment_plan_id IS NOT NULL GROUP BY installment_plan_id
   ) s ON s.installment_plan_id = p.id`;
 
@@ -96,14 +121,17 @@ router.post(
       if (!rows[0]) throw new HttpError(400, `@${p.paid_by} is not a member of this budget.`);
       memberId = rows[0].id;
     }
-    const totalCents = p.total_amount
-      ? Math.round(p.total_amount * 100)
-      : Math.round(p.installment_amount * 100) * p.installment_count;
+    const listed = p.amounts?.map((a) => Math.round(a * 100));
+    const totalCents = listed
+      ? listed.reduce((t, a) => t + a, 0)
+      : p.total_amount
+        ? Math.round(p.total_amount * 100)
+        : Math.round(p.installment_amount * 100) * p.installment_count;
     if (p.charged_on && p.purchase_amount && Math.round(p.purchase_amount * 100) > totalCents) {
       throw new HttpError(400, 'The installments add up to less than the price. Interest can only add to it.');
     }
-    const amounts = splitInstallments(totalCents, p.installment_count);
-    const dates = installmentDates(p.first_due_date, p.installment_count);
+    const amounts = listed ?? splitInstallments(totalCents, p.installment_count);
+    const dates = p.dates ?? installmentDates(p.first_due_date, p.installment_count);
 
     const planId = await withTransaction(async (client) => {
       const plan = (

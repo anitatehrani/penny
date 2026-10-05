@@ -12,6 +12,7 @@ import auth from './routes/auth.js';
 import avatars from './routes/avatars.js';
 import notifications, { publicRouter as publicNotifications } from './routes/notifications.js';
 import receipts, { fileRouter as receiptFiles } from './routes/receipts.js';
+import cardBills from './routes/cardBills.js';
 import carryover from './routes/carryover.js';
 import debts from './routes/debts.js';
 import installments from './routes/installments.js';
@@ -57,7 +58,7 @@ app.use('/api', publicNotifications); // one-click unsubscribe from an e-mail (s
 app.use('/api', requireAuth);
 for (const r of [profile, avatars, people, workspaces, notifications, receiptFiles, preferences]) app.use('/api', r);
 app.use('/api', resolveWorkspace);
-for (const r of [settings, carryover, transactions, receipts, recurring, installments, debts, reports, shared, insights]) app.use('/api', r);
+for (const r of [settings, carryover, cardBills, transactions, receipts, recurring, installments, debts, reports, shared, insights]) app.use('/api', r);
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found' }));
 
 // Serve the built React app when present (npm run build).

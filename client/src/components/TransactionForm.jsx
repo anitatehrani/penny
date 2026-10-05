@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
 import { api } from '../api.js';
 import { useAuth } from '../auth.jsx';
-import { billMonthOptions, billsBehind, cardInstallmentSummary, defaultBillMonth, paymentDates, suggestEach } from '../cardLogic.js';
-import { MonthCalendar } from './ds/MonthPicker.jsx';
+import { billMonthOptions, cardInstallmentSummary, cardPayDate, defaultBillMonth, installmentMonths, paymentDates, spreadAmounts, suggestEach } from '../cardLogic.js';
+import { MonthCalendar, MonthPicker } from './ds/MonthPicker.jsx';
 import { useApp } from '../context.jsx';
-import { dateLong, monthLabel, todayYMD } from '../format.js';
+import { addMonthsYM, dateLong, monthLabel, todayYMD } from '../format.js';
 import { useFetch } from '../hooks.js';
 import { useWorkspace } from '../workspace.jsx';
 import { AlertPicker, choiceFrom, NO_CHOICE, sameChoice, saveAlertChoice } from './Alerts.jsx';
@@ -35,6 +35,9 @@ export default function TransactionForm({ initial, defaultDate, onSaved, onCance
   const [cardMode, setCardMode] = useState('one');
   const [instCount, setInstCount] = useState('3');
   const [eachInput, setEachInput] = useState(''); // '' = not typed yet: the price divided by the count, no interest
+  const [splitMode, setSplitMode] = useState('equal'); // 'equal' | 'custom' (a different amount for each installment)
+  const [typed, setTyped] = useState([]); // custom mode: what was typed in each box ('' = not typed, shares what is left)
+  const [pickedMonths, setPickedMonths] = useState([]); // a bill month chosen for an installment ('' = follows the one before)
   const [categoryId, setCategoryId] = useState(initial?.category_id ? String(initial.category_id) : '');
   const [note, setNote] = useState(initial?.note ?? '');
   const [status, setStatus] = useState(initial?.status === 'paid' ? 'paid' : initial?.status ? 'pending' : null);
@@ -83,7 +86,21 @@ export default function TransactionForm({ initial, defaultDate, onSaved, onCance
   // (A card payment is judged by the day its bill is paid, not the day it was bought.)
   const effectiveStatus = status ?? (dates.date <= todayYMD() ? 'paid' : 'pending');
   const inInstallments = onCard && !editing && cardMode === 'installments';
-  const summary = inInstallments ? cardInstallmentSummary({ price: amount, each: eachInput, count: instCount }) : null;
+  const unequal = inInstallments && splitMode === 'custom';
+  const nInst = Math.floor(Number(instCount));
+  const customAmounts = unequal && nInst >= 2 && nInst <= 36 ? spreadAmounts({ price: amount, count: nInst, typed }) : null;
+  const listed = inInstallments && nInst >= 2 && nInst <= 36;
+  const months = listed ? installmentMonths({ first: billMonth, count: nInst, picked: pickedMonths }) : [];
+  const billDates = months.map((m) => cardPayDate(m, cardDay));
+  const rowAmounts = !listed ? [] : unequal ? customAmounts : eachInput !== '' ? Array(nInst).fill(Number(eachInput)) : spreadAmounts({ price: amount, count: nInst, typed: [] });
+  const setPick = (i, m) => setPickedMonths((p) => Object.assign(Array.from({ length: Math.max(p.length, i + 1) }, (_, k) => p[k] ?? ''), { [i]: m }));
+  const summary = !inInstallments
+    ? null
+    : unequal
+      ? customAmounts
+        ? cardInstallmentSummary({ price: amount, amounts: customAmounts })
+        : null
+      : cardInstallmentSummary({ price: amount, each: eachInput, count: instCount });
 
   async function submit(e) {
     e.preventDefault();
@@ -96,15 +113,15 @@ export default function TransactionForm({ initial, defaultDate, onSaved, onCance
     try {
       if (inInstallments) {
         const n = summary.n;
-        const first = dates.date;
-        const paid = billsBehind(first, n, todayYMD()); // bills already behind us are paid
+        const paid = billDates.filter((d) => d <= todayYMD()).length; // bills already behind us are paid
         const plan = await api.post('/installments', {
           description,
           installment_count: n,
-          first_due_date: first,
+          first_due_date: billDates[0],
+          dates: billDates,
           charged_on: date,
           purchase_amount: Number(amount),
-          ...(eachInput !== '' ? { installment_amount: Number(eachInput) } : { total_amount: Number(amount) }),
+          ...(unequal ? { amounts: summary.parts } : eachInput !== '' ? { installment_amount: Number(eachInput) } : { total_amount: Number(amount) }),
           paid_count: paid,
           category_id: categoryId ? Number(categoryId) : null,
           note: note || null,
@@ -198,12 +215,39 @@ export default function TransactionForm({ initial, defaultDate, onSaved, onCance
               ]}
             />
           )}
+          {onCard && (
+            <div className="field">
+              <span className="field-label">
+                {inInstallments ? 'The first installment is in' : 'Counts in'} <strong>{monthLabel(billMonth)}</strong>
+                {billMonth === defaultBillMonth(date) ? ' (the next bill)' : ''}
+              </span>
+              <MonthCalendar
+                value={billMonth}
+                onChange={setBillChoice}
+                allowed={billOptions}
+                notAllowedReason="A card bill cannot fall before the purchase or more than a year after it"
+                showToday={false}
+                label="The month the card bill is paid"
+              />
+              <span className="field-hint">{`Leaves your balance on ${dateLong(dates.date)}, your card pay day. You can change the day in Settings.`}</span>
+            </div>
+          )}
           {inInstallments && (
             <>
+              <Segmented
+                label="How are the installments split?"
+                value={splitMode}
+                onChange={setSplitMode}
+                options={[
+                  { value: 'equal', label: 'Equal' },
+                  { value: 'custom', label: 'Different amounts' },
+                ]}
+              />
               <div className="form-grid">
                 <Field label="Number of installments" hint="2 to 36, one on each monthly bill.">
                   <input type="number" min="2" max="36" step="1" inputMode="numeric" value={instCount} onChange={(e) => setInstCount(e.target.value)} required />
                 </Field>
+                {!unequal && (
                 <Field label="Each installment" hint="What the bank charges each month. Raise it if there is interest.">
                   <input
                     type="number"
@@ -215,12 +259,81 @@ export default function TransactionForm({ initial, defaultDate, onSaved, onCance
                     placeholder="0.00"
                   />
                 </Field>
+                )}
               </div>
+              {listed && rowAmounts && (
+                <div className="inst-list" role="group" aria-label="Month and amount of each installment">
+                  {months.map((m, i) => (
+                    <div key={i} className={`inst-row${unequal && typed[i] ? ' typed' : ''}`}>
+                      <span className="inst-when">
+                        {i + 1}.{' '}
+                        {i === 0 ? (
+                          <span className="muted">{monthLabel(m)}</span>
+                        ) : (
+                          <MonthPicker
+                            value={m}
+                            onChange={(v) => setPick(i, v)}
+                            min={addMonthsYM(months[i - 1], 1)}
+                            max={addMonthsYM(billMonth, 72)}
+                            label={`Bill month of installment ${i + 1}`}
+                            className="inst-month"
+                          />
+                        )}
+                      </span>
+                      {unequal ? (
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          inputMode="decimal"
+                          value={typed[i] ? typed[i] : rowAmounts[i] ? String(rowAmounts[i]) : ''}
+                          onChange={(e) => setTyped((t) => Object.assign(Array.from({ length: Math.max(t.length, i + 1) }, (_, k) => t[k] ?? ''), { [i]: e.target.value }))}
+                          aria-label={`Installment ${i + 1}, ${monthLabel(m)}`}
+                        />
+                      ) : (
+                        <strong className="num">{money(rowAmounts[i])}</strong>
+                      )}
+                    </div>
+                  ))}
+                  <p className="field-hint">
+                    The months follow each other; choose another month for any installment after the first.
+                    {unequal && ' Boxes you have not typed in share what is left of the price equally.'}{' '}
+                    {pickedMonths.some(Boolean) && (
+                      <button type="button" className="link-quiet" onClick={() => setPickedMonths([])}>
+                        Back to consecutive months
+                      </button>
+                    )}{' '}
+                    {unequal && typed.some(Boolean) && (
+                      <button type="button" className="link-quiet" onClick={() => setTyped([])}>
+                        Share equally again
+                      </button>
+                    )}
+                  </p>
+                </div>
+              )}
               {summary && (
                 <div className={`banner ${summary.valid ? 'info' : 'warn'}`} aria-live="polite">
                   {summary.valid ? (
                     <span>
-                      {summary.n} × <strong>{money(summary.each)}</strong> = <strong>{money(summary.total)}</strong>
+                      {summary.parts ? (
+                        summary.n <= 6 ? (
+                          summary.parts.map((p, i) => (
+                            <span key={i}>
+                              {i > 0 && ' + '}
+                              <strong>{money(p)}</strong>
+                            </span>
+                          ))
+                        ) : (
+                          <span>{summary.n} installments</span>
+                        )
+                      ) : (
+                        <span>
+                          {summary.n} × {summary.approx && 'about '}
+                          <strong>{money(summary.each)}</strong>
+                        </span>
+                      )}
+                      {' = '}
+                      <strong>{money(summary.total)}</strong>
                       {summary.interest > 0 ? (
                         <>
                           {' · interest '}
@@ -239,23 +352,7 @@ export default function TransactionForm({ initial, defaultDate, onSaved, onCance
               )}
             </>
           )}
-          {onCard && (
-            <div className="field">
-              <span className="field-label">
-                {inInstallments ? 'The first installment is in' : 'Counts in'} <strong>{monthLabel(billMonth)}</strong>
-                {billMonth === defaultBillMonth(date) ? ' (the next bill)' : ''}
-              </span>
-              <MonthCalendar
-                value={billMonth}
-                onChange={setBillChoice}
-                allowed={billOptions}
-                notAllowedReason="A card bill cannot fall before the purchase or more than a year after it"
-                showToday={false}
-                label="The month the card bill is paid"
-              />
-              <span className="field-hint">{`Leaves your balance on ${dateLong(dates.date)}, your card pay day. You can change the day in Settings.`}</span>
-            </div>
-          )}
+
         </div>
       )}
       <div className="form-grid">

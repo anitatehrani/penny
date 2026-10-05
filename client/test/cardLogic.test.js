@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { billMonthOptions, byListDate, cardPayDate, defaultBillMonth, listDate, monthTotals, paymentDates, rowState, billsBehind, cardInstallmentSummary, suggestEach } from '../src/cardLogic.js';
+import { billMonthOptions, byListDate, cardPayDate, defaultBillMonth, listDate, monthTotals, paymentDates, rowState, billsBehind, cardInstallmentSummary, installmentMonths, spreadAmounts, suggestEach } from '../src/cardLogic.js';
 import { installmentDates } from '../../server/src/lib/schedule.js';
 
 describe('the day the card bill is paid', () => {
@@ -204,6 +204,12 @@ describe('the summary of card installments', () => {
     assert.deepEqual(cardInstallmentSummary({ price: 600, each: '', count: 3 }), { valid: true, n: 3, each: 200, total: 600, interest: 0, pct: 0 });
   });
 
+  it('says "about" when the price does not divide evenly (the first installments carry the odd cents)', () => {
+    assert.equal(cardInstallmentSummary({ price: 145, each: '', count: 3 }).approx, true);
+    assert.equal(cardInstallmentSummary({ price: 144, each: '', count: 3 }).approx, undefined);
+    assert.equal(cardInstallmentSummary({ price: 145, each: 50, count: 3 }).approx, undefined, 'a typed amount is exact');
+  });
+
   it('works out the interest in money and percent from the amount the bank charges', () => {
     assert.deepEqual(cardInstallmentSummary({ price: 1000, each: 190, count: 6 }), { valid: true, n: 6, each: 190, total: 1140, interest: 140, pct: 14 });
     assert.equal(cardInstallmentSummary({ price: 333, each: 60, count: 6 }).pct, 8.1);
@@ -245,5 +251,91 @@ describe('which monthly card bills are already behind us', () => {
   it('is zero for nothing to count', () => {
     assert.equal(billsBehind('2031-01-10', 0, '2031-06-01'), 0);
     assert.equal(billsBehind('2031-01-10', -3, '2031-06-01'), 0);
+  });
+});
+
+describe('installments that are not equal', () => {
+  it('shares what is left of the price equally among the boxes not typed in', () => {
+    assert.deepEqual(spreadAmounts({ price: 42, count: 3, typed: ['30', '', ''] }), [30, 6, 6]);
+    assert.deepEqual(spreadAmounts({ price: 42, count: 3, typed: ['', '', ''] }), [14, 14, 14], 'nothing typed: equal parts');
+    assert.deepEqual(spreadAmounts({ price: 42, count: 3, typed: [] }), [14, 14, 14]);
+    assert.deepEqual(spreadAmounts({ price: 100, count: 4, typed: ['', '40', '', ''] }), [20, 40, 20, 20], 'a box in the middle is respected, the others share the 60');
+  });
+
+  it('is exact to the cent: the odd cents go to the first open boxes and nothing is lost', () => {
+    assert.deepEqual(spreadAmounts({ price: 10, count: 3, typed: [] }), [3.34, 3.33, 3.33]);
+    assert.deepEqual(spreadAmounts({ price: 0.05, count: 3, typed: [] }), [0.02, 0.02, 0.01]);
+    for (const [price, count] of [[100, 7], [33.33, 4], [1, 3], [999.99, 12]]) {
+      const sum = Math.round(spreadAmounts({ price, count, typed: [] }).reduce((t, x) => t + x * 100, 0));
+      assert.equal(sum, Math.round(price * 100), price + ' in ' + count);
+    }
+  });
+
+  it('keeps exactly what was typed, even when it adds up to more than the price (that is interest)', () => {
+    assert.deepEqual(spreadAmounts({ price: 42, count: 3, typed: ['30', '8', '8'] }), [30, 8, 8]);
+  });
+
+  it('leaves nothing for the open boxes when the typed ones already use up the price', () => {
+    assert.deepEqual(spreadAmounts({ price: 42, count: 3, typed: ['42', '', ''] }), [42, 0, 0]);
+    assert.deepEqual(spreadAmounts({ price: 42, count: 3, typed: ['50', '', ''] }), [50, 0, 0]);
+  });
+
+  it('copes with a changed count: typed boxes beyond it are ignored, new ones are open', () => {
+    assert.deepEqual(spreadAmounts({ price: 42, count: 2, typed: ['30', '', ''] }), [30, 12]);
+    assert.deepEqual(spreadAmounts({ price: 42, count: 4, typed: ['30'] }), [30, 4, 4, 4]);
+    assert.deepEqual(spreadAmounts({ price: 42, count: 0, typed: ['30'] }), []);
+  });
+
+  it('summarises a list: the total, the interest, and what it cannot be', () => {
+    assert.deepEqual(cardInstallmentSummary({ price: 42, amounts: [30, 6, 6] }), { valid: true, n: 3, parts: [30, 6, 6], total: 42, interest: 0, pct: 0 });
+    assert.deepEqual(cardInstallmentSummary({ price: 42, amounts: [30, 8, 8] }), { valid: true, n: 3, parts: [30, 8, 8], total: 46, interest: 4, pct: 9.5 });
+    assert.deepEqual(cardInstallmentSummary({ price: 42, amounts: [20, 6, 6] }), { valid: false, n: 3, total: 32, price: 42 });
+    assert.equal(cardInstallmentSummary({ price: 42, amounts: [42] }), null, 'one is not installments');
+    assert.equal(cardInstallmentSummary({ price: 42, amounts: [30, 0, 12] }), null, 'a zero is not an installment');
+    assert.equal(cardInstallmentSummary({ price: 42, amounts: [30, '', 12] }), null, 'an empty box is not an installment');
+    assert.equal(cardInstallmentSummary({ price: 0, amounts: [1, 2] }), null);
+    assert.equal(cardInstallmentSummary({ price: 5, amounts: Array(37).fill(1) }), null, 'more than 36');
+  });
+
+  it('adds the list in whole cents', () => {
+    assert.equal(cardInstallmentSummary({ price: 0.3, amounts: [0.1, 0.1, 0.1] }).interest, 0);
+    assert.equal(cardInstallmentSummary({ price: 0.3, amounts: [0.1, 0.2, 0.1] }).interest, 0.1);
+  });
+});
+
+describe('the months of the installments', () => {
+  it('follow each other from the first by default, across the new year', () => {
+    assert.deepEqual(installmentMonths({ first: '2026-11', count: 4 }), ['2026-11', '2026-12', '2027-01', '2027-02']);
+    assert.deepEqual(installmentMonths({ first: '2026-11', count: 3, picked: [] }), ['2026-11', '2026-12', '2027-01']);
+  });
+
+  it('let one installment move to another month, and the ones after it follow', () => {
+    assert.deepEqual(installmentMonths({ first: '2026-11', count: 4, picked: ['', '2027-02'] }), ['2026-11', '2027-02', '2027-03', '2027-04']);
+  });
+
+  it('keep a later pick where it was chosen', () => {
+    assert.deepEqual(installmentMonths({ first: '2026-11', count: 4, picked: ['', '', '', '2027-09'] }), ['2026-11', '2026-12', '2027-01', '2027-09']);
+    assert.deepEqual(installmentMonths({ first: '2026-11', count: 4, picked: ['', '2027-02', '', '2027-09'] }), ['2026-11', '2027-02', '2027-03', '2027-09']);
+  });
+
+  it('only go forward: a pick that is not after the one before goes back to the default', () => {
+    assert.deepEqual(installmentMonths({ first: '2026-11', count: 3, picked: ['', '2026-11'] }), ['2026-11', '2026-12', '2027-01'], 'the same month');
+    assert.deepEqual(installmentMonths({ first: '2026-11', count: 3, picked: ['', '2026-08'] }), ['2026-11', '2026-12', '2027-01'], 'an earlier month');
+    assert.deepEqual(installmentMonths({ first: '2026-11', count: 4, picked: ['', '2027-05', '2027-02'] }), ['2026-11', '2027-05', '2027-06', '2027-07'], 'a later pick that the earlier one has passed');
+  });
+
+  it('ignore a pick for the first installment (its month is the calendar above)', () => {
+    assert.deepEqual(installmentMonths({ first: '2026-11', count: 2, picked: ['2030-01'] }), ['2026-11', '2026-12']);
+  });
+
+  it('are always strictly increasing, whatever was picked', () => {
+    const picks = ['', '2027-03', '2026-01', '2027-03', '', '2030-01', '2026-02'];
+    const m = installmentMonths({ first: '2026-11', count: 7, picked: picks });
+    assert.ok(m.every((x, i) => i === 0 || x > m[i - 1]), m.join());
+  });
+
+  it('are nothing for no installments', () => {
+    assert.deepEqual(installmentMonths({ first: '2026-11', count: 0 }), []);
+    assert.deepEqual(installmentMonths({ first: '2026-11', count: 'x' }), []);
   });
 });

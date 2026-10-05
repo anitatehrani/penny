@@ -515,3 +515,69 @@ cursor resting on the amount quietly edits it. It affected every number box (amo
 focused number box when a wheel event happens on it. The page then scrolls as expected and the number is untouched. Typing and the
 arrow keys still work. A browser check scrolls over the amount and the card pay day and asserts the value is unchanged; it fails
 (100 → 100.01) without the listener.
+
+## 25. Paying only part of a card bill and rolling the rest over (defined before implementation)
+
+**What was missing.** A card bill is the credit card payments that fall on one bill day. Sometimes only part of it is paid and the rest
+rolls to a later bill, usually with interest. Without a way to say so, the bill month kept showing money that never left the account,
+and the later month did not know it was coming.
+
+**The idea.** A **bill** is every *unpaid* credit card expense whose bill day falls in a month. **Pay only part** moves the unpaid rest,
+purchase by purchase, to a later bill, and adds the interest as its own card payment there. Every month then adds up to what really
+leaves the account.
+
+**The dialog** ("Card bill on 10 Dec: €235.00 to pay · Pay only part…", under the totals of a month that has such a bill):
+
+- **I will pay now** (from nothing up to just under the bill). Everything else rolls.
+- **The rest moves to the bill of** a month after this one, up to a year ahead (as when choosing a bill month), starting with the next one.
+- **Interest on the rest** (optional, from nothing up). It becomes one card payment *"Card interest (rest of the December 2026 bill)"*
+  on that later bill, bought on the old bill day.
+- A preview says what will happen before anything is changed: *"This bill becomes €100.00. The 10 Jan bill gets €135.00 + €6.50 interest."*
+  and lists which purchases move or split.
+
+**Which purchases move.** The latest purchases roll first (by purchase day, newest first). A purchase that fits in the rest moves whole
+to the later bill. The purchase that straddles the line is **split**: it keeps the part you pay now, and the rest becomes a new
+payment "{name} (rest)" on the later bill, same purchase day, category, note and person. So no cent is created or lost: the bill keeps
+exactly what you said you pay.
+
+**What cannot move.** A fixed installment of a plan, a debt payment, and a payment shared with other people stay on their bill: they
+are part of the statement total, but not part of the amount that can roll over. If the rest is more than what can move, the dialog
+says how much can (and the server refuses). Paid payments never move.
+
+**All or nothing.** The change is made in one database transaction; any failure leaves every payment as it was.
+
+**Where the code is.** `GET /api/card-bills?month=YYYY-MM` returns the bill (its unpaid card payments, which can move, the totals and
+the bill day); `POST /api/card-bills/rollover` `{ bill_month, pay_now, to_month, interest }` does it. The choice of purchases is one pure
+function, `planRollover(items, restCents)`, written once on the server (`lib/rollover.js`) and once in the client
+(`rolloverLogic.js`) for the preview, with a test that checks the two always agree. The server recomputes the plan itself: the client
+never tells it which purchases to move.
+
+### 23b. Installments that are not equal (added)
+
+A card purchase does not have to be paid in equal parts: 30 this month, then 6 a month for the rest. In the form, after "In installments",
+**Equal / Different amounts**:
+
+- **Different amounts** shows one box per installment (month 1, month 2, …) with its bill month. Boxes you have **not typed in** share
+  whatever is left of the price equally, live: price 42 in 3, type 30 in the first and the other two show 6 and 6. Type in every box and it
+  is exactly what you typed; if that adds up to more than the price, the extra is interest (shown as before); less than the price is
+  refused. Changing the number of installments keeps what you typed.
+- `POST /api/installments` accepts `amounts: [..]` (one amount per installment, in order) instead of `total_amount` or
+  `installment_amount`; the total is their sum. Giving both is refused, as is a list whose length is not `installment_count`.
+- `spreadAmounts({ price, count, typed })` in `client/src/cardLogic.js` works out the boxes you did not type, to the cent; `cardInstallmentSummary`
+  takes the list.
+
+### 23c. Installments in months of your choice (added)
+
+The monthly bills of an installment plan need not be consecutive: a purchase can be paid in November, then December, then **February**
+(a month skipped). In installments mode the form lists each installment with its bill month:
+
+- **By default the months follow each other** from the first one (November, December, January…). The first month is the calendar above the list.
+- **Each other installment has a month button** that opens the same month calendar. Pick another month and that installment moves; the ones
+  after it follow it again (unless they were picked too). Months only go forward: a pick that is not after the installment before it is
+  put back to the month after. A "Back to consecutive months" link clears the picks.
+- Works with equal and with different amounts. In equal mode the amounts are shown, not editable.
+- `POST /api/installments` accepts `dates: [..]` (the bill day of each installment, in order) next to `first_due_date` (which must be the first of
+  them); it must have `installment_count` entries and strictly increase. Without `dates`, months follow each other as before.
+- `GET /api/installments` adds `last_due` (the day of the last installment, whatever its status) because the last one can no longer be worked
+  out from the first.
+- `installmentMonths({ first, count, picked })` in `client/src/cardLogic.js` works out the months (and is tested without a browser).

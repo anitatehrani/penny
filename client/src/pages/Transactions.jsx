@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api, qs } from '../api.js';
+import CardBillDialog from '../components/CardBillDialog.jsx';
 import TransactionForm from '../components/TransactionForm.jsx';
 import TxRow from '../components/TxRow.jsx';
 import FilterSelect from '../components/ds/FilterSelect.jsx';
@@ -10,7 +11,7 @@ import { byListDate, monthTotals } from '../cardLogic.js';
 import { carryState, carryVisible, withCarry } from '../carryLogic.js';
 import { useApp } from '../context.jsx';
 import { activeFilterCount, categoryOptions } from '../filterLogic.js';
-import { currentMonth, monthLabel, todayYMD } from '../format.js';
+import { currentMonth, dateLabel, monthLabel, todayYMD } from '../format.js';
 import { useFetch } from '../hooks.js';
 import { useWorkspace } from '../workspace.jsx';
 
@@ -72,6 +73,7 @@ export default function Transactions() {
   const { current, isGroup, members } = useWorkspace();
   const [search, setSearch] = useState(() => params.get('q') ?? '');
   const [editing, setEditing] = useState(null); // null | {} (new) | tx
+  const [partPaying, setPartPaying] = useState(false);
 
   const set = (key, value) => {
     const next = new URLSearchParams(params);
@@ -98,6 +100,9 @@ export default function Transactions() {
   const carryData = useFetch(() => (status === 'overdue' ? Promise.resolve(null) : api.get(`/carryover?month=${month}`)), [month, status, data]);
   const today = todayYMD();
   const showCarry = carryVisible({ carry: carryData.data, month, today, status, type, pay, category, member, search });
+
+  // The card bill of this month: the unpaid credit card payments that fall on its bill day (docs/DESIGN.md section 25).
+  const cardBill = useFetch(() => (status === 'overdue' || status === 'skipped' ? Promise.resolve(null) : api.get(`/card-bills?month=${month}`)), [month, status, data]);
 
   const categoryChoices = useMemo(() => categoryOptions(categories), [categories]);
   const memberChoices = useMemo(() => [{ value: '', label: 'Everyone' }, ...members.map((m) => ({ value: m.username, label: m.name, person: m }))], [members]);
@@ -191,6 +196,17 @@ export default function Transactions() {
         </div>
       )}
 
+      {status !== 'overdue' && status !== 'skipped' && cardBill.data?.total > 0 && (
+        <div className="card-bill-line">
+          <span>
+            Card bill on <strong>{dateLabel(cardBill.data.bill_date)}</strong>: <strong className="num">{money(cardBill.data.total)}</strong> to pay
+          </span>
+          <button type="button" className="btn sm" onClick={() => setPartPaying(true)}>
+            Pay only part…
+          </button>
+        </div>
+      )}
+
       <section className="card flush">
         {error ? (
           <ErrorBox error={error} />
@@ -210,6 +226,17 @@ export default function Transactions() {
         )}
       </section>
 
+      {partPaying && cardBill.data && (
+        <CardBillDialog
+          bill={cardBill.data}
+          month={month}
+          onClose={() => setPartPaying(false)}
+          onDone={() => {
+            setPartPaying(false);
+            reload();
+          }}
+        />
+      )}
       {editing && (
         <Modal title={editing.id ? 'Edit payment' : 'Add payment'} onClose={() => setEditing(null)}>
           <TransactionForm

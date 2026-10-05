@@ -184,3 +184,103 @@ describe('editing and validating a card installment plan', () => {
     fails(await plan(owner.client, { paid_by: 'nobody.here' }), 400);
   });
 });
+
+describe('installments that are not equal', () => {
+  const unequal = (c, over = {}) => plan(c, { installment_amount: undefined, installment_count: 3, amounts: [30, 6, 6], purchase_amount: 42, ...over });
+
+  it('makes one payment per listed amount, in order, and totals them', async () => {
+    const c = await fresh();
+    const p = ok(await unequal(c), 201);
+    assert.deepEqual([p.total_amount, p.purchase_amount, p.installment_count], [42, 42, 3]);
+    const rows = ok(await c.get('/transactions?from=2000-01-01&to=2100-01-01&status=')).filter((t) => t.installment_plan_id === p.id);
+    assert.deepEqual(rows.map((t) => [t.installment_no, t.amount, t.date]), [[1, 30, '2032-01-10'], [2, 6, '2032-02-10'], [3, 6, '2032-03-10']]);
+    assert.ok(rows.every((t) => t.pay_method === 'credit_card' && t.charged_on === '2031-12-02'));
+  });
+
+  it('treats what the amounts add up to beyond the price as interest', async () => {
+    const c = await fresh();
+    const p = ok(await unequal(c, { amounts: [30, 8, 8] }), 201);
+    assert.deepEqual([p.total_amount, p.purchase_amount], [46, 42]);
+  });
+
+  it('refuses amounts that add up to less than the price', async () => {
+    const c = await fresh();
+    fails(await unequal(c, { amounts: [20, 6, 6] }), 400);
+  });
+
+  it('refuses a list of the wrong length, a zero or negative amount, and giving both the list and a total', async () => {
+    const c = await fresh();
+    fails(await unequal(c, { amounts: [30, 6] }), 400);
+    fails(await unequal(c, { amounts: [30, 6, 6, 6] }), 400);
+    fails(await unequal(c, { amounts: [30, 0, 12] }), 400);
+    fails(await unequal(c, { amounts: [30, -6, 18] }), 400);
+    fails(await unequal(c, { total_amount: 42 }), 400);
+    fails(await unequal(c, { installment_amount: 14 }), 400);
+    fails(await unequal(c, { amounts: [42] }), 400);
+  });
+
+  it('keeps every cent of odd amounts, and counts each in its own month', async () => {
+    const c = await fresh();
+    const p = ok(await unequal(c, { amounts: [10.01, 0.02, 0.07], purchase_amount: 10.1 }), 201);
+    assert.equal(p.total_amount, 10.1);
+    assert.equal(ok(await c.get('/summary?month=2032-01')).totals.expensePending, 10.01);
+    assert.equal(ok(await c.get('/summary?month=2032-02')).totals.expensePending, 0.02);
+  });
+
+  it('also works for an ordinary plan with no card', async () => {
+    const c = await fresh();
+    const p = ok(await c.post('/installments', { description: 'Course', amounts: [100, 50, 50], installment_count: 3, first_due_date: '2032-01-20', category_id: null }), 201);
+    assert.equal(p.total_amount, 200);
+    assert.equal(p.charged_on, null);
+  });
+});
+
+describe('installments in months of your choice', () => {
+  // bought 2 December 2031; bills on the 10th of January, February, and then May (a few months skipped)
+  const picked = (c, over = {}) => plan(c, { installment_amount: 100, installment_count: 3, purchase_amount: 290, first_due_date: '2032-01-10', dates: ['2032-01-10', '2032-02-10', '2032-05-10'], ...over });
+
+  it('puts each installment on the day it is given', async () => {
+    const c = await fresh();
+    const p = ok(await picked(c), 201);
+    const rows = ok(await c.get('/transactions?from=2000-01-01&to=2100-01-01&status=')).filter((t) => t.installment_plan_id === p.id);
+    assert.deepEqual(rows.map((t) => [t.installment_no, t.date, t.amount]), [[1, '2032-01-10', 100], [2, '2032-02-10', 100], [3, '2032-05-10', 100]]);
+    assert.ok(rows.every((t) => t.pay_method === 'credit_card' && t.charged_on === '2031-12-02'));
+  });
+
+  it('counts each in its own month, and nothing in the months skipped', async () => {
+    const c = await fresh();
+    ok(await picked(c), 201);
+    assert.equal(ok(await c.get('/summary?month=2032-02')).totals.expensePending, 100);
+    assert.equal(ok(await c.get('/summary?month=2032-03')).totals.expensePending, 0);
+    assert.equal(ok(await c.get('/summary?month=2032-05')).totals.expensePending, 100);
+  });
+
+  it('reports the real last day of the plan', async () => {
+    const c = await fresh();
+    const p = ok(await picked(c), 201);
+    assert.equal(p.last_due, '2032-05-10');
+    const plain = ok(await plan(c, { description: 'Plain' }), 201);
+    assert.equal(plain.last_due, '2032-06-10', 'a plan with consecutive months ends where it always did');
+  });
+
+  it('works together with different amounts', async () => {
+    const c = await fresh();
+    const p = ok(await picked(c, { installment_amount: undefined, amounts: [30, 6, 6], purchase_amount: 42 }), 201);
+    const rows = ok(await c.get('/transactions?from=2000-01-01&to=2100-01-01&status=')).filter((t) => t.installment_plan_id === p.id);
+    assert.deepEqual(rows.map((t) => [t.date, t.amount]), [['2032-01-10', 30], ['2032-02-10', 6], ['2032-05-10', 6]]);
+  });
+
+  it('refuses dates that are the wrong number, not in order, repeated, or not starting at the first due date', async () => {
+    const c = await fresh();
+    fails(await picked(c, { dates: ['2032-01-10', '2032-02-10'] }), 400);
+    fails(await picked(c, { dates: ['2032-01-10', '2032-03-10', '2032-02-10'] }), 400);
+    fails(await picked(c, { dates: ['2032-01-10', '2032-02-10', '2032-02-10'] }), 400);
+    fails(await picked(c, { dates: ['2032-01-11', '2032-02-10', '2032-05-10'] }), 400);
+    fails(await picked(c, { dates: ['2032-01-10', '2032-02-10', 'May'] }), 400);
+  });
+
+  it('refuses a first bill before the purchase, as for any card plan', async () => {
+    const c = await fresh();
+    fails(await picked(c, { charged_on: '2032-01-11' }), 400);
+  });
+});
