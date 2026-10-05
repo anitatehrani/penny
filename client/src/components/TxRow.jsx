@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { api } from '../api.js';
 import { useApp } from '../context.jsx';
-import { listDate } from '../cardLogic.js';
+import { listDate, rowState } from '../cardLogic.js';
 import { dateLabel, dateLong, relativeDay, todayYMD, weekday } from '../format.js';
 import { useWorkspace } from '../workspace.jsx';
 import { AlertBell } from './Alerts.jsx';
@@ -14,7 +14,8 @@ export default function TxRow({ tx, onChange, onEdit, compact }) {
   const { isGroup } = useWorkspace();
   // A row can be listed in its purchase month only (`purchase_only`): it is a card purchase that counts later, when the bill is paid.
   const purchaseOnly = !!tx.purchase_only;
-  const overdue = !purchaseOnly && tx.status === 'pending' && tx.date < todayYMD();
+  const state = rowState(tx, todayYMD());
+  const overdue = state === 'overdue';
   const income = tx.type === 'income';
   const card = tx.pay_method === 'credit_card';
   const shownDate = listDate(tx);
@@ -46,7 +47,7 @@ export default function TxRow({ tx, onChange, onEdit, compact }) {
   }
 
   return (
-    <div className={`tx-row${tx.status === 'skipped' ? ' skipped' : ''}${compact ? ' compact' : ''}${purchaseOnly ? ' purchase-only' : ''}`}>
+    <div className={`tx-row${tx.status === 'skipped' ? ' skipped' : ''}${compact ? ' compact' : ''}${purchaseOnly ? ' purchase-only' : ''}${state ? ` is-${state}` : ''}`}>
       <div className="tx-date">
         <strong>{dateLabel(shownDate)}</strong>
         <span className={overdue ? 'neg' : 'muted'}>{compact || overdue ? relativeDay(shownDate) : weekday(shownDate)}</span>
@@ -79,7 +80,6 @@ export default function TxRow({ tx, onChange, onEdit, compact }) {
               <Icon name="paperclip" size={12} /> {receipts}
             </button>
           )}
-          {overdue && <span className="badge danger">Overdue</span>}
           {tx.status === 'skipped' && <span className="badge">Skipped</span>}
         </div>
         <div className="tx-meta">

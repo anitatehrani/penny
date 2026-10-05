@@ -66,3 +66,13 @@ export function monthTotals(rows) {
   }
   return { income: income / 100, expenses: expenses / 100, net: (income - expenses) / 100, onCard: onCard / 100, bought: bought / 100 };
 }
+
+/**
+ * How a payment row should read at a glance: 'overdue' (pending, day passed), 'paid', or '' (pending, skipped, or a card purchase that
+ * only counts later). `today` is 'YYYY-MM-DD'.
+ */
+export function rowState(tx, today) {
+  if (tx.purchase_only || tx.status === 'skipped') return '';
+  if (tx.status === 'paid') return 'paid';
+  return tx.status === 'pending' && tx.date < today ? 'overdue' : '';
+}

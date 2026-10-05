@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { billMonthOptions, byListDate, cardPayDate, defaultBillMonth, listDate, monthTotals, paymentDates } from '../src/cardLogic.js';
+import { billMonthOptions, byListDate, cardPayDate, defaultBillMonth, listDate, monthTotals, paymentDates, rowState } from '../src/cardLogic.js';
 
 describe('the day the card bill is paid', () => {
   it('is the pay day in that month', () => {
@@ -125,5 +125,23 @@ describe('the monthly list with card purchases in it', () => {
 
   it('is zero for an empty month', () => {
     assert.deepEqual(monthTotals([]), { income: 0, expenses: 0, net: 0, onCard: 0, bought: 0 });
+  });
+});
+
+describe('how a payment row reads at a glance', () => {
+  const TODAY = '2031-02-15';
+  const tx = (over) => ({ status: 'pending', date: TODAY, ...over });
+  it('is overdue only for a pending payment whose day has passed', () => {
+    assert.equal(rowState(tx({ date: '2031-02-14' }), TODAY), 'overdue');
+    assert.equal(rowState(tx({ date: TODAY }), TODAY), '', 'today is still to come');
+    assert.equal(rowState(tx({ date: '2031-03-01' }), TODAY), '');
+  });
+  it('is paid for a paid one, however old', () => {
+    assert.equal(rowState(tx({ status: 'paid', date: '2020-01-01' }), TODAY), 'paid');
+  });
+  it('is plain for a skipped payment, and for a card purchase that only counts when the bill is paid', () => {
+    assert.equal(rowState(tx({ status: 'skipped', date: '2020-01-01' }), TODAY), '');
+    assert.equal(rowState(tx({ purchase_only: true, date: '2020-01-01' }), TODAY), '');
+    assert.equal(rowState(tx({ status: 'paid', purchase_only: true }), TODAY), '');
   });
 });

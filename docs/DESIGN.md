@@ -299,3 +299,29 @@ and pending payments (skipped ones are left out), oldest first. The steps are wo
 **Look.** The visual idea (rail, mark, date beside a state word) follows a timeline from the 21st.dev catalog; it is drawn in Penny's own
 CSS tokens (`client/src/design/pages.css`), not copied, because the app does not use Tailwind. It works in light and dark, wraps on a phone,
 and is keyboard operable and announced as an ordered list.
+
+## 16. Payment rows: what is left to do stands out (defined before implementation)
+
+**What was wrong.** Every payment row looked the same weight. A paid rent and an unpaid, overdue gym fee differed only by a button label and a
+small badge, so scanning for "what do I still have to pay?" meant reading every row. Overdue was said twice (a red "2 days overdue" under the
+date and an "Overdue" badge). Four small icon buttons (reminder, receipt, edit, delete) sat at full strength on every row.
+
+**What changes** (look only; no data, route or behaviour changes):
+
+| Row state | Left edge | Text |
+| --- | --- | --- |
+| overdue (pending, day passed) | red 3px strip | normal; "N days overdue" under the date stays red |
+| pending | none | normal |
+| paid | green 3px strip | title, date and amount one step softer, so unpaid rows read first |
+| skipped | none | as before (struck through) |
+
+- The "Overdue" badge goes; the strip and the red "N days overdue" say it, in words as well as colour.
+- The secondary icon buttons (reminder, receipt, edit, delete) are quieter until the row is hovered or has focus, **only where the device
+  has a hover-capable fine pointer**. On a phone or tablet they stay at full strength, and they are never hidden: keyboard focus on any
+  button in the row brings them all up (`:focus-within`). The main "Mark paid" / "Paid" button is always full strength.
+- The strip is an inset shadow, so no grid column changes and the dashboard's compact rows, the People page and recurring rules keep their
+  layout. Skipped and "purchase-only" card rows are untouched.
+
+**Look.** The idea (a status edge plus quiet row actions, as in the status tables in the 21st.dev catalog) is drawn in Penny's own tokens in
+`client/src/design/rows.css`. The state is a class on the row (`is-paid`, `is-overdue`) set in `TxRow.jsx` from `rowState()` in
+`client/src/cardLogic.js`, a plain function, so it is tested without a browser.

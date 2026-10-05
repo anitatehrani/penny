@@ -1110,6 +1110,39 @@ async function sessionFor(db, email) {
     await home.close();
   });
 
+  console.log('\nPayment rows');
+  await check('paid and overdue rows get a status edge, the Overdue badge is gone, and the icon buttons stay reachable', async () => {
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const ym = now.getFullYear() + '-' + pad(now.getMonth() + 1);
+    const day = now.getDate();
+    const made = [];
+    try {
+      page = await open('/payments');
+      const paid = await api(page, 'POST', '/transactions', { type: 'expense', description: 'E2E row paid', amount: 12, date: ym + '-' + pad(day), status: 'paid', category_id: null });
+      eq(paid.status, 201, 'a paid payment');
+      made.push(paid.json.id);
+      if (day > 1) {
+        const late = await api(page, 'POST', '/transactions', { type: 'expense', description: 'E2E row late', amount: 13, date: ym + '-' + pad(day - 1), status: 'pending', category_id: null });
+        eq(late.status, 201, 'a late payment');
+        made.push(late.json.id);
+      }
+      page = await open('/payments');
+      await page.waitForSelector('.tx-row');
+      const rows = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('.tx-row')].filter((r) => /E2E row/.test(r.textContent)).map((r) => [r.querySelector('.tx-title').textContent.trim().split(' ').slice(0, 3).join(' '), { cls: r.className, badge: !!r.querySelector('.badge.danger'), shadow: getComputedStyle(r).boxShadow, buttons: [...r.querySelectorAll('.tx-actions button')].filter((b) => b.offsetParent).length }])));
+      truthy(/is-paid/.test(rows['E2E row paid']?.cls ?? ''), 'the paid row is marked: ' + JSON.stringify(rows));
+      truthy(rows['E2E row paid'].shadow !== 'none', 'and has an edge');
+      truthy(rows['E2E row paid'].buttons >= 2, 'its buttons are all still there');
+      if (day > 1) {
+        truthy(/is-overdue/.test(rows['E2E row late']?.cls ?? ''), 'the late row is marked');
+        eq(rows['E2E row late'].badge, false, 'with no red Overdue badge');
+        truthy(/overdue/.test(await page.evaluate(() => [...document.querySelectorAll('.tx-row.is-overdue .tx-date')].map((e) => e.textContent).join(' '))), 'it still says "overdue" in words');
+      }
+    } finally {
+      for (const id of made) await api(page, 'DELETE', '/transactions/' + id + '?hard=1');
+    }
+  });
+
   console.log('\nSettings and avatar');
   await check('notification settings: every type has an in-app and an email switch, and changes save', async () => {
     page = await open('/settings?tab=notifications');

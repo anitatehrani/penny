@@ -1,0 +1,28 @@
+/* ==========================================================================
+   Payment rows: what is left to do stands out (docs/DESIGN.md section 16).
+   The state is a strip on the row's left edge (an inset shadow, so no grid changes).
+   ========================================================================== */
+
+.tx-row.is-overdue {
+  box-shadow: inset 3px 0 0 var(--neg);
+}
+.tx-row.is-paid {
+  box-shadow: inset 3px 0 0 var(--pos);
+}
+.tx-row.is-paid .tx-title,
+.tx-row.is-paid .tx-date strong,
+.tx-row.is-paid .tx-amount:not(.pos) {
+  color: var(--ink-2);
+}
+
+/* Quiet secondary buttons until the row is hovered or focused, only with a mouse-like pointer. They are never hidden. */
+@media (hover: hover) and (pointer: fine) {
+  .tx-row:not(.compact) .tx-actions > .btn.icon {
+    opacity: 0.55;
+    transition: opacity var(--t-fast) var(--ease);
+  }
+  .tx-row:hover .tx-actions > .btn.icon,
+  .tx-row:focus-within .tx-actions > .btn.icon {
+    opacity: 1;
+  }
+}
