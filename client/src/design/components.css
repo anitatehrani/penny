@@ -94,6 +94,10 @@
   background: var(--ok-bg);
   color: var(--ok-ink);
 }
+.badge.card {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
 .kbd {
   display: inline-block;
   min-width: 20px;

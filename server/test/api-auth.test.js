@@ -185,7 +185,8 @@ describe('login and logout', () => {
     fails(await c.post('/auth/login', { email: body.email, password: '' }), 400);
     fails(await c.post('/auth/login', { email: body.email }), 400);
     fails(await c.post('/auth/login', { password: PW }), 400);
-    fails(await c.post('/auth/login', { email: 'nope', password: PW }), 400);
+    fails(await c.post('/auth/login', { email: 'nope', password: PW }), 401); // looks like a username, and there is no such person
+    fails(await c.post('/auth/login', { email: 'not@valid', password: PW }), 400); // has an @, so it must be a real email address
     fails(await c.post('/auth/login', { email: body.email, password: 'x'.repeat(1001) }), 400);
     fails(await c.post('/auth/login', { email: body.email, password: ['array'] }), 400);
   });
@@ -194,7 +195,7 @@ describe('login and logout', () => {
     const g = await accounts.signInWithGoogleProfile({ sub: `g-${uid()}`, email: `g${uid()}@example.com`, email_verified: true, name: 'Gina' }, { query: (...a) => srv.db.query(...a) });
     const r = await new Client(srv.base.replace(/\/api$/, '')).post('/auth/login', { email: g.user.email, password: PW });
     assert.equal(r.status, 401);
-    assert.equal(r.json.error, 'Invalid email or password.');
+    assert.equal(r.json.error, 'Invalid email, username or password.');
   });
 
   it('logout ends only that session and the token is dead server-side', async () => {

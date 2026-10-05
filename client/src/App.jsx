@@ -7,6 +7,7 @@ import DashboardPage from './dashboard/DashboardPage.jsx';
 import DashboardLayout from './layout/DashboardLayout.jsx';
 import { useApp } from './context.jsx';
 import Forecast from './pages/Forecast.jsx';
+import Debts from './pages/Debts.jsx';
 import Installments from './pages/Installments.jsx';
 import Notifications from './pages/Notifications.jsx';
 import People from './pages/People.jsx';
@@ -47,6 +48,7 @@ export default function App() {
             <Route path="/payments" element={<Transactions />} />
             <Route path="/recurring" element={<Recurring />} />
             <Route path="/installments" element={<Installments />} />
+            <Route path="/debts" element={<Debts />} />
             <Route path="/forecast" element={<Forecast />} />
             <Route path="/people" element={<People />} />
             <Route path="/profile" element={<Profile />} />

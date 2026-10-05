@@ -68,7 +68,7 @@ function TrendTooltip({ active, payload }) {
 }
 
 /** Month-end balance: solid for what happened, dashed for the forecast, a clear zero line, and a flag where it dips below zero. */
-export function BalanceTrend({ months, height = 190 }) {
+export function BalanceTrend({ months, height = 190, marker }) {
   const { money } = useApp();
   const reduced = useReducedMotion();
   const data = months.map((m, i) => ({
@@ -90,7 +90,8 @@ export function BalanceTrend({ months, height = 190 }) {
     axis.domain = [axis.domain[0] - step, axis.domain[1]];
   }
   const dip = data.find((d) => d.kind !== 'actual' && d.balance < 0);
-  const label = `Month-end balance from ${monthLabel(months[0].month)} to ${monthLabel(months.at(-1).month)}. Lowest ${money(Math.min(...values))}.${dip ? ` It dips below zero in ${monthLabel(dip.month)}.` : ''}`;
+  const mark = marker ? data.find((d) => d.month === marker) : null; // the month the dashboard is pointed at
+  const label = `${mark ? `${monthLabel(mark.month)} is marked. ` : ''}Month-end balance from ${monthLabel(months[0].month)} to ${monthLabel(months.at(-1).month)}. Lowest ${money(Math.min(...values))}.${dip ? ` It dips below zero in ${monthLabel(dip.month)}.` : ''}`;
 
   return (
     <div role="img" aria-label={label} className="chart-box" style={{ height }}>
@@ -103,6 +104,8 @@ export function BalanceTrend({ months, height = 190 }) {
           <Tooltip content={<TrendTooltip />} cursor={{ stroke: 'var(--ink-3)', strokeDasharray: '2 3' }} isAnimationActive={false} />
           <Area type="monotone" dataKey="actual" stroke="var(--series-3)" strokeWidth={2.25} fill="var(--series-3)" fillOpacity={0.1} dot={false} activeDot={{ r: 5, stroke: 'var(--surface)', strokeWidth: 2 }} isAnimationActive={!reduced} animationDuration={700} connectNulls={false} />
           <Line type="monotone" dataKey="forecast" stroke="var(--forecast)" strokeWidth={2.25} strokeDasharray="5 5" dot={false} activeDot={{ r: 5, stroke: 'var(--surface)', strokeWidth: 2 }} isAnimationActive={!reduced} animationDuration={700} connectNulls={false} />
+          {mark && <ReferenceLine x={mark.label} stroke="var(--accent)" strokeDasharray="2 3" />}
+          {mark && <ReferenceDot x={mark.label} y={mark.balance} r={6} fill="var(--accent)" stroke="var(--surface)" strokeWidth={2} />}
           {dip && <ReferenceDot x={dip.label} y={dip.balance} r={5} fill="var(--neg)" stroke="var(--surface)" strokeWidth={2} label={{ value: 'Dips below zero', position: 'bottom', fill: 'var(--neg)', fontSize: 11, fontWeight: 600 }} />}
         </ComposedChart>
       </ResponsiveContainer>

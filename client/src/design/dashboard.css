@@ -1129,3 +1129,16 @@
     gap: var(--s-2);
   }
 }
+
+/* ---------- month bar: jump to any month ---------- */
+.dash-monthbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-4);
+}
+.month-note {
+  margin: 0;
+  max-width: 62ch;
+  font-size: var(--fs-2);
+}

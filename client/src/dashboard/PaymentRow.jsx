@@ -58,6 +58,20 @@ export default function PaymentRow({ tx, onEdit }) {
               </span>
             </Tooltip>
           )}
+          {tx.pay_method === 'credit_card' && (
+            <Tooltip label={`Credit card, bought ${dateLabel(tx.charged_on)}`}>
+              <span className="prow-ico" role="img" aria-label={`Credit card, bought ${dateLabel(tx.charged_on)}`}>
+                <Icon name="card" size={12} />
+              </span>
+            </Tooltip>
+          )}
+          {tx.source === 'debt' && (
+            <Tooltip label="Paying off a debt">
+              <span className="prow-ico" role="img" aria-label="Debt">
+                <Icon name="debt" size={12} />
+              </span>
+            </Tooltip>
+          )}
           {tx.source === 'installment' && (
             <Tooltip label="Installment plan">
               <span className="prow-ico" role="img" aria-label="Installment">

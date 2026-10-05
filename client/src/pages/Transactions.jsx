@@ -1,13 +1,28 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api, qs } from '../api.js';
 import TransactionForm from '../components/TransactionForm.jsx';
 import TxRow from '../components/TxRow.jsx';
-import { CategorySelect, Empty, ErrorBox, Icon, Loading, Modal, MonthNav } from '../components/ui.jsx';
+import FilterSelect from '../components/ds/FilterSelect.jsx';
+import { MonthNav } from '../components/ds/MonthPicker.jsx';
+import { Empty, ErrorBox, Icon, Loading, Modal } from '../components/ui.jsx';
+import { byListDate, monthTotals } from '../cardLogic.js';
 import { useApp } from '../context.jsx';
+import { activeFilterCount, categoryOptions } from '../filterLogic.js';
 import { currentMonth } from '../format.js';
 import { useFetch } from '../hooks.js';
 import { useWorkspace } from '../workspace.jsx';
+
+const TYPES = [
+  { value: '', label: 'Income & expenses' },
+  { value: 'expense', label: 'Expenses only' },
+  { value: 'income', label: 'Income only' },
+];
+const PAYS = [
+  { value: '', label: 'Any way of paying' },
+  { value: 'credit_card', label: 'Credit card' },
+  { value: 'cash', label: 'Cash and bank' },
+];
 
 const STATUSES = [
   ['', 'All'],
@@ -18,11 +33,12 @@ const STATUSES = [
 ];
 
 export default function Transactions() {
-  const { money } = useApp();
+  const { money, categories } = useApp();
   const [params, setParams] = useSearchParams();
   const month = params.get('month') || currentMonth();
   const status = params.get('status') || '';
   const type = params.get('type') || '';
+  const pay = params.get('pay') || '';
   const category = params.get('category') || '';
   const member = params.get('member') || '';
   const { current, isGroup, members } = useWorkspace();
@@ -41,17 +57,27 @@ export default function Transactions() {
     month: status === 'overdue' ? '' : month,
     status,
     type,
+    pay,
     category_id: category,
     member,
     q: search.trim(),
+    // In the "All" view, also list the credit card purchases bought this month that are paid (and counted) in another one.
+    bought: status === '' ? '1' : '',
   });
   const { data, error, reload } = useFetch(() => api.get(`/transactions${query}`), [query]);
 
-  const rows = data ?? [];
-  const live = rows.filter((r) => r.status !== 'skipped');
-  const sum = (ty, st) => live.filter((r) => r.type === ty && (!st || r.status === st)).reduce((s, r) => s + Math.round(r.amount * 100), 0) / 100;
-  const income = sum('income');
-  const expenses = sum('expense');
+  const categoryChoices = useMemo(() => categoryOptions(categories), [categories]);
+  const memberChoices = useMemo(() => [{ value: '', label: 'Everyone' }, ...members.map((m) => ({ value: m.username, label: m.name, person: m }))], [members]);
+  const filterCount = activeFilterCount({ type, pay, category, member, search });
+  const clearFilters = () => {
+    const next = new URLSearchParams(params);
+    for (const k of ['type', 'pay', 'category', 'member', 'q']) next.delete(k);
+    setParams(next, { replace: true });
+    setSearch('');
+  };
+
+  const rows = [...(data ?? [])].sort(byListDate); // a purchase sits on the day it was bought, not on the day its bill is paid
+  const { income, expenses, net, onCard, bought } = monthTotals(rows);
 
   return (
     <>
@@ -61,7 +87,7 @@ export default function Transactions() {
           <p className="muted">Everything you paid or still have to pay. Add past payments by choosing an earlier date.</p>
         </div>
         <div className="head-actions">
-          <a className="btn" href={`/api/transactions/export.csv${qs({ month: status === 'overdue' ? '' : month, status, type, category_id: category, member, ws: current.id })}`}>
+          <a className="btn" href={`/api/transactions/export.csv${qs({ month: status === 'overdue' ? '' : month, status, type, pay, category_id: category, member, ws: current.id })}`}>
             <Icon name="download" /> CSV
           </a>
           <button className="btn primary" onClick={() => setEditing({})}>
@@ -80,24 +106,25 @@ export default function Transactions() {
           ))}
         </div>
       </div>
-      <div className="filters">
-        <select value={type} onChange={(e) => set('type', e.target.value)} aria-label="Type">
-          <option value="">Income &amp; expenses</option>
-          <option value="expense">Expenses only</option>
-          <option value="income">Income only</option>
-        </select>
-        <CategorySelect allowAll value={category} onChange={(v) => set('category', v)} />
-        {isGroup && (
-          <select value={member} onChange={(e) => set('member', e.target.value)} aria-label="Member">
-            <option value="">Everyone</option>
-            {members.map((m) => (
-              <option key={m.username} value={m.username}>
-                {m.name}
-              </option>
-            ))}
-          </select>
+      <div className="filters" role="search" aria-label="Filter payments">
+        <div className="search-box">
+          <Icon name="search" size={16} />
+          <input type="search" placeholder="Search description or note…" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search payments" />
+          {search && (
+            <button type="button" className="btn icon ghost sm search-clear" aria-label="Clear search" onClick={() => setSearch('')}>
+              <Icon name="x" size={14} />
+            </button>
+          )}
+        </div>
+        <FilterSelect label="Type" icon="trend" value={type} onChange={(v) => set('type', v)} options={TYPES} />
+        <FilterSelect label="Paid with" icon="card" value={pay} onChange={(v) => set('pay', v)} options={PAYS} />
+        <FilterSelect label="Category" icon="tag" value={category} onChange={(v) => set('category', v)} options={categoryChoices} />
+        {isGroup && <FilterSelect label="Member" icon="users" value={member} onChange={(v) => set('member', v)} options={memberChoices} />}
+        {filterCount > 0 && (
+          <button type="button" className="btn sm ghost filters-clear" onClick={clearFilters}>
+            <Icon name="x" size={14} /> Clear filters ({filterCount})
+          </button>
         )}
-        <input type="search" placeholder="Search description or note…" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search" />
       </div>
 
       {status !== 'skipped' && data && (
@@ -112,8 +139,20 @@ export default function Transactions() {
           </div>
           <div>
             <span className="muted">Net</span>
-            <strong className={`num ${income - expenses < 0 ? 'neg' : ''}`}>{money(income - expenses, { signed: true })}</strong>
+            <strong className={`num ${net < 0 ? 'neg' : ''}`}>{money(net, { signed: true })}</strong>
           </div>
+          {onCard > 0 && (
+            <div>
+              <span className="muted">Paid with the card bill</span>
+              <strong className="num">{money(onCard)}</strong>
+            </div>
+          )}
+          {bought > 0 && (
+            <div title="Bought with the credit card this month. It counts in the month the bill is paid, so it is not in the figures on the left.">
+              <span className="muted">Bought on card</span>
+              <strong className="num">{money(bought)}</strong>
+            </div>
+          )}
         </div>
       )}
 
@@ -124,7 +163,7 @@ export default function Transactions() {
           <Loading />
         ) : rows.length === 0 ? (
           <Empty title="No payments found">
-            {status || type || category || search ? 'Try clearing some filters.' : 'Nothing recorded for this month yet — add a payment to get started.'}
+            {status || type || pay || category || search ? 'Try clearing some filters.' : 'Nothing recorded for this month yet — add a payment to get started.'}
           </Empty>
         ) : (
           <div className="tx-list">

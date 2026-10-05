@@ -242,6 +242,7 @@ export default function Installments() {
               <strong className="num">{money(owed)}</strong>
             </div>
           </div>
+          {active.length > 0 && <h2 className="sr-only">Plans you are paying off</h2>}
           <div className="plans">
             {active.map((p) => (
               <Card key={p.id} p={p} />

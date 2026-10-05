@@ -13,13 +13,15 @@ const settingsSchema = z.object({
     .trim()
     .toUpperCase()
     .regex(/^[A-Z]{3}$/, 'must be a 3-letter currency code'),
+  // The day of the month the credit card bill is paid (1 to 28 so it exists in every month). Left out = unchanged.
+  card_pay_day: z.number().int('must be a whole number').min(1, 'must be between 1 and 28').max(28, 'must be between 1 and 28').optional(),
 });
 
 router.get(
   '/settings',
   wrap(async (req, res) => {
     await query('INSERT INTO workspace_settings (workspace_id) VALUES ($1) ON CONFLICT DO NOTHING', [req.workspace.id]);
-    const { rows } = await query('SELECT opening_balance, currency FROM workspace_settings WHERE workspace_id = $1', [req.workspace.id]);
+    const { rows } = await query('SELECT opening_balance, currency, card_pay_day FROM workspace_settings WHERE workspace_id = $1', [req.workspace.id]);
     res.json(rows[0]);
   }),
 );
@@ -29,10 +31,11 @@ router.put(
   wrap(async (req, res) => {
     const s = settingsSchema.parse(req.body);
     const { rows } = await query(
-      `INSERT INTO workspace_settings (workspace_id, opening_balance, currency) VALUES ($1, $2, $3)
-       ON CONFLICT (workspace_id) DO UPDATE SET opening_balance = EXCLUDED.opening_balance, currency = EXCLUDED.currency
-       RETURNING opening_balance, currency`,
-      [req.workspace.id, Math.round(s.opening_balance * 100) / 100, s.currency],
+      `INSERT INTO workspace_settings (workspace_id, opening_balance, currency, card_pay_day) VALUES ($1, $2, $3, COALESCE($4, 10))
+       ON CONFLICT (workspace_id) DO UPDATE SET opening_balance = EXCLUDED.opening_balance, currency = EXCLUDED.currency,
+         card_pay_day = COALESCE($4, workspace_settings.card_pay_day)
+       RETURNING opening_balance, currency, card_pay_day`,
+      [req.workspace.id, Math.round(s.opening_balance * 100) / 100, s.currency, s.card_pay_day ?? null],
     );
     res.json(rows[0]);
   }),

@@ -5,6 +5,7 @@ import { categoryId, HttpError, idParam, money, note, text, txType, wrap, ymd } 
 import { materializeRule, resetRule } from '../lib/materialize.js';
 import { assertOwnCategory } from '../lib/ownership.js';
 import { usernameField } from '../lib/profile.js';
+import { nthOccurrence } from '../lib/schedule.js';
 
 const router = Router();
 
@@ -18,6 +19,7 @@ const schema = z
     interval_count: z.coerce.number().int().min(1).max(60).default(1),
     start_date: ymd,
     end_date: ymd.nullable().optional(),
+    ends_after: z.number().int('must be a whole number').min(1, 'must be at least 1').max(600, 'must be at most 600').nullable().optional(), // stop after this many payments (instead of end_date)
     note,
     active: z.boolean().default(true),
     paid_by: usernameField.nullable().optional(), // group budgets: whose income / who pays
@@ -25,6 +27,16 @@ const schema = z
   .refine((r) => !r.end_date || r.end_date >= r.start_date, {
     path: ['end_date'],
     message: 'must not be before the start date',
+  })
+  .refine((r) => !(r.end_date && r.ends_after), {
+    path: ['ends_after'],
+    message: 'choose either an end date or a number of payments, not both',
+  })
+  .transform((r) => {
+    if (!r.ends_after) return r;
+    const last = nthOccurrence(r, r.ends_after);
+    if (last > '2200-12-31') throw new HttpError(400, 'The last payment would be too far in the future.');
+    return { ...r, end_date: last };
   });
 
 const SELECT = `

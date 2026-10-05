@@ -18,6 +18,7 @@ const PATHS = {
   download: 'M12 4v11M7 11l5 5 5-5M5 20h14',
   repeat: 'M17 2l4 4-4 4M3 11V9a3 3 0 013-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 01-3 3H3',
   card: 'M3 6h18v12H3zM3 10h18M7 15h3',
+  debt: 'M12 21a9 9 0 100-18 9 9 0 000 18zM8 12h8',
   home: 'M4 11l8-7 8 7v9h-5v-6H9v6H4z',
   list: 'M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01',
   trend: 'M3 17l6-6 4 4 8-9M15 6h6v6',
@@ -144,25 +145,6 @@ export function Modal({ title, onClose, children, wide }) {
         </div>
         {children}
       </div>
-    </div>
-  );
-}
-
-export function MonthNav({ month, onChange }) {
-  return (
-    <div className="month-nav">
-      <button className="btn icon ghost" onClick={() => onChange(addMonthsYM(month, -1))} aria-label="Previous month">
-        <Icon name="left" />
-      </button>
-      <strong className="month-label">{monthLabel(month)}</strong>
-      <button className="btn icon ghost" onClick={() => onChange(addMonthsYM(month, 1))} aria-label="Next month">
-        <Icon name="right" />
-      </button>
-      {month !== currentMonth() && (
-        <button className="btn sm" onClick={() => onChange(currentMonth())}>
-          This month
-        </button>
-      )}
     </div>
   );
 }

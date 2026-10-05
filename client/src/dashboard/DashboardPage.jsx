@@ -2,20 +2,24 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../api.js';
 import { useInsights } from '../assistant/insights.jsx';
+import { MonthNav } from '../components/ds/MonthPicker.jsx';
 import { ErrorState } from '../components/ds/States.jsx';
 import { Avatar } from '../components/Avatar.jsx';
 import { Icon, Skeleton } from '../components/ui.jsx';
 import { useAuth } from '../auth.jsx';
-import { currentMonth } from '../format.js';
+import { addMonthsYM, currentMonth, monthLabel } from '../format.js';
 import { useFetch } from '../hooks.js';
+import { compareFromSummaries, dashboardBounds, dashboardMonth, forecastWindow } from '../monthLogic.js';
 import { usePrefs, WIDGETS } from '../prefs.jsx';
 import { useQuick } from '../quick.jsx';
 import { useWorkspace } from '../workspace.jsx';
 import FirstRun from './FirstRun.jsx';
 import WidgetFrame from './WidgetFrame.jsx';
 import CashFlowWidget from './widgets/CashFlowWidget.jsx';
+import HeroMonthWidget from './widgets/HeroMonthWidget.jsx';
 import HeroWidget from './widgets/HeroWidget.jsx';
 import InsightsWidget from './widgets/InsightsWidget.jsx';
+import MonthPaymentsWidget from './widgets/MonthPaymentsWidget.jsx';
 import RecurringWidget from './widgets/RecurringWidget.jsx';
 import SpendingWidget from './widgets/SpendingWidget.jsx';
 import UpcomingWidget from './widgets/UpcomingWidget.jsx';
@@ -33,9 +37,9 @@ const greeting = () => {
   return h < 5 ? 'Still up' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
 };
 
-function DashboardSkeleton() {
+function DashboardSkeleton({ bare }) {
   return (
-    <div className="dash" aria-busy="true" aria-label="Loading your dashboard" role="status">
+    <div className={bare ? undefined : 'dash'} aria-busy="true" aria-label="Loading your dashboard" role="status">
       <div className="dash-grid">
         <div className="widget size-l">
           <div className="hero hero-l">
@@ -92,10 +96,23 @@ export default function DashboardPage() {
   const [params, setParams] = useSearchParams();
   const [edit, setEdit] = useState(params.get('customize') === '1');
 
-  const month = currentMonth();
-  const summary = useFetch(() => api.get(`/summary?month=${month}`), [month, version]);
-  const forecast = useFetch(() => api.get('/forecast?past=5&months=6'), [version]);
+  // The month is in the address (?month=2027-02), so it can be linked and the back button works. No month means this month.
+  const today = currentMonth();
+  const month = dashboardMonth(params.get('month'), today);
+  const browsing = month !== today; // pointed at another month
+  const bounds = dashboardBounds(today);
+  const win = forecastWindow(today, month);
+  const summary = useFetch(async () => ({ ...(await api.get(`/summary?month=${month}`)), requestedMonth: month }), [month, version]);
+  const prevSummary = useFetch(() => (browsing ? api.get(`/summary?month=${addMonthsYM(month, -1)}`) : Promise.resolve(null)), [month, browsing, version]);
+  const monthRows = useFetch(() => (browsing ? api.get(`/transactions?month=${month}&bought=1&limit=300`) : Promise.resolve(null)), [month, browsing, version]);
+  const forecast = useFetch(() => api.get(`/forecast?past=${win.past}&months=${win.months}`), [win.past, win.months, version]);
   const rules = useFetch(() => api.get('/recurring'), [version]);
+  const setMonth = (m) => {
+    const next = new URLSearchParams(params);
+    if (m === today) next.delete('month');
+    else next.set('month', m);
+    setParams(next);
+  };
 
   useEffect(() => {
     if (params.get('customize') === '1') {
@@ -106,7 +123,9 @@ export default function DashboardPage() {
     }
   }, [params, setParams]);
 
-  const visible = useMemo(() => layout.order.filter((w) => !layout.hidden.includes(w)), [layout]);
+  // While customising, the dashboard is always today's, so every widget can be moved. Insights are about today, so another month leaves them out.
+  const monthView = browsing && !edit;
+  const visible = useMemo(() => layout.order.filter((w) => !layout.hidden.includes(w) && !(monthView && w === 'insights')), [layout, monthView]);
   const hidden = layout.order.filter((w) => layout.hidden.includes(w));
 
   const save = (next) => setPrefs({ layout: { order: next.order ?? layout.order, hidden: next.hidden ?? layout.hidden, sizes: next.sizes ?? layout.sizes } });
@@ -130,6 +149,10 @@ export default function DashboardPage() {
 
   const s = summary.data;
   const firstTime = insightData?.empty;
+  // The figures on screen are for another month: the person just chose a month and its numbers are on their way. (An ordinary refresh of
+  // the same month keeps showing what it has, so the page does not blink.)
+  const pending = summary.data.requestedMonth !== month;
+  const compare = monthView && prevSummary.data !== undefined && !prevSummary.loading ? compareFromSummaries(s, prevSummary.data, month) : null;
 
   const controlsFor = (id) => {
     const i = visible.indexOf(id);
@@ -143,7 +166,7 @@ export default function DashboardPage() {
       case 'hero':
         return (
           <WidgetFrame key={id} {...common} collapsible={false} className="bare">
-            <HeroWidget summary={s} forecast={forecast.data} size={sz} />
+            {monthView ? <HeroMonthWidget month={month} forecast={forecast.data} size={sz} /> : <HeroWidget summary={s} forecast={forecast.data} size={sz} />}
           </WidgetFrame>
         );
       case 'insights':
@@ -153,15 +176,19 @@ export default function DashboardPage() {
           </WidgetFrame>
         );
       case 'upcoming':
-        return (
+        return monthView ? (
+          <WidgetFrame key={id} {...common} eyebrow={monthLabel(month)} title="Payments this month">
+            <MonthPaymentsWidget month={month} rows={monthRows.data} />
+          </WidgetFrame>
+        ) : (
           <WidgetFrame key={id} {...common} eyebrow="Next 14 days" title="Coming up">
             <UpcomingWidget summary={s} />
           </WidgetFrame>
         );
       case 'spending':
         return (
-          <WidgetFrame key={id} {...common} eyebrow="This month" title="Where the money goes">
-            <SpendingWidget compare={insightData?.compare} />
+          <WidgetFrame key={id} {...common} eyebrow={monthView ? monthLabel(month) : 'This month'} title="Where the money goes">
+            <SpendingWidget compare={monthView ? compare : insightData?.compare} />
           </WidgetFrame>
         );
       case 'recurring':
@@ -172,8 +199,8 @@ export default function DashboardPage() {
         );
       case 'outlook':
         return (
-          <WidgetFrame key={id} {...common} eyebrow="Past 4 months · next 3" title="Cash flow">
-            <CashFlowWidget forecast={forecast.data} />
+          <WidgetFrame key={id} {...common} eyebrow={monthView ? `Around ${monthLabel(month)}` : 'Past 4 months · next 3'} title="Cash flow">
+            <CashFlowWidget forecast={forecast.data} month={monthView ? month : undefined} />
           </WidgetFrame>
         );
       default:
@@ -201,6 +228,18 @@ export default function DashboardPage() {
         </div>
       </header>
 
+      {!edit && !firstTime && (
+        <div className="dash-monthbar">
+          <MonthNav month={month} onChange={setMonth} min={bounds.min} max={bounds.max} />
+          {browsing && (
+            <p className="month-note muted" role="status">
+              Showing <strong>{monthLabel(month)}</strong>
+              {month > today ? ', a month still to come, so figures are expected' : ''}. Coming up, spending and cash flow follow the month; insights are about today.
+            </p>
+          )}
+        </div>
+      )}
+
       {edit && (
         <div className="customize-bar" role="region" aria-label="Customise dashboard">
           <p>
@@ -215,7 +254,7 @@ export default function DashboardPage() {
       {firstTime && !edit ? (
         <FirstRun rulesCount={rules.data?.length ?? 0} />
       ) : (
-        <div className="dash-grid">{visible.map(render)}</div>
+        <div aria-busy={pending || undefined}>{pending ? <DashboardSkeleton bare /> : <div className="dash-grid">{visible.map(render)}</div>}</div>
       )}
 
       {edit && hidden.length > 0 && (

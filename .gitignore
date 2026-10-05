@@ -6,3 +6,5 @@ client/dist
 server/mail-preview
 server/test-mail-*
 e2e/node_modules
+# real people's sign-in details written by setup scripts: never commit these
+*.local.md

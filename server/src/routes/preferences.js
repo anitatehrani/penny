@@ -7,7 +7,7 @@ import { wrap } from '../lib/http.js';
 const router = Router();
 
 export const WIDGETS = ['hero', 'insights', 'upcoming', 'spending', 'recurring', 'outlook'];
-export const ROUTES = ['dashboard', 'payments', 'recurring', 'installments', 'forecast', 'people', 'settings'];
+export const ROUTES = ['dashboard', 'payments', 'recurring', 'installments', 'debts', 'forecast', 'people', 'settings'];
 const widget = z.enum(WIDGETS);
 
 const schema = z

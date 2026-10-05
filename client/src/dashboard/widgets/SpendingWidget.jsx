@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { EmptyState } from '../../components/ds/States.jsx';
 import { Skeleton, Switch } from '../../components/ui.jsx';
 import { useApp } from '../../context.jsx';
-import { monthLabel } from '../../format.js';
+import { currentMonth, monthLabel } from '../../format.js';
 import { useQuick } from '../../quick.jsx';
 import { Delta, Donut } from '../charts.jsx';
 
@@ -22,7 +22,7 @@ export default function SpendingWidget({ compare }) {
   const items = compare.categories.filter((c) => c.current > 0);
   if (items.length === 0) {
     return (
-      <EmptyState art="chart" title="No spending recorded this month" action={<button className="btn sm" onClick={() => openAddPayment()}>Add a payment</button>}>
+      <EmptyState art="chart" title={compare.month === currentMonth() ? 'No spending recorded this month' : `No spending recorded for ${monthLabel(compare.month)}`} action={<button className="btn sm" onClick={() => openAddPayment()}>Add a payment</button>}>
         Once you add expenses, you will see which categories take the most.
       </EmptyState>
     );

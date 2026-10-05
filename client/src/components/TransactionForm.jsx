@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react';
 import { api } from '../api.js';
 import { useAuth } from '../auth.jsx';
+import { billMonthOptions, defaultBillMonth, paymentDates } from '../cardLogic.js';
+import { MonthCalendar } from './ds/MonthPicker.jsx';
 import { useApp } from '../context.jsx';
-import { todayYMD } from '../format.js';
+import { dateLong, monthLabel, todayYMD } from '../format.js';
 import { useFetch } from '../hooks.js';
 import { useWorkspace } from '../workspace.jsx';
 import { AlertPicker, choiceFrom, NO_CHOICE, sameChoice, saveAlertChoice } from './Alerts.jsx';
@@ -12,7 +14,7 @@ import { Avatar, CategorySelect, Field, Segmented } from './ui.jsx';
 const cents = (v) => Math.round((Number(v) || 0) * 100);
 
 export default function TransactionForm({ initial, defaultDate, onSaved, onCancel }) {
-  const { notify, money } = useApp();
+  const { notify, money, settings } = useApp();
   const { user } = useAuth();
   const { isGroup, members } = useWorkspace();
   const editing = !!initial?.id;
@@ -21,7 +23,13 @@ export default function TransactionForm({ initial, defaultDate, onSaved, onCance
   const [type, setType] = useState(initial?.type ?? 'expense');
   const [description, setDescription] = useState(initial?.description ?? '');
   const [amount, setAmount] = useState(initial?.amount != null ? String(initial.amount) : '');
-  const [date, setDate] = useState(initial?.date ?? defaultDate ?? todayYMD());
+  // A credit card payment has two dates: the day it was bought (the form's date) and the day the card bill is paid, which is
+  // when it leaves the balance. The bill month is chosen below; the day is the budget's card pay day.
+  const cardDay = settings?.card_pay_day ?? 10;
+  const wasCard = initial?.pay_method === 'credit_card';
+  const [onCard, setOnCard] = useState(wasCard);
+  const [date, setDate] = useState(wasCard ? initial.charged_on : (initial?.date ?? defaultDate ?? todayYMD()));
+  const [billChoice, setBillChoice] = useState(wasCard ? initial.date.slice(0, 7) : null);
   const [categoryId, setCategoryId] = useState(initial?.category_id ? String(initial.category_id) : '');
   const [note, setNote] = useState(initial?.note ?? '');
   const [status, setStatus] = useState(initial?.status === 'paid' ? 'paid' : initial?.status ? 'pending' : null);
@@ -62,8 +70,13 @@ export default function TransactionForm({ initial, defaultDate, onSaved, onCance
   const overShared = sharesTotal > total;
   const myPart = Math.max(0, total - sharesTotal);
 
+  const billOptions = billMonthOptions(date, cardDay, wasCard ? initial.date.slice(0, 7) : null);
+  const billMonth = billOptions.includes(billChoice) ? billChoice : defaultBillMonth(date);
+  const dates = paymentDates({ onCard, date, billMonth, day: cardDay, keepPayDate: wasCard ? initial.date : null });
+
   // New items: past/today dates default to "paid", future dates to "pending" until the user picks.
-  const effectiveStatus = status ?? (date <= todayYMD() ? 'paid' : 'pending');
+  // (A card payment is judged by the day its bill is paid, not the day it was bought.)
+  const effectiveStatus = status ?? (dates.date <= todayYMD() ? 'paid' : 'pending');
 
   async function submit(e) {
     e.preventDefault();
@@ -74,7 +87,7 @@ export default function TransactionForm({ initial, defaultDate, onSaved, onCance
         type,
         description,
         amount: Number(amount),
-        date,
+        ...dates,
         category_id: categoryId ? Number(categoryId) : null,
         note: note || null,
         status: effectiveStatus,
@@ -106,7 +119,7 @@ export default function TransactionForm({ initial, defaultDate, onSaved, onCance
     <form onSubmit={submit} className="form">
       {initial?.source && initial.source !== 'manual' && (
         <div className="banner info">
-          This is one {initial.source === 'recurring' ? 'occurrence of a recurring item' : 'installment of a plan'}. Changes here
+          This is one {initial.source === 'recurring' ? 'occurrence of a recurring item' : initial.source === 'debt' ? 'payment towards a debt' : 'installment of a plan'}. Changes here
           only affect this payment.
         </div>
       )}
@@ -116,6 +129,7 @@ export default function TransactionForm({ initial, defaultDate, onSaved, onCance
         onChange={(v) => {
           setType(v);
           setCategoryId('');
+          if (v === 'income') setOnCard(false);
         }}
         options={[
           { value: 'expense', label: 'Expense', tone: 'expense' },
@@ -129,10 +143,38 @@ export default function TransactionForm({ initial, defaultDate, onSaved, onCance
         <Field label="Amount">
           <input type="number" inputMode="decimal" step="0.01" min="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required placeholder="0.00" />
         </Field>
-        <Field label="Date" hint="Use a past date to record something you already paid.">
+        <Field label={onCard ? 'Bought on' : 'Date'} hint={onCard ? 'The day you used the card.' : 'Use a past date to record something you already paid.'}>
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
         </Field>
       </div>
+      {type === 'expense' && (
+        <div className="split-box card-box">
+          <label className="check">
+            <input type="checkbox" checked={onCard} onChange={(e) => setOnCard(e.target.checked)} />
+            <span>
+              Paid with credit card
+              <span className="muted block small">It counts in the month you pay the card bill, not the day you bought it.</span>
+            </span>
+          </label>
+          {onCard && (
+            <div className="field">
+              <span className="field-label">
+                Counts in <strong>{monthLabel(billMonth)}</strong>
+                {billMonth === defaultBillMonth(date) ? ' (the next bill)' : ''}
+              </span>
+              <MonthCalendar
+                value={billMonth}
+                onChange={setBillChoice}
+                allowed={billOptions}
+                notAllowedReason="A card bill cannot fall before the purchase or more than a year after it"
+                showToday={false}
+                label="The month the card bill is paid"
+              />
+              <span className="field-hint">{`Leaves your balance on ${dateLong(dates.date)}, your card pay day. You can change the day in Settings.`}</span>
+            </div>
+          )}
+        </div>
+      )}
       <div className="form-grid">
         <Field label="Category">
           <CategorySelect kind={type} value={categoryId} onChange={setCategoryId} />

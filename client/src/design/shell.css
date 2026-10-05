@@ -366,6 +366,15 @@
 }
 
 /* ---------- top bar ---------- */
+/* Anything scrolled into view (by keyboard focus, a link to a section, scrollIntoView) must land clear of the sticky top bar, and clear of the bottom bar on a phone. */
+html {
+  scroll-padding-top: 72px;
+}
+@media (max-width: 820px) {
+  html {
+    scroll-padding-bottom: 88px;
+  }
+}
 .topbar {
   position: sticky;
   top: 0;

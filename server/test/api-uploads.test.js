@@ -335,7 +335,7 @@ describe('receipts', () => {
     ok(await add(p.client, t.id), 201);
     ok(await add(p.client, t.id, PDF, 'application/pdf', 'x.pdf'), 201);
     const csv = (await p.client.get('/transactions/export.csv')).text.split('\n');
-    assert.equal(csv[0], 'date,type,description,category,amount,status,with,receipts,note');
+    assert.equal(csv[0], 'date,type,description,category,amount,status,paid_with,bought_on,with,receipts,note');
     assert.ok(csv[1].includes(',2,'), csv[1]);
     await p.client.del(`/transactions/${t.id}`);
     assert.equal((await srv.db.query('SELECT count(*)::int n FROM receipts WHERE transaction_id = $1', [t.id])).rows[0].n, 0);

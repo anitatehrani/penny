@@ -26,7 +26,7 @@ export function AuthProvider({ children }) {
     () => ({
       ...state,
       setUser,
-      login: async (email, password) => setUser((await api.post('/auth/login', { email, password })).user),
+      login: async (identifier, password) => setUser((await api.post('/auth/login', { identifier, password })).user),
       signup: async (fields) => setUser((await api.post('/auth/signup', fields)).user),
       loginWithGoogle: async (credential) => setUser((await api.post('/auth/google', { credential })).user),
       logout: async () => {

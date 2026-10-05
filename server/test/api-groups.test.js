@@ -43,7 +43,7 @@ describe('creating groups', () => {
     assert.deepEqual(g.members.map((m) => [m.username, m.role]), [[o.user.username, 'owner']]);
     await o.client.inWorkspace(g.id, async () => {
       assert.equal(ok(await o.client.get('/categories')).length, 14);
-      assert.deepEqual(ok(await o.client.get('/settings')), { opening_balance: 0, currency: 'GBP' }, 'balance starts at zero, not the personal one');
+      assert.deepEqual(ok(await o.client.get('/settings')), { opening_balance: 0, currency: 'GBP', card_pay_day: 10 }, 'balance starts at zero, not the personal one');
       assert.equal(ok(await o.client.get('/transactions?status=')).length, 0);
     });
   });
@@ -272,7 +272,7 @@ describe('shared money', () => {
     assert.deepEqual(ok(await owner.client.get(`/transactions?member=${owner.user.username}`)).map((t) => t.description), ['Olive item']);
     assert.equal(ok(await owner.client.get('/transactions')).length, 2);
     const csv = (await owner.client.get('/transactions/export.csv')).text;
-    assert.equal(csv.split('\n')[0], 'date,type,description,category,amount,status,member,with,receipts,note');
+    assert.equal(csv.split('\n')[0], 'date,type,description,category,amount,status,paid_with,bought_on,member,with,receipts,note');
     assert.ok(csv.includes('Quinn Person'));
     assert.ok(list);
   });

@@ -10,7 +10,7 @@ import { passwordOk } from '../passwordRules.js';
 
 export function Shell({ title, subtitle, children, footer }) {
   return (
-    <div className="auth-page">
+    <main className="auth-page">
       <div className="auth-theme">
         <ThemeToggle compact />
       </div>
@@ -24,7 +24,7 @@ export function Shell({ title, subtitle, children, footer }) {
         {children}
         <p className="auth-footer">{footer}</p>
       </div>
-    </div>
+    </main>
   );
 }
 
@@ -64,7 +64,7 @@ function ErrorList({ error }) {
 
 function Login() {
   const { login, googleClientId } = useAuth();
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState(''); // an email address or a username
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -74,7 +74,7 @@ function Login() {
     setBusy(true);
     setError(null);
     try {
-      await login(email, password);
+      await login(identifier, password);
     } catch (err) {
       setError(err);
       setBusy(false);
@@ -86,8 +86,8 @@ function Login() {
       <GoogleSection text="signin_with" onError={(m) => setError(new Error(m))} />
       <form onSubmit={submit} className="form" noValidate={false}>
         <ErrorList error={error} />
-        <Field label="Email">
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required autoFocus={!googleClientId} />
+        <Field label="Email or username">
+          <input type="text" value={identifier} onChange={(e) => setIdentifier(e.target.value)} autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder="you@example.com or @username" required autoFocus={!googleClientId} />
         </Field>
         <PasswordField label="Password" value={password} onChange={setPassword} autoComplete="current-password" />
         <button className="btn primary wide" disabled={busy}>

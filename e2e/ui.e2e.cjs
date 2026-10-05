@@ -69,6 +69,13 @@ async function sessionFor(db, email) {
   }
   const text = (page, sel) => page.$eval(sel, (e) => e.textContent.trim());
   const count = (page, sel) => page.$$eval(sel, (e) => e.length);
+  // choose an option in one of the Payments page's filter dropdowns by what it says
+  const pickFilter = async (page, label, option) => {
+    await page.click(`.filters button[aria-label^="${label}:"]`);
+    await page.waitForSelector('.filter-pop [role=option]');
+    await page.evaluate((o) => [...document.querySelectorAll('.filter-pop [role=option]')].find((e) => e.textContent.trim() === o).click(), option);
+    await page.waitForSelector('.filter-pop', { hidden: true });
+  };
   const api = (page, method, url, body) =>
     page.evaluate(async (method, url, body) => {
       const r = await fetch('/api' + url, { method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
@@ -214,9 +221,12 @@ async function sessionFor(db, email) {
   await check('an insight can be dismissed and restored with Undo', async () => {
     const before = await count(page, '.insights-widget .insight');
     const title = await page.$eval('.insights-widget .insight .insight-title', (e) => e.textContent);
+    // bring the button to the middle of the screen first: after the hover checks above the page is scrolled, and a button partly under the sticky top bar would be clicked through to the bar
+    await page.$eval('.insights-widget .insight .insight-x', (e) => e.scrollIntoView({ block: 'center' }));
     await page.click('.insights-widget .insight .insight-x');
     await sleep(600);
-    truthy(!(await page.$$eval('.insights-widget .insight-title', (e) => e.map((x) => x.textContent))).includes(title) || before > 2, 'the card is gone');
+    const afterTitles = await page.$$eval('.insights-widget .insight-title', (e) => e.map((x) => x.textContent));
+    truthy(!afterTitles.includes(title) || before > 2, 'the card is gone: ' + JSON.stringify({ before, title, afterTitles }));
     await page.click('.toast:last-child .toast-action');
     await sleep(900);
     truthy((await page.$$eval('.insights-widget .insight-title', (e) => e.map((x) => x.textContent))).includes(title), 'the card is back');
@@ -303,14 +313,15 @@ async function sessionFor(db, email) {
     await page.keyboard.up('Control');
     await page.waitForSelector('.palette');
     await page.type('.palette input', 'netflix');
-    await sleep(700);
+    // the payments come from the server, so wait for them rather than guessing how long that takes
+    await page.waitForFunction(() => [...document.querySelectorAll('.palette-group')].some((x) => x.textContent === 'Payments'), { timeout: 8000 }).catch(() => {});
     truthy((await page.$$eval('.palette-group', (e) => e.map((x) => x.textContent))).includes('Payments'), 'payments group');
     await page.$eval('.palette input', (e) => (e.value = ''));
     await page.keyboard.down('Control');
     await page.keyboard.press('a');
     await page.keyboard.up('Control');
     await page.type('.palette input', 'sam');
-    await sleep(500);
+    await page.waitForFunction(() => [...document.querySelectorAll('.palette-group')].some((x) => x.textContent === 'People'), { timeout: 8000 }).catch(() => {});
     truthy((await page.$$eval('.palette-group', (e) => e.map((x) => x.textContent))).includes('People'), 'people group');
     await page.keyboard.down('Control');
     await page.keyboard.press('a');
@@ -378,8 +389,11 @@ async function sessionFor(db, email) {
     eq(await count(page, '.sidebar .wordmark'), 1, 'the wordmark is back after expanding');
   });
   await check('pinning a page moves it to a "Pinned" group', async () => {
-    await page.hover('.nav-item:nth-child(5)');
-    await page.click('.nav-item:nth-child(5) .nav-pin');
+    // find Forecast by its name, so adding a page to the sidebar does not move it
+    const index = (await page.$$eval('.nav-item .nav-label', (ls) => ls.map((l) => l.textContent.trim()))).indexOf('Forecast') + 1;
+    truthy(index > 0, 'Forecast is in the sidebar');
+    await page.hover(`.nav-item:nth-child(${index})`);
+    await page.click(`.nav-item:nth-child(${index}) .nav-pin`);
     await sleep(500);
     truthy(/Pinned/.test(await text(page, '.nav')), 'pinned heading');
     eq(await page.$eval('.nav-item.pinned .nav-label', (e) => e.textContent.trim()), 'Forecast', 'forecast pinned');
@@ -399,6 +413,611 @@ async function sessionFor(db, email) {
     await page.click('.swatch-btn[aria-label=Blue]');
     await page.evaluate(() => [...document.querySelectorAll('[aria-label=Density] button')].find((b) => b.textContent === 'Comfortable')?.click());
     await sleep(700);
+  });
+
+  console.log('\nCredit card payments');
+  const pad2 = (n) => String(n).padStart(2, '0');
+  const now = new Date();
+  const THIS = now.getFullYear() + '-' + pad2(now.getMonth() + 1);
+  const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const NEXT = nextMonth.getFullYear() + '-' + pad2(nextMonth.getMonth() + 1);
+  const TODAY = THIS + '-' + pad2(now.getDate());
+  let cardId = null;
+  await check('adding a payment made with the credit card: bought today, counted in next month, balance untouched this month', async () => {
+    page = await open('/payments');
+    const before = { now: (await api(page, 'GET', '/summary?month=' + THIS)).json.totals, next: (await api(page, 'GET', '/summary?month=' + NEXT)).json.totals };
+    await page.click('.head-actions .btn.primary');
+    await page.waitForSelector('.card-box');
+    eq(await count(page, '.card-box .month-cal'), 0, 'no month choice until the card is switched on');
+    await page.type('input[placeholder="e.g. Electricity bill"]', 'E2E card sofa');
+    await page.type('input[placeholder="0.00"]', '123.45');
+    await page.click('.card-box input[type=checkbox]');
+    eq(await page.$eval('.card-box .month-cal-cell.selected', (e) => e.dataset.month), NEXT, 'the next bill is chosen by default');
+    truthy(/Leaves your balance on/.test(await text(page, '.card-box')), 'it says when the money leaves');
+    truthy(/Bought on/.test(await text(page, '.modal')), 'the date is now the purchase day');
+    await page.click('.modal .form-actions .btn.primary');
+    await page.waitForSelector('.card-box', { hidden: true });
+    const made = (await api(page, 'GET', '/transactions?month=' + NEXT)).json.find((t) => t.description === 'E2E card sofa');
+    truthy(made, 'it is listed under next month');
+    cardId = made.id;
+    eq(made.pay_method, 'credit_card', 'saved as a card payment');
+    eq(made.charged_on, TODAY, 'bought today');
+    eq(made.date, NEXT + '-10', 'paid on the card pay day of next month');
+    eq(made.status, 'pending', 'still to pay until the bill is paid');
+    eq((await api(page, 'GET', '/transactions?month=' + THIS)).json.some((t) => t.description === 'E2E card sofa'), false, 'not in this month');
+    const after = { now: (await api(page, 'GET', '/summary?month=' + THIS)).json.totals, next: (await api(page, 'GET', '/summary?month=' + NEXT)).json.totals };
+    eq(JSON.stringify(after.now), JSON.stringify(before.now), 'this month is untouched');
+    eq(Math.round((after.next.expensePending - before.next.expensePending) * 100), 12345, 'next month carries the amount');
+  });
+  await check('the list marks it as a credit card payment, totals the card, and filters by it', async () => {
+    page = await open('/payments?month=' + NEXT);
+    const row = await page.evaluate(() => {
+      const r = [...document.querySelectorAll('.tx-row')].find((x) => x.textContent.includes('E2E card sofa'));
+      return r ? { badge: r.querySelector('.badge.card')?.textContent.trim(), meta: r.querySelector('.tx-meta')?.textContent, title: r.querySelector('.badge.card')?.getAttribute('title') } : null;
+    });
+    truthy(row, 'the row is there');
+    eq(row.badge, 'Credit card', 'badge');
+    truthy(/bought/.test(row.meta), 'says when it was bought: ' + row.meta);
+    truthy(/counts when the bill is paid/i.test(row.title), 'the tooltip explains it');
+    truthy(/Paid with the card bill/.test(await text(page, '.summary-strip')) && /123\.45/.test(await text(page, '.summary-strip')), 'the card total is shown');
+    await pickFilter(page, 'Paid with', 'Credit card');
+    await sleep(600);
+    const rows = await page.$$eval('.tx-row', (rs) => rs.map((r) => !!r.querySelector('.badge.card')));
+    truthy(rows.length >= 1 && rows.every(Boolean), 'only card payments are listed');
+    await pickFilter(page, 'Paid with', 'Cash and bank');
+    await sleep(600);
+    eq(await page.$$eval('.tx-row', (rs) => rs.some((r) => r.textContent.includes('E2E card sofa'))), false, 'and none of them under cash');
+    // ...and it IS shown in the month it was bought, marked as counting later, but not added to that month's figures
+    page = await open('/payments?month=' + THIS);
+    const bought = await page.evaluate(() => {
+      const r = [...document.querySelectorAll('.tx-row')].find((x) => x.textContent.includes('E2E card sofa'));
+      return r ? { only: r.classList.contains('purchase-only'), date: r.querySelector('.tx-date strong')?.textContent, meta: r.querySelector('.tx-meta')?.textContent, buttons: [...r.querySelectorAll('.tx-actions button')].map((x) => x.textContent.trim()).filter(Boolean) } : null;
+    });
+    truthy(bought, 'it is listed in the month it was bought');
+    truthy(bought.only, 'marked as a purchase only');
+    truthy(/counts on/.test(bought.meta), 'says when it counts: ' + bought.meta);
+    eq(bought.buttons.some((t) => /Mark paid|Received|Paid/.test(t)), false, 'no "Mark paid" on a purchase that is not due yet');
+    const strip = await text(page, '.summary-strip');
+    truthy(/Bought on card/.test(strip) && /123\.45/.test(strip), 'the strip shows it as bought on card: ' + strip.replace(/\s+/g, ' '));
+    const summary = (await api(page, 'GET', '/summary?month=' + THIS)).json.totals;
+    const expensesShown = Number(/Expenses\s*[€$£]?\s*([\d,]+\.\d\d)/.exec(strip.replace(/\s+/g, ' '))[1].replace(/,/g, ''));
+    eq(Math.round(expensesShown * 100), Math.round((summary.expensePaid + summary.expensePending) * 100), 'the month\'s expenses do not include it');
+    // the "To pay" view is about what is due, so it does not add the purchase to this month
+    page = await open('/payments?month=' + THIS + '&status=pending');
+    eq(await page.$$eval('.tx-row', (rs) => rs.some((r) => r.textContent.includes('E2E card sofa'))), false, 'not under "To pay" in the month it was bought');
+  });
+  await check('editing it shows the card details again, and the month can be changed', async () => {
+    page = await open('/payments?month=' + NEXT);
+    await page.click('[aria-label="Edit E2E card sofa"]');
+    await page.waitForSelector('.card-box');
+    eq(await page.$eval('.card-box input[type=checkbox]', (e) => e.checked), true, 'the card switch is on');
+    eq(await page.$eval('.card-box .month-cal-cell.selected', (e) => e.dataset.month), NEXT, 'its bill month');
+    eq(await page.$eval('.modal input[type=date]', (e) => e.value), TODAY, 'the date field is the purchase day');
+    await page.click('.card-box .month-cal-head button:last-of-type'); // next year, where the later months are
+    const later = await page.$$eval('.card-box .month-cal-cell:not(.off)', (cells) => cells.at(-1).dataset.month);
+    await page.click(`.card-box [data-month="${later}"]`);
+    await page.click('.modal .form-actions .btn.primary');
+    await page.waitForSelector('.card-box', { hidden: true });
+    const moved = (await api(page, 'GET', '/transactions?month=' + later)).json.find((t) => t.id === cardId);
+    truthy(moved, 'it moved to the month chosen (' + later + ')');
+    eq(moved.charged_on, TODAY, 'still bought today');
+    await api(page, 'PUT', '/transactions/' + cardId, { type: 'expense', description: 'E2E card sofa', amount: 123.45, date: NEXT + '-10', charged_on: TODAY, pay_method: 'credit_card', category_id: null });
+  });
+  await check('the card pay day is a setting, and the form follows it', async () => {
+    page = await open('/settings');
+    const field = 'input[type=number][max="28"]';
+    eq(await page.$eval(field, (e) => e.value), '10', 'starts at the 10th');
+    await page.click(field, { clickCount: 3 });
+    await page.type(field, '15');
+    await page.evaluate(() => [...document.querySelectorAll('form .btn.primary')].find((b) => b.textContent.trim() === 'Save').click());
+    await sleep(800);
+    eq((await api(page, 'GET', '/settings')).json.card_pay_day, 15, 'saved');
+    page = await open('/payments');
+    await page.click('.head-actions .btn.primary');
+    await page.waitForSelector('.card-box');
+    await page.click('.card-box input[type=checkbox]');
+    truthy(/15/.test(await text(page, '.card-box')), 'the form now says the 15th: ' + (await text(page, '.card-box')).slice(-90));
+  });
+  await check('clean up: the test payment is removed and the pay day is back to the 10th', async () => {
+    page = await open('/payments');
+    const s = (await api(page, 'GET', '/settings')).json;
+    await api(page, 'PUT', '/settings', { opening_balance: s.opening_balance, currency: s.currency, card_pay_day: 10 });
+    eq((await api(page, 'DELETE', '/transactions/' + cardId)).status, 200, 'deleted');
+    eq((await api(page, 'GET', '/settings')).json.card_pay_day, 10, 'pay day restored');
+    eq((await api(page, 'GET', '/transactions?month=' + NEXT)).json.some((t) => t.description === 'E2E card sofa'), false, 'gone');
+  });
+
+  console.log('\nDebts');
+  const DEBT = 'E2E Faeze';
+  const debtByName = async (name) => (await api(page, 'GET', '/debts')).json.debts.find((d) => d.name === name);
+  const fillDebt = async (name, total) => {
+    await page.type('input[placeholder="e.g. Faeze, Car loan"]', name);
+    await page.type('.modal input[placeholder="0.00"]', String(total));
+  };
+  const pickSegment = (label) => page.evaluate((l) => [...document.querySelectorAll('.modal .segmented button')].find((b) => b.textContent.trim() === l)?.click(), label);
+  await check('Debts is in the sidebar, and the palette can start one', async () => {
+    page = await open('/');
+    truthy((await page.$$eval('.sidebar .nav-link', (as) => as.map((a) => a.textContent.trim()))).some((t) => /^Debts/.test(t)), 'a Debts link in the sidebar');
+    await page.keyboard.down('Control');
+    await page.keyboard.press('k');
+    await page.keyboard.up('Control');
+    await page.waitForSelector('.palette');
+    await page.type('.palette input', 'add a debt');
+    await sleep(300);
+    eq(await page.$eval('.palette-item.active .palette-label', (e) => e.textContent.trim()), 'Add a debt', 'the palette finds it');
+    await page.keyboard.press('Enter');
+    await page.waitForSelector('.modal input[placeholder="e.g. Faeze, Car loan"]', { timeout: 4000 });
+    truthy(/\/debts/.test(page.url()), 'it opened the Debts page with the form');
+  });
+  await check('adding a debt split over three months: the preview, the payments and the badge', async () => {
+    page = await open('/debts');
+    await page.evaluate(() => [...document.querySelectorAll('button')].find((x) => /Add debt/.test(x.textContent))?.click());
+    await page.waitForSelector('.modal');
+    await fillDebt(DEBT, 300);
+    await pickSegment('Split over months');
+    truthy(/3 payments of\s*€100\.00/.test(await text(page, '.modal .banner')), 'the preview says 3 payments of 100: ' + (await text(page, '.modal .banner')));
+    truthy(/Its payments appear in Payments and in your forecast/.test(await text(page, '.modal .split-box')), 'counted by default, and it says what that means');
+    await page.click('.modal .form-actions .btn.primary');
+    await page.waitForSelector('.modal', { hidden: true });
+    const d = await debtByName(DEBT);
+    truthy(d, 'saved');
+    eq([d.plan, d.installment_count, d.count_in_budget, d.scheduled_count, d.remaining].join(','), 'monthly,3,true,3,300', 'a three payment plan, counted');
+    const card = await page.evaluate((n) => {
+      const c = [...document.querySelectorAll('.card.debt')].find((x) => x.querySelector('h3')?.textContent === n);
+      return c ? { badge: c.querySelector('.badge')?.textContent.trim(), text: c.textContent } : null;
+    }, DEBT);
+    truthy(card, 'its card is on the page');
+    eq(card.badge, 'In your forecast', 'badge');
+    truthy(/Still owed\s*€300\.00/.test(card.text) && /3 monthly payments/.test(card.text), 'figures and plan: ' + card.text.slice(0, 120));
+  });
+  await check('its repayments are real payments with a Debt badge, in the right months', async () => {
+    const d = await debtByName(DEBT);
+    const next = d.next_due.slice(0, 7);
+    page = await open('/payments?month=' + next);
+    const row = await page.evaluate(() => {
+      const r = [...document.querySelectorAll('.tx-row')].find((x) => x.textContent.includes('Repay E2E Faeze'));
+      return r ? { text: r.querySelector('.tx-title')?.textContent, badge: !!r.querySelector('.badge') && /Debt/.test(r.querySelector('.tx-title').textContent) } : null;
+    });
+    truthy(row && row.badge, 'a "Debt" badge on the repayment: ' + JSON.stringify(row));
+    truthy(/\(1\/3\)/.test(row.text), 'numbered 1 of 3');
+  });
+  await check('recording a payment lowers what is owed and shrinks the payments still planned', async () => {
+    page = await open('/debts');
+    await page.evaluate((n) => [...document.querySelectorAll('.card.debt')].find((x) => x.querySelector('h3')?.textContent === n).querySelector('.debt-actions .primary-soft').click(), DEBT);
+    await page.waitForSelector('.modal');
+    await page.click('.modal input[type=number]', { clickCount: 3 });
+    await page.type('.modal input[type=number]', '60');
+    await page.click('.modal .form-actions .btn.primary');
+    await page.waitForSelector('.modal', { hidden: true });
+    await sleep(500);
+    const d = await debtByName(DEBT);
+    eq([d.paid, d.remaining, d.scheduled_total].join(','), '60,240,240', 'paid 60, 240 left, planned payments now share 240');
+    const pend = (await api(page, 'GET', '/transactions?from=2000-01-01&to=2100-01-01&status=pending')).json.filter((t) => t.debt_id === d.id).map((t) => t.amount);
+    eq(pend.join(','), '80,80,80', 'three payments of 80');
+    truthy(/Still owed\s*€240\.00/.test(await text(page, '.card.debt')), 'the card shows 240');
+  });
+  await check('"count it in my budget" off: the plan is kept but the payments leave the forecast', async () => {
+    page = await open('/debts');
+    await page.click('[aria-label="Edit ' + DEBT + '"]');
+    await page.waitForSelector('.modal');
+    await page.click('.modal .split-box input[type=checkbox]');
+    truthy(/Only kept on file/.test(await text(page, '.modal .split-box')), 'it explains: only kept on file');
+    await page.click('.modal .form-actions .btn.primary');
+    await page.waitForSelector('.modal', { hidden: true });
+    const d = await debtByName(DEBT);
+    eq([d.count_in_budget, d.scheduled_count, d.plan, d.paid].join(','), 'false,0,monthly,60', 'no payments, plan and the 60 paid are kept');
+    const badge = await page.$eval('.card.debt .badge', (e) => e.textContent.trim());
+    eq(badge, 'Not counted');
+    eq((await api(page, 'GET', '/transactions?from=2000-01-01&to=2100-01-01&status=pending')).json.some((t) => t.debt_id === d.id), false, 'nothing pending');
+  });
+  await check('turning it back on, settling by hand, reopening and deleting', async () => {
+    page = await open('/debts');
+    await page.click('[aria-label="Edit ' + DEBT + '"]');
+    await page.waitForSelector('.modal');
+    await page.click('.modal .split-box input[type=checkbox]');
+    await page.click('.modal .form-actions .btn.primary');
+    await page.waitForSelector('.modal', { hidden: true });
+    eq((await debtByName(DEBT)).scheduled_count, 3, 'three payments again');
+    await page.evaluate(() => (window.confirm = () => true));
+    await page.evaluate((n) => [...document.querySelectorAll('.card.debt')].find((x) => x.querySelector('h3')?.textContent === n).querySelectorAll('.debt-actions .btn')[1].click(), DEBT);
+    await sleep(700);
+    eq((await debtByName(DEBT)).status, 'settled', 'settled');
+    truthy(/Settled/.test(await text(page, 'main, .content, body')), 'it moved to the Settled section');
+    await page.evaluate((n) => [...document.querySelectorAll('.card.debt')].find((x) => x.querySelector('h3')?.textContent === n).querySelector('.debt-actions .btn').click(), DEBT);
+    await sleep(700);
+    eq((await debtByName(DEBT)).status, 'active', 'reopened');
+    await page.click('[aria-label="Delete ' + DEBT + '"]');
+    await sleep(700);
+    eq(await debtByName(DEBT), undefined, 'deleted');
+    eq((await api(page, 'GET', '/transactions?from=2000-01-01&to=2100-01-01&status=')).json.filter((t) => t.description.includes('E2E Faeze')).every((t) => t.status === 'paid'), true, 'only the paid payment is left in the history');
+  });
+  await check('a debt with no plan sits on file, counted or not, and the totals say so', async () => {
+    page = await open('/debts');
+    await page.evaluate(() => [...document.querySelectorAll('button')].find((x) => /Add debt/.test(x.textContent))?.click());
+    await page.waitForSelector('.modal');
+    await fillDebt('E2E Romena', 520);
+    await page.click('.modal .form-actions .btn.primary');
+    await page.waitForSelector('.modal', { hidden: true });
+    const d = await debtByName('E2E Romena');
+    eq([d.plan, d.scheduled_count, d.remaining].join(','), 'none,0,520', 'on file, nothing scheduled');
+    truthy(/Total owed\s*€[\d,]*520\.00/.test(await text(page, '.summary-strip')) || /520\.00/.test(await text(page, '.summary-strip')), 'the total owed includes it');
+    truthy(/after paying every counted debt/i.test(await text(page, 'body')), 'the balance after debts is shown');
+  });
+  await check('clean up: the test debts and the test payments are gone', async () => {
+    page = await open('/debts');
+    for (const d of (await api(page, 'GET', '/debts')).json.debts.filter((x) => x.name.startsWith('E2E '))) await api(page, 'DELETE', '/debts/' + d.id);
+    const left = (await api(page, 'GET', '/debts')).json.debts.filter((x) => x.name.startsWith('E2E '));
+    eq(left.length, 0, 'no test debts left');
+    const paid = (await api(page, 'GET', '/transactions?from=2000-01-01&to=2100-01-01&status=paid')).json.filter((t) => /E2E (Faeze|Romena)/.test(t.description));
+    for (const t of paid) await api(page, 'DELETE', '/transactions/' + t.id + '?hard=1');
+    eq((await api(page, 'GET', '/transactions?from=2000-01-01&to=2100-01-01&status=')).json.some((t) => /E2E (Faeze|Romena)/.test(t.description)), false, 'no test payments left');
+  });
+
+  console.log('\nRecurring items: how they end');
+  let ruleId = null;
+  await check('ending a recurring item after a number of payments shows the last payment and saves the date', async () => {
+    page = await open('/recurring?new=1');
+    await page.waitForSelector('.end-box');
+    eq(await page.$eval('.end-box .segmented .active', (e) => e.textContent.trim()), 'Never', 'never by default');
+    truthy(/keeps going/.test(await text(page, '.end-box')), 'it says it keeps going');
+    await page.type('.modal input[type=text], .modal input:not([type])', 'E2E ends');
+    await page.type('.modal input[type=number][step="0.01"]', '10');
+    await page.evaluate(() => [...document.querySelectorAll('.end-box .segmented button')].find((b) => /After a number/.test(b.textContent))?.click());
+    await page.click('.end-box input[type=number]', { clickCount: 3 });
+    await page.type('.end-box input[type=number]', '3');
+    truthy(/3 payments in total/.test(await text(page, '.end-box')), 'the last payment is shown: ' + (await text(page, '.end-box')).slice(-90));
+    await page.click('.modal .form-actions .btn.primary');
+    await page.waitForSelector('.modal', { hidden: true });
+    const rule = (await api(page, 'GET', '/recurring')).json.find((r) => r.description === 'E2E ends');
+    truthy(rule, 'saved');
+    ruleId = rule.id;
+    const pending = (await api(page, 'GET', '/transactions?from=2000-01-01&to=2100-01-01&status=pending&limit=500')).json.filter((t) => t.recurring_id === rule.id);
+    eq(pending.length, 3, 'exactly three payments were created');
+    eq(rule.end_date, pending.map((t) => t.date).sort().at(-1), 'the end date is the third payment');
+    truthy(await page.evaluate(() => { const r = [...document.querySelectorAll('.tx-row.rule')].find((x) => x.textContent.includes('E2E ends')); return !!r && /Ends/.test(r.querySelector('.badge')?.textContent ?? ''); }), 'the list shows when it ends');
+  });
+  await check('editing it opens on "On a date", and "Never" removes the ending', async () => {
+    page = await open('/recurring');
+    await page.click('[aria-label="Edit E2E ends"]');
+    await page.waitForSelector('.end-box');
+    eq(await page.$eval('.end-box .segmented .active', (e) => e.textContent.trim()), 'On a date', 'an existing ending opens as a date');
+    truthy(/^\d{4}-\d{2}-\d{2}$/.test(await page.$eval('.end-box input[type=date]', (e) => e.value)), 'with its date filled in');
+    await page.evaluate(() => [...document.querySelectorAll('.end-box .segmented button')].find((b) => b.textContent.trim() === 'Never')?.click());
+    await page.click('.modal .form-actions .btn.primary');
+    await page.waitForSelector('.modal', { hidden: true });
+    eq((await api(page, 'GET', '/recurring')).json.find((r) => r.id === ruleId).end_date, null, 'no ending any more');
+  });
+  await check('clean up: the test recurring item is removed', async () => {
+    page = await open('/recurring');
+    eq((await api(page, 'DELETE', '/recurring/' + ruleId)).status, 204, 'deleted');
+    eq((await api(page, 'GET', '/recurring')).json.some((r) => r.description === 'E2E ends'), false, 'gone');
+  });
+
+  console.log('\nSigning in');
+  // The demo accounts' documented test password (see DEMO-LOGINS.md); this app is running locally.
+  const DEMO_PASSWORD = 'Budget-Showcase#2026';
+  const signInPage = async (typed, password) => {
+    const fresh = await browser.createBrowserContext(); // its own cookie jar: nobody is signed in
+    const p = await fresh.newPage();
+    await p.setViewport({ width: 1280, height: 900 });
+    await p.goto(BASE + '/', { waitUntil: 'networkidle0' });
+    await p.type('input[autocomplete=username]', typed);
+    await p.type('input[autocomplete=current-password]', password);
+    await p.click('.auth-card .btn.primary.wide');
+    return { p, close: () => fresh.close() };
+  };
+  await check('the sign-in form asks for an email or a username', async () => {
+    const fresh = await browser.createBrowserContext();
+    const p = await fresh.newPage();
+    try {
+      await p.goto(BASE + '/', { waitUntil: 'networkidle0' });
+      eq(await p.$eval('input[autocomplete=username]', (e) => e.closest('label').querySelector('.field-label').textContent.trim()), 'Email or username', 'the label');
+      eq(await p.$eval('input[autocomplete=username]', (e) => e.type), 'text', 'a plain text box, so a username is not rejected as "not an email"');
+      truthy(/@username/.test(await p.$eval('input[autocomplete=username]', (e) => e.placeholder)), 'the placeholder shows both');
+    } finally {
+      await fresh.close();
+    }
+  });
+  for (const [label, typed] of [['username', 'alex'], ['username with an @ and capitals', '@Alex'], ['email address', 'alex.morgan@example.com']]) {
+    await check('signing in with the ' + label + ' reaches the dashboard', async () => {
+      const s = await signInPage(typed, DEMO_PASSWORD);
+      try {
+        await s.p.waitForSelector('.dash-title h1', { timeout: 8000 });
+        truthy(/Alex/.test(await s.p.$eval('.dash-title h1', (e) => e.textContent)), 'the dashboard greets Alex');
+      } finally {
+        await s.close();
+      }
+    });
+  }
+  await check('a wrong password, or a username that does not exist, gets the same calm message and stays on the sign-in page', async () => {
+    for (const [typed, password] of [['alex', 'Not-The-Password1!'], ['nobody.at.all', DEMO_PASSWORD]]) {
+      const s = await signInPage(typed, password);
+      try {
+        await s.p.waitForFunction(() => /Invalid email, username or password/.test(document.body.innerText), { timeout: 6000 });
+        eq(await s.p.$$eval('.dash-title', (e) => e.length), 0, 'still signed out');
+        truthy((await s.p.$eval('input[autocomplete=username]', (e) => e.value)) === typed, 'what was typed is still there');
+      } finally {
+        await s.close();
+      }
+    }
+  });
+
+  console.log('\nMonth calendar');
+  const monthOf = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  const plus = (n) => monthOf(new Date(new Date().getFullYear(), new Date().getMonth() + n, 1));
+  const NOWM = plus(0);
+  const CAL_NEXT = plus(1);
+  const popupFits = (p) => p.evaluate(() => { const r = document.querySelector('.month-pop')?.getBoundingClientRect(); return !!r && r.left >= -1 && r.right <= window.innerWidth + 1 && r.top >= -1 && r.bottom <= window.innerHeight + 1; });
+  await check('the dashboard has a month calendar: it opens on this month, ringed, with the year and arrows', async () => {
+    page = await open('/');
+    await page.waitForSelector('.dash-monthbar .month-picker-btn');
+    eq(await page.$eval('.dash-monthbar .month-picker-btn', (e) => e.getAttribute('aria-expanded')), 'false', 'closed at first');
+    await page.click('.dash-monthbar .month-picker-btn');
+    await page.waitForSelector('.month-pop .month-cal-cell');
+    eq(await count(page, '.month-pop .month-cal-cell'), 12, 'twelve months');
+    eq(await page.$eval('.month-pop .month-cal-cell.selected', (e) => e.dataset.month), NOWM, 'this month is chosen');
+    eq(await page.$eval('.month-pop .month-cal-cell.now', (e) => e.getAttribute('aria-current')), 'date', 'and marked as now');
+    eq(await page.$eval('.month-pop .month-cal-year', (e) => e.textContent), NOWM.slice(0, 4), 'the year is shown');
+    truthy(await popupFits(page), 'the popup is inside the screen');
+    await sleep(300);
+    eq(await page.evaluate(() => document.activeElement?.dataset?.month), NOWM, 'keyboard focus starts on the chosen month');
+  });
+  await check('months outside the dashboard\'s reach are greyed out with a reason', async () => {
+    // the dashboard reaches 12 months back and 24 ahead
+    for (let i = 0; i < 4; i++) await page.click('.month-pop .month-cal-head button:last-of-type').catch(() => {});
+    const far = await page.$$eval('.month-pop .month-cal-cell.off', (cells) => cells.map((c) => [c.dataset.month, c.getAttribute('aria-disabled'), c.getAttribute('title')]));
+    truthy(far.length > 0, 'some months are greyed out three or four years ahead');
+    truthy(far.every(([, d, t]) => d === 'true' && /Too far ahead/.test(t)), 'each says why: ' + JSON.stringify(far[0]));
+    const before = page.url();
+    await page.evaluate(() => document.querySelector('.month-pop .month-cal-cell.off').click());
+    eq(page.url(), before, 'clicking one does nothing');
+    await page.keyboard.press('Escape');
+  });
+  await check('choosing a month points the dashboard at it: address, banner, balance, payments, spending; insights step aside', async () => {
+    page = await open('/');
+    await page.click('.dash-monthbar .month-picker-btn');
+    await page.waitForSelector('.month-pop');
+    await page.evaluate((m) => document.querySelector(`.month-pop [data-month="${m}"]`).click(), CAL_NEXT);
+    await page.waitForFunction((m) => location.search.includes('month=' + m), { timeout: 5000 }, CAL_NEXT);
+    eq(await count(page, '.month-pop'), 0, 'the popup closed');
+    await page.waitForSelector('.month-note', { timeout: 6000 });
+    truthy(/Showing/.test(await text(page, '.month-note')), 'a note says which month is shown');
+    await page.waitForFunction(() => /end of/i.test(document.querySelector('.hero-figure .eyebrow')?.textContent ?? ''), { timeout: 8000 });
+    truthy(/Payments this month/.test(await text(page, 'main, body')), '"Coming up" became the month\'s payments');
+    eq(await count(page, '[data-widget=insights]'), 0, 'insights are left out of another month');
+    truthy((await count(page, '[data-widget=spending]')) === 1 && (await count(page, '[data-widget=outlook]')) === 1, 'spending and cash flow are still there');
+    eq(await page.$eval('.dash-monthbar .month-picker-btn', (e, year) => e.textContent.includes(year), CAL_NEXT.slice(0, 4)), true, 'the button shows the month');
+  });
+  await check('the month view fills with the numbers of that month, the same as the Payments page and the forecast', async () => {
+    const fc = (await api(page, 'GET', '/forecast?past=5&months=6')).json.months.find((m) => m.month === CAL_NEXT);
+    const shown = await page.$eval('.hero-balance', (e) => e.textContent.replace(/[^\d.\-−]/g, '').replace('−', '-'));
+    eq(Math.round(Number(shown) * 100), Math.round(fc.endBalance * 100), 'the balance at the end of the month is the forecast\'s');
+    const rows = (await api(page, 'GET', '/transactions?month=' + CAL_NEXT + '&bought=1&limit=300')).json;
+    const listed = await count(page, '.widget[data-widget=upcoming] .tx-row');
+    eq(listed, Math.min(8, rows.length), 'the payments of that month are listed (up to the first eight)');
+  });
+  await check('"This month" and the browser\'s back button come back', async () => {
+    await page.click('.dash-monthbar .month-nav .btn.sm');
+    await page.waitForFunction(() => !location.search.includes('month='), { timeout: 5000 });
+    eq(await count(page, '.month-note'), 0, 'the note is gone');
+    await page.waitForSelector('[data-widget=insights]', { timeout: 6000 });
+    await page.goBack();
+    await page.waitForFunction((m) => location.search.includes('month=' + m), { timeout: 5000 }, CAL_NEXT);
+    truthy(true, 'back returns to the month');
+  });
+  await check('the arrows step one month, and the address controls the month: a bad one means this month', async () => {
+    page = await open('/?month=' + CAL_NEXT);
+    await page.waitForSelector('.month-note');
+    await page.click('.dash-monthbar [aria-label="Next month"]');
+    await page.waitForFunction((m) => location.search.includes('month=' + m), { timeout: 5000 }, plus(2));
+    await page.click('.dash-monthbar [aria-label="Previous month"]');
+    await page.waitForFunction((m) => location.search.includes('month=' + m), { timeout: 5000 }, CAL_NEXT);
+    for (const bad of ['2099-01', '1999-01', 'soon', '2026-13']) {
+      page = await open('/?month=' + bad);
+      await page.waitForSelector('.dash-monthbar');
+      eq(await count(page, '.month-note'), 0, bad + ' is ignored: this month is shown');
+    }
+  });
+  await check('keyboard: open, move with the arrows and Page Down, choose with Enter, Escape closes and gives focus back', async () => {
+    page = await open('/');
+    await page.focus('.dash-monthbar .month-picker-btn');
+    await page.keyboard.press('Enter');
+    await page.waitForSelector('.month-pop .month-cal-cell');
+    await sleep(200);
+    await page.keyboard.press('PageDown');
+    await sleep(200);
+    eq(await page.$eval('.month-pop .month-cal-year', (e) => e.textContent), String(Number(NOWM.slice(0, 4)) + 1), 'Page Down shows next year');
+    eq(await page.evaluate(() => document.activeElement?.dataset?.month?.slice(5)), '01', 'focus is on January');
+    await page.keyboard.press('ArrowRight');
+    eq(await page.evaluate(() => document.activeElement?.dataset?.month?.slice(5)), '02', 'the right arrow moves to February');
+    await page.keyboard.press('ArrowDown');
+    eq(await page.evaluate(() => document.activeElement?.dataset?.month?.slice(5)), '06', 'the down arrow moves a row (four months)');
+    await page.keyboard.press('Escape');
+    await sleep(200);
+    eq(await count(page, '.month-pop'), 0, 'Escape closes it');
+    eq(await page.evaluate(() => document.activeElement?.classList.contains('month-picker-btn')), true, 'focus is back on the button');
+    await page.keyboard.press('Enter');
+    await page.waitForSelector('.month-pop');
+    await sleep(200);
+    await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('Enter');
+    await page.waitForFunction((m) => location.search.includes('month=' + m), { timeout: 5000 }, CAL_NEXT);
+    truthy(true, 'Enter chose the next month');
+  });
+  await check('clicking outside closes it, and Tab stays inside it', async () => {
+    page = await open('/');
+    await page.click('.dash-monthbar .month-picker-btn');
+    await page.waitForSelector('.month-pop');
+    await sleep(200);
+    for (let i = 0; i < 6; i++) await page.keyboard.press('Tab');
+    truthy(await page.evaluate(() => !!document.activeElement?.closest('.month-pop')), 'focus is still inside the popup after six Tabs');
+    await page.mouse.click(5, 5);
+    await sleep(200);
+    eq(await count(page, '.month-pop'), 0, 'a click elsewhere closes it');
+  });
+  await check('the Payments page month navigator has the same calendar', async () => {
+    page = await open('/payments');
+    await page.click('.month-nav .month-picker-btn');
+    await page.waitForSelector('.month-pop');
+    await page.evaluate((m) => document.querySelector(`.month-pop [data-month="${m}"]`).click(), CAL_NEXT);
+    await page.waitForFunction((m) => location.search.includes('month=' + m), { timeout: 5000 }, CAL_NEXT);
+    truthy(new RegExp(String(Number(CAL_NEXT.slice(0, 4)))).test(await text(page, '.month-nav .month-picker-btn')), 'the button shows the month');
+    await page.click('.month-nav .btn.sm');
+    await page.waitForFunction(() => !location.search.includes('month='), { timeout: 5000 });
+  });
+  await check('"Counts in" for a credit card is a calendar that only allows months the bill can fall in', async () => {
+    page = await open('/payments');
+    await page.click('.head-actions .btn.primary');
+    await page.waitForSelector('.card-box');
+    await page.click('.card-box input[type=checkbox]');
+    await page.waitForSelector('.card-box .month-cal');
+    eq(await page.$eval('.card-box .month-cal-cell.selected', (e) => e.dataset.month), CAL_NEXT, 'the next bill is chosen');
+    const off = await page.$$eval('.card-box .month-cal-cell.off', (cells) => cells.map((c) => c.dataset.month));
+    truthy(off.every((m) => m < NOWM || m > plus(12)), 'only months before the purchase or more than a year after are greyed out');
+    truthy(off.some((m) => m < NOWM) || NOWM.endsWith('-01'), 'earlier months this year are greyed out');
+    // this month is allowed only while the card pay day (the 10th) is still ahead; either way, the calendar says so
+    const thisOff = await page.$eval(`.card-box [data-month="${NOWM}"]`, (e) => e.classList.contains('off'));
+    if (thisOff) {
+      truthy(/cannot fall before the purchase/.test(await page.$eval(`.card-box [data-month="${NOWM}"]`, (e) => e.title)), 'a greyed-out month says why');
+    } else {
+      await page.click(`.card-box [data-month="${NOWM}"]`);
+      eq(await page.$eval('.card-box .month-cal-cell.selected', (e) => e.dataset.month), NOWM, 'this month can be chosen while the pay day is ahead');
+    }
+    truthy(/Leaves your balance on/.test(await text(page, '.card-box')), 'it still says when the money leaves');
+    await page.keyboard.press('Escape');
+  });
+  await check('on a phone the calendar is a sheet at the bottom, and the month view fits', async () => {
+    page = await open('/', { width: 390, height: 844 });
+    await page.waitForSelector('.dash-monthbar .month-picker-btn');
+    await page.click('.dash-monthbar .month-picker-btn');
+    await page.waitForSelector('.month-pop');
+    await sleep(200);
+    truthy(await popupFits(page), 'the popup is inside the screen');
+    const geo = await page.$eval('.month-pop', (e) => { const r = e.getBoundingClientRect(); return { bottomGap: Math.round(window.innerHeight - r.bottom), width: Math.round(r.width) }; });
+    truthy(geo.bottomGap <= 16 && geo.width >= 340, 'at the bottom and nearly full width: ' + JSON.stringify(geo));
+    const small = await page.$$eval('.month-pop .month-cal-cell', (cells) => cells.filter((c) => c.getBoundingClientRect().height < 40).length);
+    eq(small, 0, 'month buttons are big enough to tap');
+    await page.evaluate((m) => document.querySelector(`.month-pop [data-month="${m}"]`).click(), CAL_NEXT);
+    await page.waitForSelector('.month-note', { timeout: 6000 });
+    await sleep(800);
+    eq(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true, 'nothing scrolls sideways in the month view');
+  });
+
+  console.log('\nPayment filters');
+  const cats = (await api(page, 'GET', '/categories')).json;
+  const expenseCat = cats.find((c) => c.kind === 'expense' && c.name.length >= 5);
+  const openCats = async (p) => {
+    await p.click('.filters button[aria-label^="Category:"]');
+    await p.waitForSelector('.filter-pop .filter-opt');
+  };
+  const optionTexts = (p) => p.$$eval('.filter-pop [role=option]', (os) => os.map((o) => o.textContent.trim()));
+  await check('the filters are styled dropdowns with icons next to a search box, not the browser\'s own menus', async () => {
+    page = await open('/payments');
+    await page.waitForSelector('.filters .search-box');
+    eq(await count(page, '.filters select'), 0, 'no native selects');
+    eq(await count(page, '.filters .filter-btn'), 3, 'type, paid with, category');
+    eq(await count(page, '.filters .filter-btn svg'), 6, 'each has its icon and chevron');
+    eq(await page.$eval('.filters', (e) => e.getAttribute('role')), 'search', 'announced as a search region');
+    eq(await count(page, '.filters .filter-btn.active'), 0, 'nothing is filtering yet');
+    eq(await count(page, '.filters-clear'), 0, 'so there is nothing to clear');
+  });
+  await check('the category list opens with a search box in focus, groups, colours and a tick on the chosen one', async () => {
+    await openCats(page);
+    eq(await page.evaluate(() => document.activeElement?.getAttribute('role')), 'combobox', 'the search box has focus');
+    const groups = await page.$$eval('.filter-pop .filter-group', (g) => g.map((x) => x.textContent.trim()));
+    eq(groups.join('|'), 'Expenses|Income', 'grouped');
+    truthy((await optionTexts(page))[0] === 'All categories' && (await optionTexts(page))[1] === 'Uncategorized', 'all and uncategorized first');
+    eq(await page.$eval('.filter-pop [aria-selected=true]', (e) => e.textContent.trim()), 'All categories', 'the chosen one is marked');
+    truthy((await count(page, '.filter-pop .filter-opt .dot')) >= cats.length, 'each category has its colour');
+    truthy(await page.$eval('.filter-pop', (e) => { const r = e.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight; }), 'the popup is on screen');
+  });
+  await check('typing narrows the list (ignoring capitals and accents) and says when nothing matches', async () => {
+    const all = (await optionTexts(page)).length;
+    await page.keyboard.type(expenseCat.name.slice(0, 4).toUpperCase());
+    await sleep(150);
+    const some = await optionTexts(page);
+    truthy(some.length >= 1 && some.length < all, 'fewer options: ' + some.length + ' of ' + all);
+    truthy(some.includes(expenseCat.name), 'it finds ' + expenseCat.name);
+    await page.keyboard.down('Control');
+    await page.keyboard.press('a');
+    await page.keyboard.up('Control');
+    await page.keyboard.type('zzzqx');
+    await sleep(150);
+    eq((await optionTexts(page)).length, 0, 'nothing listed');
+    truthy(/Nothing matches/.test(await text(page, '.filter-none')), 'and it says so');
+    await page.keyboard.down('Control');
+    await page.keyboard.press('a');
+    await page.keyboard.up('Control');
+    await page.keyboard.press('Backspace');
+    await sleep(150);
+    eq((await optionTexts(page)).length, all, 'clearing the search brings everything back');
+  });
+  await check('arrows and Enter choose: the button turns green, the address and the list follow, and Clear filters appears', async () => {
+    await page.keyboard.type(expenseCat.name.slice(0, 5));
+    await sleep(150);
+    await page.keyboard.press('Enter');
+    await page.waitForSelector('.filter-pop', { hidden: true });
+    eq(await page.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Category: ' + expenseCat.name, 'focus is back on the button, which now says what is chosen');
+    truthy(page.url().includes('category=' + expenseCat.id), 'the address has the category');
+    eq(await count(page, '.filters .filter-btn.active'), 1, 'one filter is on');
+    await sleep(600);
+    const rows = await page.$$eval('.tx-row .cat', (r) => r.map((x) => x.textContent.trim()));
+    truthy(rows.every((t) => t === expenseCat.name), 'the list is only that category: ' + [...new Set(rows)].join(', '));
+    eq(await text(page, '.filters-clear'), 'Clear filters (1)', 'a way back');
+    await page.click('.filters-clear');
+    await page.waitForFunction(() => !document.querySelector('.filters-clear'), { timeout: 4000 });
+    truthy(!page.url().includes('category='), 'cleared from the address');
+    eq(await count(page, '.filters .filter-btn.active'), 0, 'and from the buttons');
+  });
+  await check('Escape and clicking away close it without changing anything; the arrow keys open it', async () => {
+    await openCats(page);
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('.filter-pop', { hidden: true });
+    eq(await page.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Category: All categories', 'focus goes back to the button');
+    await page.keyboard.press('ArrowDown');
+    await page.waitForSelector('.filter-pop .filter-opt');
+    await page.mouse.click(5, 300);
+    await page.waitForSelector('.filter-pop', { hidden: true });
+    eq(await count(page, '.filters .filter-btn.active'), 0, 'no filter was set');
+  });
+  await check('a short list has no search box, and the type and paid-with filters work from the keyboard', async () => {
+    await page.click('.filters button[aria-label^="Type:"]');
+    await page.waitForSelector('.filter-pop .filter-opt');
+    eq(await count(page, '.filter-pop input'), 0, 'three options need no search');
+    eq(await page.evaluate(() => document.activeElement?.getAttribute('role')), 'listbox', 'the list itself has focus');
+    await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Enter');
+    await page.waitForSelector('.filter-pop', { hidden: true });
+    truthy(page.url().includes('type=expense'), 'expenses only');
+    await sleep(700);
+    eq(await page.$$eval('.tx-row .tx-amount.pos, .tx-row .amount.pos', (r) => r.length), 0, 'no income left in the list');
+    await pickFilter(page, 'Type', 'Income & expenses');
+    truthy(!page.url().includes('type='), 'back to everything');
+  });
+  await check('the search box finds payments, has a clear button, and Clear filters counts it', async () => {
+    const first = (await api(page, 'GET', '/transactions?month=' + THIS)).json[0];
+    await page.type('.filters .search-box input', first.description.slice(0, 6));
+    await sleep(700);
+    truthy((await count(page, '.tx-row')) >= 1, 'something is found');
+    eq(await text(page, '.filters-clear'), 'Clear filters (1)', 'counted');
+    await page.click('.search-clear');
+    await sleep(700);
+    eq(await page.$eval('.filters .search-box input', (e) => e.value), '', 'the box is empty');
+    eq(await count(page, '.search-clear'), 0, 'the clear button goes away');
+    eq(await count(page, '.filters-clear'), 0, 'and so does Clear filters');
+  });
+  await check('on a phone the filters fit, and a dropdown opens as a sheet with big rows', async () => {
+    const small = await open('/payments', { width: 390, height: 800 });
+    await small.waitForSelector('.filters .search-box');
+    eq(await small.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, 'nothing scrolls sideways');
+    await small.click('.filters button[aria-label^="Category:"]');
+    await small.waitForSelector('.filter-pop .filter-opt');
+    await sleep(200);
+    const g = await small.$eval('.filter-pop', (e) => { const r = e.getBoundingClientRect(); return { left: Math.round(r.left), right: Math.round(innerWidth - r.right), bottom: Math.round(innerHeight - r.bottom) }; });
+    truthy(g.left <= 12 && g.right <= 12 && g.bottom <= 12, 'a sheet at the bottom: ' + JSON.stringify(g));
+    const short = await small.$$eval('.filter-pop .filter-opt', (o) => o.filter((x) => x.getBoundingClientRect().height < 40).length);
+    eq(short, 0, 'rows are big enough to tap');
+    await small.close();
   });
 
   console.log('\nSettings and avatar');
@@ -513,6 +1132,61 @@ async function sessionFor(db, email) {
   await check('the dashboard stacks into one column on a phone', async () => {
     const cols = await page.$eval('.dash-grid', (e) => getComputedStyle(e).gridTemplateColumns.split(' ').length);
     eq(cols, 1, 'one column');
+  });
+
+  await check('the newer screens fit a phone: Debts, the credit card and ending options, settings, and the sign-in page', async () => {
+    const fits = () => page.evaluate(() => ({ sideways: document.documentElement.scrollWidth > window.innerWidth + 1, modalOut: (() => { const m = document.querySelector('.modal'); if (!m) return false; const r = m.getBoundingClientRect(); return r.left < -1 || r.right > window.innerWidth + 1; })() }));
+    const expectFits = async (what) => {
+      const r = await fits();
+      eq(r.sideways, false, `${what}: nothing scrolls sideways`);
+      eq(r.modalOut, false, `${what}: the dialog stays inside the screen`);
+    };
+    // give the Debts page something to show: one counted plan and one that is only tracked
+    page = await open('/debts', { width: 390, height: 844 });
+    const made = [];
+    for (const body of [{ name: 'E2E Phone A', total_amount: 300, plan: 'monthly', first_due_date: '2031-01-10', installment_count: 3, count_in_budget: true }, { name: 'E2E Phone B', total_amount: 520, plan: 'none', count_in_budget: false }]) {
+      made.push((await api(page, 'POST', '/debts', body)).json.id);
+    }
+    try {
+      page = await open('/debts', { width: 390, height: 844 });
+      truthy((await count(page, '.card.debt')) >= made.length, 'the debts are drawn');
+      await expectFits('the Debts page');
+      await page.evaluate(() => [...document.querySelectorAll('button')].find((x) => /Add debt/.test(x.textContent))?.click());
+      await page.waitForSelector('.modal');
+      await page.evaluate(() => [...document.querySelectorAll('.modal .segmented button')].find((b) => b.textContent.trim() === 'Split over months')?.click());
+      await expectFits('the Add debt form');
+      await page.keyboard.press('Escape');
+      await page.waitForSelector('.modal', { hidden: true });
+      page = await open('/payments', { width: 390, height: 844 });
+      await page.evaluate(() => [...document.querySelectorAll('button')].find((x) => /Add payment/.test(x.textContent))?.click());
+      await page.waitForSelector('.card-box');
+      await page.click('.card-box input[type=checkbox]');
+      await expectFits('the payment form with the credit card option');
+      page = await open('/recurring?new=1', { width: 390, height: 844 });
+      await page.waitForSelector('.end-box');
+      await page.evaluate(() => [...document.querySelectorAll('.end-box .segmented button')].find((b) => /After a number/.test(b.textContent))?.click());
+      await expectFits('the recurring form with its ending options');
+      page = await open('/settings', { width: 390, height: 844 });
+      await expectFits('Settings');
+    } finally {
+      page = await open('/debts', { width: 390, height: 844 });
+      for (const id of made) await api(page, 'DELETE', '/debts/' + id);
+    }
+    const fresh = await browser.createBrowserContext();
+    const out = await fresh.newPage();
+    try {
+      await out.setViewport({ width: 390, height: 844 });
+      await out.goto(BASE + '/', { waitUntil: 'networkidle0' });
+      eq(await out.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true, 'the sign-in page: nothing scrolls sideways');
+      const input = await out.$eval('input[autocomplete=username]', (e) => e.getBoundingClientRect().height);
+      truthy(input >= 34, 'the sign-in field is big enough to tap: ' + input);
+    } finally {
+      await fresh.close();
+    }
+  });
+  await check('the Debts page is left clean: no test debts remain', async () => {
+    page = await open('/debts', { width: 390, height: 844 });
+    eq((await api(page, 'GET', '/debts')).json.debts.filter((d) => d.name.startsWith('E2E ')).length, 0, 'none left');
   });
 
   console.log('\nHealth');

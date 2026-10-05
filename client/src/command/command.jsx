@@ -89,6 +89,7 @@ function Palette({ initialQuery, onClose }) {
       { id: 'add', group: 'Suggested', label: 'Add payment', icon: 'plus', keywords: 'new expense income create record spend', run: () => openAddPayment() },
       { id: 'ask', group: 'Suggested', label: 'Ask the assistant', icon: 'signal', keywords: 'ai question insight help chat', hint: 'Ctrl J', run: () => openAssistant() },
       { id: 'add-recurring', group: 'Actions', label: 'Add recurring payment', icon: 'repeat', keywords: 'subscription rent salary monthly weekly', run: go('/recurring?new=1') },
+      { id: 'add-debt', group: 'Actions', label: 'Add a debt', icon: 'debt', keywords: 'owe loan borrowed friend pay back', run: go('/debts?new=1') },
       { id: 'add-installment', group: 'Actions', label: 'Add installment plan', icon: 'card', keywords: 'loan split pay later', run: go('/installments?new=1') },
       { id: 'customize', group: 'Actions', label: 'Customise dashboard', icon: 'layout', keywords: 'widgets rearrange hide resize layout', run: go('/?customize=1') },
       ...(unread > 0
@@ -107,6 +108,7 @@ function Palette({ initialQuery, onClose }) {
       { id: 'g-payments', group: 'Go to', label: 'Payments', icon: 'list', keywords: 'transactions history', run: go('/payments') },
       { id: 'g-recurring', group: 'Go to', label: 'Recurring payments', icon: 'repeat', keywords: 'regular repeat', run: go('/recurring') },
       { id: 'g-subs', group: 'Go to', label: 'View subscriptions', icon: 'repeat', keywords: 'netflix spotify streaming recurring', run: go('/recurring') },
+      { id: 'g-debts', group: 'Go to', label: 'Debts', icon: 'debt', keywords: 'owe loans borrowed', run: go('/debts') },
       { id: 'g-installments', group: 'Go to', label: 'Installments', icon: 'card', keywords: 'plans loans', run: go('/installments') },
       { id: 'g-forecast', group: 'Go to', label: 'Open forecast', icon: 'trend', keywords: 'future predict balance outlook projection', run: go('/forecast') },
       { id: 'g-people', group: 'Go to', label: 'People & shared budgets', icon: 'users', keywords: 'friends partner family groups connections', run: go('/people') },

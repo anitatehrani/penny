@@ -9,13 +9,15 @@ installments) and see where your balance is heading — including when it goes n
 
 | Area | What you can do |
 | --- | --- |
-| **Payments** | Add income/expenses, pick any date (past dates = "already paid"), mark paid/unpaid, edit, delete. Month navigator, filters (to pay / paid / overdue / skipped, type, category), search, CSV export. |
-| **Recurring** | Rent, subscriptions, salary, yearly birthdays, quarterly insurance… (weekly / monthly / yearly, every N, optional end date, pause/resume). Generates real pending payments for the next 24 months. |
+| **Payments** | Add income/expenses, pick any date (past dates = "already paid"), mark paid/unpaid, edit, delete. Month navigator, filters (to pay / paid / overdue / skipped, type, how it was paid, category), search, CSV export. |
+| **Credit card** | Mark an expense "Paid with credit card": record the day you bought it, and choose the month the card bill is paid. It counts in that month (balance, forecast, totals, alerts), not the purchase month. It is still listed on the day you bought it, marked "counts on 10 Nov" and kept out of that month's figures (shown as "Bought on card"), and in the bill month it carries a "Credit card" badge with "bought 1 Oct". The day of the month you pay the card is a setting (default the 10th). |
+| **Recurring** | Rent, subscriptions, salary, yearly birthdays, quarterly insurance… (weekly / monthly / yearly, every N, pause/resume). It can **end** never, on a date, or after a number of payments (the form shows the last payment). Generates real pending payments for the next 24 months. Moving one occurrence to another day keeps it moved. |
 | **Installments** | Enter total *or* per-installment amount, number of installments, first due date and how many are already paid. One payment per month, progress tracking, remaining total. |
+| **Debts** | Money you owe, for example to a friend. Pay it **all in one month**, **split it over months** (equal payments, odd cents on the first), or leave it **not scheduled yet**. A switch decides whether it is **counted in your budget**: counted debts create real pending payments (Payments page, forecast, alerts) and count in "balance after debts"; not counted ones are only tracked and change nothing. Record extra payments (the planned ones shrink to match), mark a debt settled, reopen it. Money owed *to* you is not covered. |
 | **Dashboard** | Balance today, this month's income/expenses (paid vs pending), projected end-of-month balance, overdue + next-14-days list, spending by category, balance outlook chart. |
 | **Forecast** | 3 months back, up to 24 ahead. Balance line, income vs expenses, month-by-month table, warnings when/how far the balance goes negative, lowest point. Optional estimate of everyday spending. |
-| **Settings** | Starting balance (can be negative), currency, categories (name + colour). |
-| **Accounts** | Sign up / sign in with email + password or with Google. Every account has its own private data. Change password, connect/disconnect Google, sign out. |
+| **Settings** | Starting balance (can be negative), currency, credit card pay day, categories (name + colour). |
+| **Accounts** | Sign up with email + password or with Google. Sign in with your **email or your username** (with or without the `@`) and your password, or with Google. Every account has its own private data. Change password, connect/disconnect Google, sign out. |
 | **Profile & sharing** | Username, email, optional phone. Others find you by exact `@username`, email or phone (each can be switched off, or hide yourself completely). Share your profile link `/u/username` or a QR code from **Profile**. |
 | **People** | Send connection requests (partner / family / friend / other), accept or decline, remove. Nobody is added without accepting. |
 | **Add people to a payment** | Add connections to any payment and split it equally or with custom amounts. They see it under **People → Shared with me** and can add their share to their own budget in one click. |
@@ -28,6 +30,8 @@ installments) and see where your balance is heading — including when it goes n
 | **Assistant** | Insights written from your own ledger: spending up or down against the same point last month, subscriptions that grew, a busy week ahead, the first month the forecast goes negative, where you could save. Each one can be expanded ("Why?"), questioned, or dismissed for the month. Ask your own questions ("How much did I spend on groceries?", "Will I go negative?"). **It is a rules-and-statistics engine running on your server, not a large language model; no financial data leaves it.** |
 | **Command palette** | `Ctrl`/`⌘` + `K` from anywhere: fuzzy-search pages, actions (add payment, add recurring item…), payments, people, themes and accent colours; type a question to hand it to the assistant. |
 | **Personal dashboard** | Reorder, resize (S/M/L) and hide dashboard widgets, collapse sections, pin pages in the sidebar, collapse the sidebar, choose comfortable or compact density and an accent colour. Saved to your account. |
+| **Month calendar** | Jump to any month with a calendar (a year with arrows and twelve month buttons; keyboard-friendly; a bottom sheet on a phone) on the dashboard, the Payments page, and as the "Counts in" choice of a credit card payment. On the dashboard it opens a **month view** (`/?month=2027-02`, up to 12 months back and 24 ahead): the balance at the end of that month (actual or expected) with its arithmetic, that month's payments, spending against the month before, and cash flow around it. Insights stay about today. |
+| **Payment filters** | The Payments page filters (type, paid with, category, member) are styled dropdowns: the active ones are tinted, a long list such as the categories has a search box (type to narrow it, arrows and Enter to choose), and **Clear filters** resets them. The search box for descriptions and notes has a clear button. Works with the keyboard and as a bottom sheet on a phone. |
 | **Avatars** | Your photo, initials, a generated pattern or a small illustration; an "active now" dot for people you are connected to (you can switch it off). |
 | **Themes** | Light, Dark or System (follows your device), switchable from the sidebar, the sign-in page and Profile. |
 
@@ -43,6 +47,8 @@ The balance **can be negative** everywhere; negative values are shown in red wit
   (so a past "Rent" you typed in isn't counted on top of your recurring rent). Turn it off on the Forecast page.
 * Deleting an occurrence of a recurring item *skips* it (it stays skipped, and can be restored from the
   "Skipped" filter). Deleting a recurring item or installment plan removes its unpaid payments and keeps paid history.
+* Moving one occurrence to another day (rent on the 14th instead of the 10th) keeps it moved: each generated payment remembers the
+  schedule slot it came from (`occurrence_date`), so the automatic top-up never creates the original day again.
 
 ## Running it
 
@@ -92,7 +98,7 @@ npm run e2e           # drives a real Chrome/Edge through the interface (needs t
 ```
 
 `npm run e2e` is separate from `npm test` because it needs a browser. It checks the dashboard, notification centre, command palette,
-assistant, customise mode, avatar picker, settings, offline/error/first-run states and the phone layout (about 30 checks).
+assistant, customise mode, avatar picker, settings, offline/error/first-run states, the logo, credit card payments, debts, recurring endings, signing in by username or email, the month calendar, the payment filters, and the phone layout (about 75 checks).
 Set `CHROME_PATH` if Chrome is not in its usual place.
 
 The server tests start the **real server against a throw-away Postgres database** (created and dropped per test file
@@ -171,7 +177,8 @@ Log in as Sam or Priya to see the other side of the same data.
   with a lowercase letter, an uppercase letter, a number and a special character; at most 128 characters; not a
   very common password; must not contain the part of your email before the `@` or your first name.
 * **Passwords are never stored.** Only a salted `scrypt` hash is kept. Login errors are deliberately generic
-  ("Invalid email or password") and login/sign-up are rate-limited (15 attempts / 15 min per IP + email).
+  ("Invalid email, username or password") and login/sign-up are rate-limited (15 attempts / 15 min per IP + what was typed; once the
+  account is known, guesses are also counted against the account itself, so switching between its email and its username gives no extra attempts).
 * **Sessions** are random tokens in an `HttpOnly`, `SameSite=Lax` cookie (30 days, renewed while you use the
   app); only a hash of the token is stored in the database. Changing your password signs out all other devices.
   State-changing requests from another origin are rejected (CSRF protection). Set `COOKIE_SECURE=true` in
@@ -249,7 +256,7 @@ with a password, Google sign-in will *not* silently take it over: sign in with t
 
 | | |
 | --- | --- |
-| `POST /auth/signup`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/me` | account + session |
+| `POST /auth/signup`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/me` | account + session. `login` takes `{identifier, password}` where `identifier` is an email address or a username (a leading `@` is ignored); the older field name `email` still works |
 | `POST /auth/google`, `POST /auth/google/link`, `DELETE /auth/google` | Google sign-in/up, connect, disconnect |
 | `PUT /auth/password` | change (or, for Google-only accounts, set) password |
 | `GET /auth/username-available?u=` | is this username free? |
@@ -278,15 +285,17 @@ with a password, Google sign-in will *not* silently take it over: sign in with t
 
 Budget routes below act on the budget named by the `X-Workspace` header (or `?ws=`); without it they use your personal budget.
 Membership is checked on every request. `paid_by` (username) and `participants` (`[{username, share}]`) are accepted on payments.
-| `GET/PUT /settings` | starting balance, currency |
+| `GET/PUT /settings` | starting balance, currency, `card_pay_day` (1 to 28, default 10; left out on `PUT` = unchanged) |
 | `GET/POST/PUT/DELETE /categories` | categories |
-| `GET /transactions?month=YYYY-MM&status=&type=&category_id=&q=` | list (`status`: pending, paid, overdue, skipped) |
-| `POST /transactions`, `PUT /transactions/:id` | create / update |
+| `GET /transactions?month=YYYY-MM&status=&type=&pay=&bought=1&category_id=&q=` | list (`status`: pending, paid, overdue, skipped; `pay`: credit_card, cash). A payment is listed in the month of its `date`, which for a card payment is the day the card bill is paid. With `bought=1` the card payments *bought* in that month are listed too, flagged `purchase_only: true` (the Payments page uses this; nothing else does, so totals and the forecast still go by the day the money leaves) |
+| `POST /transactions`, `PUT /transactions/:id` | create / update. Optional `pay_method` (`cash` or `credit_card`) and `charged_on` (the purchase day). For a credit card payment `date` is the day the bill is paid; it must be an expense and `charged_on` may not be after `date` (default: `date`). On `PUT`, leaving `pay_method` out keeps the current one |
 | `PATCH /transactions/:id/status` | `{status: 'paid'｜'pending'｜'skipped'}` |
 | `DELETE /transactions/:id` | delete (recurring occurrences are skipped; `?hard=1` deletes) |
-| `GET /transactions/export.csv` | CSV, same filters |
-| `GET/POST/PUT/DELETE /recurring` | recurring rules |
+| `GET /transactions/export.csv` | CSV, same filters (columns include `paid_with` and `bought_on`) |
+| `GET/POST/PUT/DELETE /recurring` | recurring rules. End with `end_date` or `ends_after` (a number of payments, 1 to 600; the server works out the date). Not both |
 | `GET/POST/PUT/DELETE /installments` | installment plans |
+| `GET/POST/PUT/DELETE /debts` | debts: `{name, total_amount, plan: none\|once\|monthly, first_due_date, installment_count, count_in_budget, category_id, note, paid_by}`. `GET` returns `{debts, totals}`; saving rebuilds the unpaid payments from what is still owed |
+| `POST /debts/:id/payments` `{amount, date?, note?}` · `POST /debts/:id/settle` · `POST /debts/:id/reopen` | record a payment (at most what is owed) / settle by hand / open again |
 | `GET /summary?month=YYYY-MM` | dashboard numbers |
 | `GET /forecast?months=12&past=3&estimateExpenses=1&estimateIncome=0` | forecast |
 

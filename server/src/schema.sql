@@ -102,8 +102,7 @@ ALTER TABLE transactions ADD COLUMN IF NOT EXISTS user_id integer REFERENCES use
 CREATE INDEX IF NOT EXISTS transactions_user_date_idx ON transactions (user_id, date);
 CREATE INDEX IF NOT EXISTS recurring_rules_user_idx ON recurring_rules (user_id);
 CREATE INDEX IF NOT EXISTS installment_plans_user_idx ON installment_plans (user_id);
-CREATE UNIQUE INDEX IF NOT EXISTS transactions_recurring_uq
-  ON transactions (recurring_id, date) WHERE recurring_id IS NOT NULL;
+-- (the unique index that keeps recurring payments from being generated twice is created further down, on occurrence_date)
 CREATE UNIQUE INDEX IF NOT EXISTS transactions_installment_uq
   ON transactions (installment_plan_id, installment_no) WHERE installment_plan_id IS NOT NULL;
 
@@ -394,5 +393,60 @@ BEGIN
     ALTER TABLE notification_settings ADD COLUMN forecast_warning boolean NOT NULL DEFAULT true;
     ALTER TABLE notification_settings ADD COLUMN email_forecast   boolean NOT NULL DEFAULT true;
     UPDATE notification_settings SET forecast_warning = balance_warning, email_forecast = email_balance;
+  END IF;
+END $$;
+
+-- Credit card payments. `date` stays the day the money leaves the account (so balance, forecast and alerts keep working);
+-- `charged_on` is the day it was bought on the card.
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS pay_method text NOT NULL DEFAULT 'cash' CHECK (pay_method IN ('cash', 'credit_card'));
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS charged_on date;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'transactions_card_consistent') THEN
+    ALTER TABLE transactions ADD CONSTRAINT transactions_card_consistent CHECK (
+      (pay_method = 'cash' AND charged_on IS NULL)
+      OR (pay_method = 'credit_card' AND type = 'expense' AND charged_on IS NOT NULL AND charged_on <= date));
+  END IF;
+END $$;
+ALTER TABLE workspace_settings ADD COLUMN IF NOT EXISTS card_pay_day integer NOT NULL DEFAULT 10 CHECK (card_pay_day BETWEEN 1 AND 28);
+
+-- A recurring payment remembers the schedule slot it was generated for, so moving it to another day does not free the slot
+-- (which used to make the top-up create a second copy).
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS occurrence_date date;
+UPDATE transactions SET occurrence_date = date WHERE recurring_id IS NOT NULL AND occurrence_date IS NULL;
+DROP INDEX IF EXISTS transactions_recurring_uq;
+CREATE UNIQUE INDEX IF NOT EXISTS transactions_recurring_slot_uq
+  ON transactions (recurring_id, occurrence_date) WHERE recurring_id IS NOT NULL;
+
+-- Debts: money you owe. Repayments are ordinary expense payments (source 'debt') linked back through debt_id.
+CREATE TABLE IF NOT EXISTS debts (
+  id                serial PRIMARY KEY,
+  workspace_id      integer NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  user_id           integer REFERENCES users(id) ON DELETE SET NULL,
+  member_id         integer REFERENCES users(id) ON DELETE SET NULL,
+  name              text NOT NULL,
+  total_amount      numeric(12,2) NOT NULL CHECK (total_amount > 0),
+  note              text,
+  category_id       integer REFERENCES categories(id) ON DELETE SET NULL,
+  plan              text NOT NULL DEFAULT 'none' CHECK (plan IN ('none', 'once', 'monthly')),
+  first_due_date    date,
+  installment_count integer,
+  count_in_budget   boolean NOT NULL DEFAULT true,
+  settled_at        timestamptz,
+  created_at        timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT debts_plan_consistent CHECK (
+    (plan = 'none' AND first_due_date IS NULL AND installment_count IS NULL)
+    OR (plan = 'once' AND first_due_date IS NOT NULL AND installment_count IS NULL)
+    OR (plan = 'monthly' AND first_due_date IS NOT NULL AND installment_count BETWEEN 2 AND 120))
+);
+CREATE INDEX IF NOT EXISTS debts_workspace_idx ON debts (workspace_id);
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS debt_id integer REFERENCES debts(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS transactions_debt_idx ON transactions (debt_id) WHERE debt_id IS NOT NULL;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'transactions'::regclass AND contype = 'c'
+                 AND pg_get_constraintdef(oid) LIKE '%source%' AND pg_get_constraintdef(oid) LIKE '%debt%') THEN
+    ALTER TABLE transactions DROP CONSTRAINT IF EXISTS transactions_source_check;
+    ALTER TABLE transactions ADD CONSTRAINT transactions_source_check CHECK (source IN ('manual', 'recurring', 'installment', 'debt'));
   END IF;
 END $$;

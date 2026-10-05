@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { api } from '../api.js';
 import { useApp } from '../context.jsx';
-import { dateLabel, relativeDay, todayYMD, weekday } from '../format.js';
+import { listDate } from '../cardLogic.js';
+import { dateLabel, dateLong, relativeDay, todayYMD, weekday } from '../format.js';
 import { useWorkspace } from '../workspace.jsx';
 import { AlertBell } from './Alerts.jsx';
 import { ReceiptsModal } from './Receipts.jsx';
@@ -11,8 +12,12 @@ import { Avatar, AvatarStack, CategoryDot, Icon } from './ui.jsx';
 export default function TxRow({ tx, onChange, onEdit, compact }) {
   const { money, notify } = useApp();
   const { isGroup } = useWorkspace();
-  const overdue = tx.status === 'pending' && tx.date < todayYMD();
+  // A row can be listed in its purchase month only (`purchase_only`): it is a card purchase that counts later, when the bill is paid.
+  const purchaseOnly = !!tx.purchase_only;
+  const overdue = !purchaseOnly && tx.status === 'pending' && tx.date < todayYMD();
   const income = tx.type === 'income';
+  const card = tx.pay_method === 'credit_card';
+  const shownDate = listDate(tx);
   const [receiptsOpen, setReceiptsOpen] = useState(false);
   const receipts = tx.receipt_count ?? 0;
 
@@ -41,10 +46,10 @@ export default function TxRow({ tx, onChange, onEdit, compact }) {
   }
 
   return (
-    <div className={`tx-row${tx.status === 'skipped' ? ' skipped' : ''}${compact ? ' compact' : ''}`}>
+    <div className={`tx-row${tx.status === 'skipped' ? ' skipped' : ''}${compact ? ' compact' : ''}${purchaseOnly ? ' purchase-only' : ''}`}>
       <div className="tx-date">
-        <strong>{dateLabel(tx.date)}</strong>
-        <span className={overdue ? 'neg' : 'muted'}>{compact || overdue ? relativeDay(tx.date) : weekday(tx.date)}</span>
+        <strong>{dateLabel(shownDate)}</strong>
+        <span className={overdue ? 'neg' : 'muted'}>{compact || overdue ? relativeDay(shownDate) : weekday(shownDate)}</span>
       </div>
       <div className="tx-main">
         <div className="tx-title">
@@ -59,6 +64,16 @@ export default function TxRow({ tx, onChange, onEdit, compact }) {
               <Icon name="card" size={12} /> Installment
             </span>
           )}
+          {tx.source === 'debt' && (
+            <span className="badge" title="Part of paying off a debt">
+              <Icon name="debt" size={12} /> Debt
+            </span>
+          )}
+          {card && (
+            <span className="badge card" title={`Bought ${dateLong(tx.charged_on)} with the credit card. It counts when the bill is paid, on ${dateLong(tx.date)}.`} data-purchase-only={purchaseOnly || undefined}>
+              <Icon name="card" size={12} /> Credit card
+            </span>
+          )}
           {receipts > 0 && (
             <button className="receipt-chip" onClick={() => setReceiptsOpen(true)} aria-label={`${receipts} receipt${receipts === 1 ? '' : 's'} for ${tx.description}`} title="View receipts">
               <Icon name="paperclip" size={12} /> {receipts}
@@ -69,6 +84,8 @@ export default function TxRow({ tx, onChange, onEdit, compact }) {
         </div>
         <div className="tx-meta">
           <CategoryDot color={tx.category_color} name={tx.category_name} />
+          {purchaseOnly && <strong className="counts-on">counts on {dateLabel(tx.date)}, when the bill is paid</strong>}
+          {card && !purchaseOnly && tx.charged_on !== tx.date && <span className="muted">bought {dateLabel(tx.charged_on)}</span>}
           {isGroup && tx.member_name && (
             <span className="who" title={income ? 'Whose income' : 'Paid by'}>
               <Avatar user={{ name: tx.member_name, avatar_url: tx.member_avatar }} size={16} />
@@ -88,18 +105,18 @@ export default function TxRow({ tx, onChange, onEdit, compact }) {
         {money(tx.amount)}
       </div>
       <div className="tx-actions">
-        {tx.status === 'pending' && <AlertBell tx={tx} onChange={onChange} />}
+        {tx.status === 'pending' && !purchaseOnly && <AlertBell tx={tx} onChange={onChange} />}
         {tx.receipt_count !== undefined && !compact && tx.status !== 'skipped' && receipts === 0 && (
           <button className="btn icon ghost" onClick={() => setReceiptsOpen(true)} aria-label={`Attach a receipt to ${tx.description}`} title="Attach a receipt">
             <Icon name="paperclip" size={16} />
           </button>
         )}
-        {tx.status === 'pending' && (
+        {tx.status === 'pending' && !purchaseOnly && (
           <button className="btn sm primary-soft" onClick={() => setStatus('paid')}>
             <Icon name="check" size={14} /> {income ? 'Received' : 'Mark paid'}
           </button>
         )}
-        {tx.status === 'paid' && (
+        {tx.status === 'paid' && !purchaseOnly && (
           <button className="btn sm paid" onClick={() => setStatus('pending')} title="Click to mark as not paid">
             <Icon name="check" size={14} /> {income ? 'Received' : 'Paid'}
           </button>

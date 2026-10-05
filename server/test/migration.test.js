@@ -46,7 +46,9 @@ describe('upgrading from the first versions', () => {
     await q(`INSERT INTO user_settings (user_id, opening_balance, currency) VALUES ($1, 250, 'GBP') ON CONFLICT (user_id) DO UPDATE SET opening_balance = 250, currency = 'GBP'`, [u1]);
     await q(`INSERT INTO categories (user_id, name, kind, workspace_id) VALUES ($1, 'Legacy cat', 'expense', NULL)`, [u1]);
     await q(`INSERT INTO transactions (user_id, type, description, amount, date, status, workspace_id, member_id) VALUES ($1, 'expense', 'Legacy payment', 10, '2026-01-01', 'paid', NULL, NULL)`, [u1]);
-    await q(`INSERT INTO recurring_rules (user_id, type, description, amount, frequency, start_date, workspace_id, member_id) VALUES ($1, 'expense', 'Legacy rule', 5, 'monthly', '2026-01-05', NULL, NULL)`, [u1]);
+    const ruleId = (await q(`INSERT INTO recurring_rules (user_id, type, description, amount, frequency, start_date, workspace_id, member_id) VALUES ($1, 'expense', 'Legacy rule', 5, 'monthly', '2026-01-05', NULL, NULL) RETURNING id`, [u1])).rows[0].id;
+    // a payment the old version generated for that rule: it did not record which schedule slot it was for
+    await q(`INSERT INTO transactions (user_id, type, description, amount, date, status, source, recurring_id, workspace_id, member_id, occurrence_date) VALUES ($1, 'expense', 'Legacy rule', 5, '2026-02-05', 'paid', 'recurring', $2, NULL, NULL, NULL)`, [u1, ruleId]);
 
     await restart();
 
@@ -58,11 +60,19 @@ describe('upgrading from the first versions', () => {
     const w1 = ws.find((w) => w.owner_id === u1).id;
     const owned = async (t) => (await q(`SELECT count(*)::int n FROM ${t} WHERE workspace_id = $1`, [w1])).rows[0].n;
     assert.equal(await owned('categories'), 1);
-    assert.equal(await owned('transactions'), 1);
+    assert.equal(await owned('transactions'), 2, 'the old payment and the one its recurring rule had generated');
     assert.equal((await owned('recurring_rules')) , 1);
     assert.equal((await q(`SELECT member_id FROM transactions WHERE description = 'Legacy payment'`)).rows[0].member_id, u1, 'member backfilled');
     const settings = (await q('SELECT opening_balance, currency FROM workspace_settings WHERE workspace_id = $1', [w1])).rows[0];
     assert.deepEqual(settings, { opening_balance: 250, currency: 'GBP' });
+    // what later versions added reaches old data without changing its meaning
+    const legacy = (await q(`SELECT pay_method, charged_on, debt_id FROM transactions WHERE description = 'Legacy payment'`)).rows[0];
+    assert.deepEqual(legacy, { pay_method: 'cash', charged_on: null, debt_id: null }, 'an old payment is a plain cash payment');
+    assert.equal((await q('SELECT card_pay_day FROM workspace_settings WHERE workspace_id = $1', [w1])).rows[0].card_pay_day, 10, 'the card pay day starts at the 10th');
+    const slot = (await q(`SELECT date::text AS date, occurrence_date::text AS slot FROM transactions WHERE recurring_id = $1`, [ruleId])).rows[0];
+    assert.deepEqual(slot, { date: '2026-02-05', slot: '2026-02-05' }, 'the old payment now knows which schedule slot it belongs to');
+    assert.equal((await q(`SELECT count(*)::int AS n FROM transactions WHERE recurring_id IS NOT NULL AND occurrence_date IS NULL`)).rows[0].n, 0, 'none left without one');
+    assert.equal((await q('SELECT count(*)::int AS n FROM debts WHERE workspace_id = $1', [w1])).rows[0].n, 0, 'the debts table is there, and empty');
     assert.equal((await q('SELECT is_nullable FROM information_schema.columns WHERE table_name = $1 AND column_name = $2', ['users', 'username'])).rows[0].is_nullable, 'NO', 'username is mandatory again');
   });
 
@@ -80,14 +90,14 @@ describe('upgrading from the first versions', () => {
       assert.equal(cats.length, 2, 'adopted the existing categories instead of seeding duplicates');
       assert.equal(ok(await first.get('/transactions?status=')).length, 1);
       assert.equal(ok(await first.get('/transactions?status=')).filter((t) => t.description === 'Before accounts')[0].member_username, `f${a}`);
-      assert.deepEqual(ok(await first.get('/settings')), { opening_balance: 99, currency: 'EUR' });
+      assert.deepEqual(ok(await first.get('/settings')), { opening_balance: 99, currency: 'EUR', card_pay_day: 10 });
       // the second account starts clean
       const second = new Client(solo.base);
       const b = uid();
       ok(await second.post('/auth/signup', { name: 'Second', email: `${b}@example.com`, username: `s${b}`, password: PW }), 201);
       assert.equal(ok(await second.get('/categories')).length, 14);
       assert.equal(ok(await second.get('/transactions?status=')).length, 0);
-      assert.deepEqual(ok(await second.get('/settings')), { opening_balance: 0, currency: 'USD' });
+      assert.deepEqual(ok(await second.get('/settings')), { opening_balance: 0, currency: 'USD', card_pay_day: 10 });
     } finally {
       await shutdown(solo);
     }
@@ -95,13 +105,15 @@ describe('upgrading from the first versions', () => {
 
   it('a brand-new database gets every table, index and constraint it needs', async () => {
     const tables = (await q(`SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'`)).rows.map((r) => r.table_name);
-    for (const t of ['users', 'sessions', 'workspaces', 'workspace_members', 'workspace_invites', 'workspace_settings', 'connections', 'categories', 'recurring_rules', 'installment_plans', 'transactions', 'transaction_participants']) {
+    for (const t of ['users', 'sessions', 'workspaces', 'workspace_members', 'workspace_invites', 'workspace_settings', 'connections', 'categories', 'recurring_rules', 'installment_plans', 'transactions', 'transaction_participants', 'debts']) {
       assert.ok(tables.includes(t), `missing table ${t}`);
     }
     const idx = (await q(`SELECT indexname FROM pg_indexes WHERE schemaname = 'public'`)).rows.map((r) => r.indexname);
-    for (const i of ['users_email_uq', 'users_username_uq', 'users_phone_uq', 'workspaces_personal_uq', 'connections_pair_uq', 'transactions_recurring_uq', 'transactions_installment_uq', 'categories_ws_name_kind_uq', 'workspace_invites_pending_uq']) {
+    for (const i of ['users_email_uq', 'users_username_uq', 'users_phone_uq', 'workspaces_personal_uq', 'connections_pair_uq', 'transactions_recurring_slot_uq', 'transactions_installment_uq', 'categories_ws_name_kind_uq', 'workspace_invites_pending_uq', 'debts_workspace_idx', 'transactions_debt_idx']) {
       assert.ok(idx.includes(i), `missing index ${i}`);
     }
+    const checks = (await q(`SELECT conname FROM pg_constraint WHERE contype = 'c' AND conname IN ('transactions_card_consistent', 'debts_plan_consistent', 'transactions_source_check')`)).rows.map((r) => r.conname).sort();
+    assert.deepEqual(checks, ['debts_plan_consistent', 'transactions_card_consistent', 'transactions_source_check'], 'the card and debt consistency checks exist');
   });
 });
 

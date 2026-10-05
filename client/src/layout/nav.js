@@ -4,6 +4,7 @@ export const NAV = [
   { id: 'payments', to: '/payments', label: 'Payments', icon: 'list' },
   { id: 'recurring', to: '/recurring', label: 'Recurring', icon: 'repeat' },
   { id: 'installments', to: '/installments', label: 'Installments', icon: 'card' },
+  { id: 'debts', to: '/debts', label: 'Debts', icon: 'debt' },
   { id: 'forecast', to: '/forecast', label: 'Forecast', icon: 'trend' },
   { id: 'people', to: '/people', label: 'People', icon: 'users' },
   { id: 'settings', to: '/settings', label: 'Settings', icon: 'gear' },

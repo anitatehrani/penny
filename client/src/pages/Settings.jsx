@@ -78,6 +78,7 @@ export default function Settings() {
   const { current, isGroup } = useWorkspace();
   const [opening, setOpening] = useState(String(settings.opening_balance));
   const [currency, setCurrency] = useState(settings.currency);
+  const [cardDay, setCardDay] = useState(String(settings.card_pay_day ?? 10));
   const [editingCat, setEditingCat] = useState(null);
   const [catAlerts, setCatAlerts] = useState({}); // category id -> 'on' | 'off' (my own choices; missing = follow default)
 
@@ -105,12 +106,13 @@ export default function Settings() {
   useEffect(() => {
     setOpening(String(settings.opening_balance));
     setCurrency(settings.currency);
+    setCardDay(String(settings.card_pay_day ?? 10));
   }, [settings]);
 
   async function save(e) {
     e.preventDefault();
     try {
-      await api.put('/settings', { opening_balance: Number(opening), currency });
+      await api.put('/settings', { opening_balance: Number(opening), currency, card_pay_day: Number(cardDay) });
       reloadSettings();
       notify('Settings saved');
     } catch (err) {
@@ -165,7 +167,7 @@ export default function Settings() {
       <>
       <section className="card">
         <div className="card-head">
-          <h2>Balance &amp; currency</h2>
+          <h2>Balance, currency &amp; credit card</h2>
         </div>
         <form onSubmit={save} className="form">
           <div className="form-grid">
@@ -178,6 +180,11 @@ export default function Settings() {
                   <option key={c}>{c}</option>
                 ))}
               </select>
+            </Field>
+          </div>
+          <div className="form-grid">
+            <Field label="Credit card pay day" hint="The day of the month you pay your credit card bill (1 to 28). A purchase made with the card counts on this day of the month you choose.">
+              <input type="number" min="1" max="28" step="1" inputMode="numeric" value={cardDay} onChange={(e) => setCardDay(e.target.value)} required />
             </Field>
           </div>
           <div className="form-actions left">

@@ -34,6 +34,11 @@
   text-align: center;
   color: var(--ink-2);
 }
+/* A link inside a sentence must not rely on colour alone to be seen as a link. */
+.auth-footer a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 .auth-hint {
   margin-bottom: 6px;
 }

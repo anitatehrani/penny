@@ -354,8 +354,9 @@
   cursor: default;
 }
 
-/* ---------- payment form: split ---------- */
-.split-box {
+/* ---------- payment form: split, and the ending of a recurring item ---------- */
+.split-box,
+.end-box {
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 12px;
@@ -363,6 +364,19 @@
   flex-direction: column;
   gap: 10px;
   background: var(--surface-2);
+}
+.end-summary {
+  margin: 0;
+}
+.debt-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+.debt-after {
+  margin: 0 0 12px;
 }
 .pick-list {
   display: flex;
@@ -525,10 +539,6 @@
   margin-top: 8px;
 }
 
-.filters {
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-}
-
 /* ---------- phones: top bar replaces the sidebar header ---------- */
 @media (max-width: 820px) {
   .app {
@@ -599,4 +609,16 @@
   .member-bar {
     grid-template-columns: 52px 1fr auto;
   }
+}
+
+/* A card purchase listed in the month it was bought; it counts in the month its bill is paid. Not dimmed: dimming costs contrast. */
+.tx-row.purchase-only .tx-amount {
+  color: var(--ink-2);
+}
+.tx-row.purchase-only {
+  border-left: 3px dashed var(--line-strong);
+}
+.counts-on {
+  font-weight: 550;
+  color: var(--accent-text);
 }

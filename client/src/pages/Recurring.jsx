@@ -7,6 +7,7 @@ import { useAuth } from '../auth.jsx';
 import { useApp } from '../context.jsx';
 import { dateLong, describeRule, todayYMD } from '../format.js';
 import { useFetch } from '../hooks.js';
+import { lastOccurrence, nthOccurrence } from '../recurrenceLogic.js';
 import { useWorkspace } from '../workspace.jsx';
 
 const TEMPLATES = [
@@ -35,6 +36,9 @@ function RuleForm({ initial, onSaved, onCancel }) {
     note: initial?.note ?? '',
     active: initial?.active ?? true,
   });
+  // How it ends: never, on a date, or after a number of payments.
+  const [endMode, setEndMode] = useState(initial?.end_date ? 'date' : 'never');
+  const [endCount, setEndCount] = useState('12');
   const [saving, setSaving] = useState(false);
   const alerts = useAlertChoice('recurring', initial?.id);
   const set = (patch) => setF((s) => ({ ...s, ...patch }));
@@ -53,7 +57,8 @@ function RuleForm({ initial, onSaved, onCancel }) {
         amount: Number(f.amount),
         interval_count: Number(f.interval_count),
         category_id: f.category_id ? Number(f.category_id) : null,
-        end_date: f.end_date || null,
+        end_date: endMode === 'date' ? f.end_date || null : null,
+        ends_after: endMode === 'count' ? Number(endCount) : null,
         note: f.note || null,
       };
       const saved = editing ? await api.put(`/recurring/${initial.id}`, body) : await api.post('/recurring', body);
@@ -72,6 +77,18 @@ function RuleForm({ initial, onSaved, onCancel }) {
   }
 
   const unit = { weekly: 'week(s)', monthly: 'month(s)', yearly: 'year(s)' }[f.frequency];
+
+  // A plain sentence about when it stops, so the choice never has to be guessed.
+  const rule = { frequency: f.frequency, interval_count: f.interval_count, start_date: f.start_date };
+  const last = endMode === 'date' ? lastOccurrence(rule, f.end_date) : endMode === 'count' && Number(endCount) >= 1 && f.start_date ? { date: nthOccurrence(rule, Number(endCount)), count: Number(endCount) } : null;
+  const endSummary =
+    endMode === 'never'
+      ? 'It keeps going until you pause or delete it.'
+      : last
+        ? `The last payment is on ${dateLong(last.date)} (${last.count} payment${last.count === 1 ? '' : 's'} in total). After that, nothing more is added.`
+        : endMode === 'date' && f.end_date
+          ? 'That date is before the first payment, so nothing would be added.'
+          : '';
 
   return (
     <form onSubmit={submit} className="form">
@@ -130,14 +147,32 @@ function RuleForm({ initial, onSaved, onCancel }) {
           <input type="date" value={f.start_date} onChange={(e) => set({ start_date: e.target.value })} required />
         </Field>
       </div>
-      <div className="form-grid">
-        <Field label="Ends on (optional)">
-          <input type="date" value={f.end_date} min={f.start_date} onChange={(e) => set({ end_date: e.target.value })} />
-        </Field>
-        <Field label="Note (optional)">
-          <input value={f.note} onChange={(e) => set({ note: e.target.value })} maxLength={1000} />
-        </Field>
+      <div className="end-box">
+        <Segmented
+          label="Ends"
+          value={endMode}
+          onChange={setEndMode}
+          options={[
+            { value: 'never', label: 'Never' },
+            { value: 'date', label: 'On a date' },
+            { value: 'count', label: 'After a number of payments' },
+          ]}
+        />
+        {endMode === 'date' && (
+          <Field label="Last day">
+            <input type="date" value={f.end_date} min={f.start_date} onChange={(e) => set({ end_date: e.target.value })} required />
+          </Field>
+        )}
+        {endMode === 'count' && (
+          <Field label="Number of payments" hint="Counting the first one.">
+            <input type="number" min="1" max="600" step="1" inputMode="numeric" value={endCount} onChange={(e) => setEndCount(e.target.value)} required />
+          </Field>
+        )}
+        {endSummary && <p className="field-hint end-summary">{endSummary}</p>}
       </div>
+      <Field label="Note (optional)">
+        <input value={f.note} onChange={(e) => set({ note: e.target.value })} maxLength={1000} />
+      </Field>
       <AlertPicker value={alerts.choice} onChange={alerts.setChoice} label="Alerts for every occurrence" idPrefix="rule-alert" hint="You can still change a single payment later." />
       {editing && (
         <label className="check">

@@ -1,0 +1,206 @@
+/* ==========================================================================
+   Filters: the search box, the dropdown buttons, their searchable popups.
+   ========================================================================== */
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+/* ---------- the search box ---------- */
+.search-box {
+  position: relative;
+  flex: 1 1 200px;
+  min-width: 170px;
+}
+.search-box > svg {
+  position: absolute;
+  top: 50%;
+  left: 12px;
+  transform: translateY(-50%);
+  color: var(--ink-3);
+  pointer-events: none;
+}
+.search-box input {
+  min-height: 40px;
+  padding: 8px 38px 8px 38px;
+  border-radius: var(--r-2);
+  border: 1px solid var(--line-strong);
+}
+.search-box input::-webkit-search-cancel-button {
+  display: none; /* we draw our own clear button */
+}
+.search-box .search-clear {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+}
+
+/* ---------- a dropdown button ---------- */
+.filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  max-width: 100%;
+  padding: 6px 10px 6px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-2);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-3);
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.filter-btn:hover,
+.filter-btn[aria-expanded='true'] {
+  background: var(--hover);
+  border-color: color-mix(in srgb, var(--ink-3) 60%, var(--line));
+}
+.filter-btn > svg {
+  color: var(--ink-3);
+  flex: none;
+}
+.filter-btn-text {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* something is being filtered: tinted, so you can see at a glance which filters are on */
+.filter-btn.active {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+.filter-btn.active > svg {
+  color: currentColor;
+}
+
+.filters-clear {
+  margin-left: auto;
+}
+
+/* ---------- the popup ---------- */
+.filter-pop {
+  position: fixed;
+  z-index: 115;
+  top: var(--pop-top, auto);
+  bottom: var(--pop-bottom, auto);
+  left: var(--pop-left, 0);
+  width: var(--pop-width, 260px);
+  max-height: var(--pop-max, 420px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-3);
+  background: var(--surface);
+  box-shadow: var(--pop);
+  animation: rise-in var(--t-base) var(--ease) both;
+}
+.filter-search {
+  position: relative;
+  flex: none;
+  padding: var(--s-2);
+  border-bottom: 1px solid var(--line);
+}
+.filter-search > svg {
+  position: absolute;
+  top: 50%;
+  left: 20px;
+  transform: translateY(-50%);
+  color: var(--ink-3);
+  pointer-events: none;
+}
+.filter-search input {
+  padding: 8px 10px 8px 32px;
+  min-height: 38px;
+}
+.filter-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--s-1);
+}
+.filter-list:focus-visible {
+  outline: none;
+}
+.filter-group {
+  padding: 8px 10px 4px;
+  color: var(--ink-3);
+  font-size: var(--fs-1, 0.72rem);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.filter-opt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  padding: 6px 10px;
+  border-radius: var(--r-1, 8px);
+  cursor: pointer;
+}
+.filter-opt .dot {
+  width: 10px;
+  height: 10px;
+}
+.filter-opt-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.filter-opt > svg:last-child {
+  color: var(--accent-text);
+  flex: none;
+}
+.filter-opt.hi {
+  background: var(--hover);
+}
+.filter-opt.chosen {
+  font-weight: 600;
+}
+.filter-none {
+  padding: var(--s-4) var(--s-3);
+  color: var(--ink-2);
+  text-align: center;
+}
+
+/* ---------- phones: the popup is a sheet at the bottom, the search fills the row ---------- */
+@media (max-width: 520px) {
+  .filters .search-box {
+    flex-basis: 100%;
+  }
+  .filters .filter-btn {
+    flex: 1 1 calc(50% - var(--s-2));
+    justify-content: space-between;
+  }
+  .filter-pop {
+    top: auto;
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    width: auto;
+    max-height: 70vh;
+  }
+  .filter-opt {
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .filter-pop {
+    animation: none;
+  }
+}

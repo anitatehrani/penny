@@ -24,12 +24,14 @@ const baseSchema = z.object({
   category_id: categoryId,
   note,
   status: z.enum(['pending', 'paid']).optional(),
+  pay_method: z.enum(['cash', 'credit_card']).optional(),
+  charged_on: ymd.nullable().optional(), // credit card: the day it was bought (`date` is the day the card bill is paid)
   paid_by: usernameField.nullable().optional(), // group budgets: which member paid / received
   participants: z.array(participantSchema).max(20).optional(),
 });
 
 export const SELECT = `
-  SELECT t.id, t.type, t.description, t.amount, t.date, t.status, t.note, t.source,
+  SELECT t.id, t.type, t.description, t.amount, t.date, t.status, t.note, t.source, t.pay_method, t.charged_on, t.debt_id,
          t.category_id, t.recurring_id, t.installment_plan_id, t.installment_no,
          c.name AS category_name, c.color AS category_color,
          t.member_id, mu.name AS member_name, mu.username AS member_username, mu.avatar_url AS member_avatar,
@@ -45,6 +47,22 @@ export const SELECT = `
 
 const findOne = async (workspaceId, id) =>
   (await query(`${SELECT} WHERE t.id = $1 AND t.workspace_id = $2`, [id, workspaceId])).rows[0];
+
+/**
+ * How a payment was paid. `date` is always the day the money leaves the account; a credit card payment also remembers the day it was
+ * bought (`charged_on`). `current` is the stored row when editing, so leaving a field out keeps what is there.
+ */
+function cardFields(t, current) {
+  const method = t.pay_method ?? current?.pay_method ?? 'cash';
+  if (method === 'cash') {
+    if (t.charged_on) throw new HttpError(400, 'A purchase date only applies to credit card payments.');
+    return { pay_method: 'cash', charged_on: null };
+  }
+  if (t.type !== 'expense') throw new HttpError(400, 'Only expenses can be paid with a credit card.');
+  const chargedOn = t.charged_on ?? current?.charged_on ?? t.date;
+  if (chargedOn > t.date) throw new HttpError(400, 'The purchase date cannot be after the day the card bill is paid.');
+  return { pay_method: 'credit_card', charged_on: chargedOn };
+}
 
 /** Which member of this budget paid/received (defaults to the current user). */
 async function resolveMember(workspaceId, defaultUserId, username) {
@@ -132,13 +150,25 @@ function filters(q, workspaceId) {
   };
   if (q.month) {
     if (!isValidYM(q.month)) throw new HttpError(400, 'month must be YYYY-MM');
-    add('t.date >= ?', monthStart(q.month));
-    add('t.date <= ?', monthEnd(q.month));
+    if (q.bought === '1') {
+      // also the credit card payments that were bought this month and are paid (counted) in another one
+      params.push(monthStart(q.month), monthEnd(q.month));
+      const a = `$${params.length - 1}`;
+      const b = `$${params.length}`;
+      where.push(`((t.date >= ${a} AND t.date <= ${b}) OR (t.pay_method = 'credit_card' AND t.charged_on >= ${a} AND t.charged_on <= ${b}))`);
+    } else {
+      add('t.date >= ?', monthStart(q.month));
+      add('t.date <= ?', monthEnd(q.month));
+    }
   }
   if (q.from) add('t.date >= ?', ymd.parse(q.from));
   if (q.to) add('t.date <= ?', ymd.parse(q.to));
   if (q.type) add('t.type = ?', txType.parse(q.type));
   if (q.member) add('lower(mu.username) = ?', usernameField.parse(q.member));
+  if (q.pay) {
+    if (!['credit_card', 'cash'].includes(q.pay)) throw new HttpError(400, 'pay must be credit_card or cash');
+    add('t.pay_method = ?', q.pay);
+  }
   if (q.category_id === 'none') where.push('t.category_id IS NULL');
   else if (q.category_id) add('t.category_id = ?', z.coerce.number().int().parse(q.category_id));
   if (q.q) {
@@ -167,7 +197,14 @@ router.get(
     const { sql, params } = filters(req.query, req.workspace.id);
     const limit = Math.min(Number(req.query.limit) || 1000, 5000);
     const { rows } = await query(`${SELECT} ${sql} ORDER BY t.date, t.id LIMIT ${limit}`, params);
-    res.json(await attachAlerts(req.user.id, rows));
+    let out = rows;
+    if (req.query.month && req.query.bought === '1') {
+      // a row listed only because it was bought this month is flagged, so the page can show it without counting it here
+      const first = monthStart(req.query.month);
+      const last = monthEnd(req.query.month);
+      out = rows.map((r) => ({ ...r, purchase_only: r.date < first || r.date > last }));
+    }
+    res.json(await attachAlerts(req.user.id, out));
   }),
 );
 
@@ -184,10 +221,10 @@ router.get(
     const { sql, params } = filters(req.query, req.workspace.id);
     const { rows } = await query(`${SELECT} ${sql} ORDER BY t.date, t.id`, params);
     const group = req.workspace.kind === 'group';
-    const head = ['date', 'type', 'description', 'category', 'amount', 'status', ...(group ? ['member'] : []), 'with', 'receipts', 'note'];
+    const head = ['date', 'type', 'description', 'category', 'amount', 'status', 'paid_with', 'bought_on', ...(group ? ['member'] : []), 'with', 'receipts', 'note'];
     const lines = rows.map((r) =>
       [
-        r.date, r.type, r.description, r.category_name, r.amount.toFixed(2), r.status,
+        r.date, r.type, r.description, r.category_name, r.amount.toFixed(2), r.status, r.pay_method === 'credit_card' ? 'credit card' : 'cash', r.charged_on,
         ...(group ? [r.member_name] : []),
         r.participants.map((p) => p.name).join('; '),
         r.receipt_count,
@@ -206,12 +243,13 @@ router.post(
     await assertOwnCategory(ws, t.category_id);
     const memberId = await resolveMember(ws, req.user.id, t.paid_by);
     const people = await resolveParticipants(req.user.id, ws, t.participants ?? [], t.amount);
+    const card = cardFields(t, null);
     const status = t.status ?? (t.date <= todayYMD() ? 'paid' : 'pending');
     const { id, newcomers } = await withTransaction(async (client) => {
       const { rows } = await client.query(
-        `INSERT INTO transactions (user_id, workspace_id, member_id, type, description, amount, category_id, date, status, note)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
-        [req.user.id, ws, memberId, t.type, t.description, t.amount, t.category_id ?? null, t.date, status, t.note || null],
+        `INSERT INTO transactions (user_id, workspace_id, member_id, type, description, amount, category_id, date, status, note, pay_method, charged_on)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
+        [req.user.id, ws, memberId, t.type, t.description, t.amount, t.category_id ?? null, t.date, status, t.note || null, card.pay_method, card.charged_on],
       );
       const added = people.length ? await saveParticipants(client, rows[0].id, people) : [];
       return { id: rows[0].id, newcomers: added };
@@ -227,9 +265,10 @@ router.put(
     const id = idParam(req);
     const t = baseSchema.parse(req.body);
     const ws = req.workspace.id;
-    const existing = (await query('SELECT user_id, member_id FROM transactions WHERE id = $1 AND workspace_id = $2', [id, ws])).rows[0];
+    const existing = (await query('SELECT user_id, member_id, pay_method, charged_on FROM transactions WHERE id = $1 AND workspace_id = $2', [id, ws])).rows[0];
     if (!existing) throw new HttpError(404, 'Transaction not found');
     await assertOwnCategory(ws, t.category_id);
+    const card = cardFields(t, existing);
     const memberId = t.paid_by === undefined ? existing.member_id : await resolveMember(ws, req.user.id, t.paid_by);
     const people = t.participants === undefined ? null : await resolveParticipants(existing.user_id ?? req.user.id, ws, t.participants, t.amount);
     if (people === null) {
@@ -244,9 +283,9 @@ router.put(
       await client.query(
         `UPDATE transactions
          SET type = $1, description = $2, amount = $3, category_id = $4, date = $5,
-             status = COALESCE($6, status), note = $7, member_id = $8, updated_at = now()
-         WHERE id = $9 AND workspace_id = $10`,
-        [t.type, t.description, t.amount, t.category_id ?? null, t.date, t.status ?? null, t.note || null, memberId, id, ws],
+             status = COALESCE($6, status), note = $7, member_id = $8, pay_method = $9, charged_on = $10, updated_at = now()
+         WHERE id = $11 AND workspace_id = $12`,
+        [t.type, t.description, t.amount, t.category_id ?? null, t.date, t.status ?? null, t.note || null, memberId, card.pay_method, card.charged_on, id, ws],
       );
       if (people) newcomers = await saveParticipants(client, id, people);
     });

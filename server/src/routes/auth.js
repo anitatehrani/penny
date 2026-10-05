@@ -23,9 +23,27 @@ const nameField = z.string().trim().min(1, 'is required').max(80);
 const attemptLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 15,
-  keyFn: (req) => `${req.ip}:${String(req.body?.email ?? '').toLowerCase()}`,
+  keyFn: (req) => `${req.ip}:${normalizeLogin(req.body?.identifier ?? req.body?.email)}`,
 });
+// Once the account is known, guesses are counted against the account itself, so alternating between its email and its username
+// does not give anyone twice the attempts.
+const accountLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 15,
+  keyFn: (req) => `${req.ip}:account:${req.loginUserId}`,
+});
+const limitAccount = (req, res, userId) =>
+  new Promise((resolve, reject) => {
+    req.loginUserId = userId;
+    accountLimiter(req, res, (err) => (err ? reject(err) : resolve()));
+  });
 const ipLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 60, keyFn: (req) => req.ip });
+
+/** What was typed to sign in, tidied: trimmed, lower case, and a leading @ dropped from a username ("@alex" is "alex"). */
+function normalizeLogin(value) {
+  const v = String(value ?? '').trim().toLowerCase().slice(0, 300);
+  return v.startsWith('@') && !v.slice(1).includes('@') ? v.slice(1) : v;
+}
 
 function passwordProblems(res, problems) {
   return res.status(400).json({ error: 'That password does not meet the requirements.', problems });
@@ -95,12 +113,24 @@ router.post(
   '/login',
   attemptLimiter,
   wrap(async (req, res) => {
-    const body = z.object({ email, password: z.string().min(1).max(1000) }).parse(req.body);
-    const { rows } = await query('SELECT * FROM users WHERE lower(email) = $1', [body.email]);
+    // The person types an email address or a username. `identifier` is the field; `email` is its old name and still works.
+    const body = z
+      .object({
+        identifier: z.string().trim().min(1, 'is required').max(254).optional(),
+        email: z.string().trim().min(1, 'is required').max(254).optional(),
+        password: z.string().min(1).max(1000),
+      })
+      .refine((b) => b.identifier || b.email, { path: ['identifier'], message: 'Enter your email address or username.' })
+      .parse(req.body);
+    const typed = normalizeLogin(body.identifier ?? body.email);
+    const byEmail = typed.includes('@'); // usernames never contain an @
+    if (byEmail && !email.safeParse(typed).success) throw new HttpError(400, 'Enter a valid email address or a username.');
+    const { rows } = await query(`SELECT * FROM users WHERE lower(${byEmail ? 'email' : 'username'}) = $1`, [typed]);
     const user = rows[0];
+    if (user) await limitAccount(req, res, user.id);
     const ok = user?.password_hash ? await verifyPassword(body.password, user.password_hash) : false;
     if (!user?.password_hash) await verifyAgainstDummy(body.password);
-    if (!ok) throw new HttpError(401, 'Invalid email or password.');
+    if (!ok) throw new HttpError(401, 'Invalid email, username or password.');
     await query('UPDATE users SET last_login_at = now() WHERE id = $1', [user.id]);
     await createSession(req, res, user.id);
     res.json({ user: publicUser(user) });
