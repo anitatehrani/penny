@@ -26,3 +26,28 @@
     opacity: 1;
   }
 }
+
+/* Recurring: what each item comes to in a month, and its part of all items of its kind. */
+.rule-share {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin-top: 2px;
+}
+.rule-bar {
+  flex: none;
+  width: 72px;
+  height: 6px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--line-strong) 55%, transparent);
+  overflow: hidden;
+}
+.rule-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--ink-3);
+}
+.rule-bar > span.pos {
+  background: var(--pos);
+}

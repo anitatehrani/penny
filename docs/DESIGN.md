@@ -325,3 +325,23 @@ date and an "Overdue" badge). Four small icon buttons (reminder, receipt, edit, 
 **Look.** The idea (a status edge plus quiet row actions, as in the status tables in the 21st.dev catalog) is drawn in Penny's own tokens in
 `client/src/design/rows.css`. The state is a class on the row (`is-paid`, `is-overdue`) set in `TxRow.jsx` from `rowState()` in
 `client/src/cardLogic.js`, a plain function, so it is tested without a browser.
+
+## 17. Recurring: what each item costs a month (defined before implementation)
+
+**What was wrong.** The list says *how often* each item repeats ("Every 3 months on the 15th", "Yearly on 4 May") but not what it means for
+a normal month, so a yearly insurance and a monthly rent cannot be compared by eye. The page header gives only the three totals, with
+no way to see which item is behind them.
+
+**What changes** (look only; the routes, data and form are untouched):
+
+- Every active item shows **its monthly equivalent** in words: "about €121.00 a month", and "a month" is the average (a weekly item counts
+  52 / 12 weeks, a yearly one a twelfth). A paused item shows no figure, because it is not counted.
+- Under it, a slim **share bar** shows that item's part of all active items *of the same kind* (expenses against total commitments,
+  income against total income), with the percentage in words next to the figure ("34% of commitments", "80% of income"). The bar is decoration
+  only (`aria-hidden`); the words carry the meaning.
+- The summary strip's totals and the rows use one function, `monthlyEquivalent(rule)` in `client/src/recurrenceLogic.js`, instead of the
+  sum being worked out inline on the page, so the two cannot disagree. It is a plain function, so it is tested without a browser.
+- A row that ends gets a quiet "Ends {date}" as before; nothing else about ending changes.
+
+**Look.** Drawn in Penny's tokens in `client/src/design/rows.css`, in the spirit of the share-of-total list rows in the 21st.dev catalog.
+It works in light and dark, wraps on a phone, and adds no controls.

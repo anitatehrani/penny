@@ -707,6 +707,25 @@ async function sessionFor(db, email) {
     eq((await api(page, 'GET', '/recurring')).json.some((r) => r.description === 'E2E ends'), false, 'gone');
   });
 
+  await check('recurring items say what they come to in a month, with a share bar that is only decoration', async () => {
+    page = await open('/recurring');
+    await page.waitForSelector('.tx-row.rule');
+    const info = await page.evaluate(() => {
+      const rows = [...document.querySelectorAll('.tx-row.rule')];
+      const active = rows.filter((r) => !r.classList.contains('skipped'));
+      return {
+        active: active.length,
+        withShare: active.filter((r) => /about .* a month · \d+% of (commitments|income)/.test(r.querySelector('.rule-share')?.textContent ?? '')).length,
+        barsHidden: [...document.querySelectorAll('.rule-bar')].every((b) => b.getAttribute('aria-hidden') === 'true'),
+        pausedWithShare: rows.filter((r) => r.classList.contains('skipped') && r.querySelector('.rule-share')).length,
+      };
+    });
+    truthy(info.active > 0, 'there are active items');
+    eq(info.withShare, info.active, 'every active item says what it comes to a month');
+    eq(info.barsHidden, true, 'bars are hidden from screen readers');
+    eq(info.pausedWithShare, 0, 'paused items show no figure');
+  });
+
   console.log('\nSigning in');
   // The demo accounts' documented test password (see DEMO-LOGINS.md); this app is running locally.
   const DEMO_PASSWORD = 'Budget-Showcase#2026';

@@ -47,3 +47,21 @@ export function lastOccurrence(rule, endDate) {
   }
   return last;
 }
+
+/**
+ * What a recurring item comes to in an average month: a weekly one counts 52/12 weeks, a yearly one a twelfth, every N units divides by N.
+ * Paused items count for nothing.
+ */
+export function monthlyEquivalent(rule) {
+  if (!rule.active) return 0;
+  const every = Math.max(1, Number(rule.interval_count) || 1);
+  const perMonth = { weekly: 52 / 12 / every, monthly: 1 / every, yearly: 1 / (12 * every) }[rule.frequency] ?? 0;
+  return rule.amount * perMonth;
+}
+
+/** Each active item's share (0 to 1) of the active items of its own kind (expenses or income); everything else is 0. */
+export function monthlyShares(rules) {
+  const total = { income: 0, expense: 0 };
+  for (const r of rules) total[r.type] += monthlyEquivalent(r);
+  return new Map(rules.map((r) => [r.id, total[r.type] > 0 ? monthlyEquivalent(r) / total[r.type] : 0]));
+}

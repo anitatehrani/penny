@@ -7,7 +7,7 @@ import { useAuth } from '../auth.jsx';
 import { useApp } from '../context.jsx';
 import { dateLong, describeRule, todayYMD } from '../format.js';
 import { useFetch } from '../hooks.js';
-import { lastOccurrence, nthOccurrence } from '../recurrenceLogic.js';
+import { lastOccurrence, monthlyEquivalent, monthlyShares, nthOccurrence } from '../recurrenceLogic.js';
 import { useWorkspace } from '../workspace.jsx';
 
 const TEMPLATES = [
@@ -225,16 +225,15 @@ export default function Recurring() {
     }
   }
 
-  const monthly = (data ?? [])
-    .filter((r) => r.active)
-    .reduce(
-      (acc, r) => {
-        const perMonth = { weekly: (52 / 12) / r.interval_count, monthly: 1 / r.interval_count, yearly: 1 / (12 * r.interval_count) }[r.frequency];
-        acc[r.type] += r.amount * perMonth;
-        return acc;
-      },
-      { income: 0, expense: 0 },
-    );
+  const rules = data ?? [];
+  const monthly = rules.reduce(
+    (acc, r) => {
+      acc[r.type] += monthlyEquivalent(r);
+      return acc;
+    },
+    { income: 0, expense: 0 },
+  );
+  const shares = monthlyShares(rules);
 
   return (
     <>
@@ -295,6 +294,16 @@ export default function Recurring() {
                       </span>
                     )}
                   </span>
+                  {r.active && (
+                    <span className="rule-share">
+                      <span className="rule-bar" aria-hidden="true">
+                        <span className={r.type === 'income' ? 'pos' : ''} style={{ width: `${Math.max(2, Math.round(shares.get(r.id) * 100))}%` }} />
+                      </span>
+                      <span className="muted small">
+                        about <span className="num">{money(monthlyEquivalent(r))}</span> a month · {Math.round(shares.get(r.id) * 100)}% of {r.type === 'income' ? 'income' : 'commitments'}
+                      </span>
+                    </span>
+                  )}
                 </div>
                 <div className={`tx-amount num ${r.type === 'income' ? 'pos' : ''}`}>
                   {r.type === 'income' ? '+' : '−'}
