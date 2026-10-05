@@ -77,3 +77,12 @@
 .prow.overdue {
   box-shadow: inset 3px 0 0 var(--neg);
 }
+
+/* Payments: the line for what was left over from the month before. It is not a payment, so it has no actions and a softer look. */
+.tx-row.carry {
+  background: color-mix(in srgb, var(--accent-soft) 45%, transparent);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.tx-row.carry:hover {
+  background: color-mix(in srgb, var(--accent-soft) 45%, transparent);
+}

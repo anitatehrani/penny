@@ -450,3 +450,6 @@ BEGIN
     ALTER TABLE transactions ADD CONSTRAINT transactions_source_check CHECK (source IN ('manual', 'recurring', 'installment', 'debt'));
   END IF;
 END $$;
+
+-- Carry what is left over at the end of a month into the next one (shown on the Payments page; nothing is stored as a payment)
+ALTER TABLE workspace_settings ADD COLUMN IF NOT EXISTS carry_over boolean NOT NULL DEFAULT true;

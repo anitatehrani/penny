@@ -43,7 +43,7 @@ describe('creating groups', () => {
     assert.deepEqual(g.members.map((m) => [m.username, m.role]), [[o.user.username, 'owner']]);
     await o.client.inWorkspace(g.id, async () => {
       assert.equal(ok(await o.client.get('/categories')).length, 14);
-      assert.deepEqual(ok(await o.client.get('/settings')), { opening_balance: 0, currency: 'GBP', card_pay_day: 10 }, 'balance starts at zero, not the personal one');
+      assert.deepEqual(ok(await o.client.get('/settings')), { opening_balance: 0, currency: 'GBP', card_pay_day: 10, carry_over: true }, 'balance starts at zero, not the personal one');
       assert.equal(ok(await o.client.get('/transactions?status=')).length, 0);
     });
   });

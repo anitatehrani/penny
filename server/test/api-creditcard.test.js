@@ -25,7 +25,7 @@ describe('the card pay day setting', () => {
     assert.equal(ok(await c.get('/settings')).card_pay_day, 10);
     assert.equal(ok(await c.put('/settings', { opening_balance: 0, currency: 'EUR', card_pay_day: 25 })).card_pay_day, 25);
     const kept = ok(await c.put('/settings', { opening_balance: 5, currency: 'EUR' }));
-    assert.deepEqual(kept, { opening_balance: 5, currency: 'EUR', card_pay_day: 25 }, 'saving the balance did not reset the day');
+    assert.deepEqual(kept, { opening_balance: 5, currency: 'EUR', card_pay_day: 25, carry_over: true }, 'saving the balance did not reset the day');
     assert.equal(ok(await c.get('/settings')).card_pay_day, 25);
   });
 

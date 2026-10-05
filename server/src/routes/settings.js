@@ -15,13 +15,15 @@ const settingsSchema = z.object({
     .regex(/^[A-Z]{3}$/, 'must be a 3-letter currency code'),
   // The day of the month the credit card bill is paid (1 to 28 so it exists in every month). Left out = unchanged.
   card_pay_day: z.number().int('must be a whole number').min(1, 'must be between 1 and 28').max(28, 'must be between 1 and 28').optional(),
+  // Carry what is left over at the end of a month into the next one (default on). Left out = unchanged.
+  carry_over: z.boolean().optional(),
 });
 
 router.get(
   '/settings',
   wrap(async (req, res) => {
     await query('INSERT INTO workspace_settings (workspace_id) VALUES ($1) ON CONFLICT DO NOTHING', [req.workspace.id]);
-    const { rows } = await query('SELECT opening_balance, currency, card_pay_day FROM workspace_settings WHERE workspace_id = $1', [req.workspace.id]);
+    const { rows } = await query('SELECT opening_balance, currency, card_pay_day, carry_over FROM workspace_settings WHERE workspace_id = $1', [req.workspace.id]);
     res.json(rows[0]);
   }),
 );
@@ -31,11 +33,11 @@ router.put(
   wrap(async (req, res) => {
     const s = settingsSchema.parse(req.body);
     const { rows } = await query(
-      `INSERT INTO workspace_settings (workspace_id, opening_balance, currency, card_pay_day) VALUES ($1, $2, $3, COALESCE($4, 10))
+      `INSERT INTO workspace_settings (workspace_id, opening_balance, currency, card_pay_day, carry_over) VALUES ($1, $2, $3, COALESCE($4, 10), COALESCE($5, true))
        ON CONFLICT (workspace_id) DO UPDATE SET opening_balance = EXCLUDED.opening_balance, currency = EXCLUDED.currency,
-         card_pay_day = COALESCE($4, workspace_settings.card_pay_day)
-       RETURNING opening_balance, currency, card_pay_day`,
-      [req.workspace.id, Math.round(s.opening_balance * 100) / 100, s.currency, s.card_pay_day ?? null],
+         card_pay_day = COALESCE($4, workspace_settings.card_pay_day), carry_over = COALESCE($5, workspace_settings.carry_over)
+       RETURNING opening_balance, currency, card_pay_day, carry_over`,
+      [req.workspace.id, Math.round(s.opening_balance * 100) / 100, s.currency, s.card_pay_day ?? null, s.carry_over ?? null],
     );
     res.json(rows[0]);
   }),

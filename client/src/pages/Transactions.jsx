@@ -7,9 +7,10 @@ import FilterSelect from '../components/ds/FilterSelect.jsx';
 import { MonthNav } from '../components/ds/MonthPicker.jsx';
 import { Empty, ErrorBox, Icon, Loading, Modal } from '../components/ui.jsx';
 import { byListDate, monthTotals } from '../cardLogic.js';
+import { carryState, carryVisible, withCarry } from '../carryLogic.js';
 import { useApp } from '../context.jsx';
 import { activeFilterCount, categoryOptions } from '../filterLogic.js';
-import { currentMonth } from '../format.js';
+import { currentMonth, monthLabel, todayYMD } from '../format.js';
 import { useFetch } from '../hooks.js';
 import { useWorkspace } from '../workspace.jsx';
 
@@ -23,6 +24,33 @@ const PAYS = [
   { value: 'credit_card', label: 'Credit card' },
   { value: 'cash', label: 'Cash and bank' },
 ];
+
+/** The line at the top of a month: what was left over from the month before. Nothing to edit; it is not a payment. */
+function CarryRow({ carry, state, month }) {
+  const { money } = useApp();
+  const from = monthLabel(carry.from_month, { month: 'long' });
+  return (
+    <div className="tx-row carry">
+      <div className="tx-date">
+        <strong>{monthLabel(month, { month: 'short' })} 1</strong>
+        <span className="muted">{state === 'pending' ? 'expected' : 'carried over'}</span>
+      </div>
+      <div className="tx-main">
+        <div className="tx-title">
+          Left over from {from}
+          <span className="badge" title="Worked out from your payments. It is not a payment, so it is not in your balance twice.">
+            <Icon name="undo" size={12} /> Carried over
+          </span>
+        </div>
+        <div className="tx-meta">
+          <span className="muted">What remained after everything in {from}, added to this month. You can turn this off in Settings.</span>
+        </div>
+      </div>
+      <div className="tx-amount num pos">+{money(carry.amount)}</div>
+      <div className="tx-actions" />
+    </div>
+  );
+}
 
 const STATUSES = [
   ['', 'All'],
@@ -66,6 +94,11 @@ export default function Transactions() {
   });
   const { data, error, reload } = useFetch(() => api.get(`/transactions${query}`), [query]);
 
+  // What was left over from earlier months (docs/DESIGN.md section 21). It is worked out on the server and is not a stored payment.
+  const carryData = useFetch(() => (status === 'overdue' ? Promise.resolve(null) : api.get(`/carryover?month=${month}`)), [month, status, data]);
+  const today = todayYMD();
+  const showCarry = carryVisible({ carry: carryData.data, month, today, status, type, pay, category, member, search });
+
   const categoryChoices = useMemo(() => categoryOptions(categories), [categories]);
   const memberChoices = useMemo(() => [{ value: '', label: 'Everyone' }, ...members.map((m) => ({ value: m.username, label: m.name, person: m }))], [members]);
   const filterCount = activeFilterCount({ type, pay, category, member, search });
@@ -77,7 +110,8 @@ export default function Transactions() {
   };
 
   const rows = [...(data ?? [])].sort(byListDate); // a purchase sits on the day it was bought, not on the day its bill is paid
-  const { income, expenses, net, onCard, bought } = monthTotals(rows);
+  const totals = monthTotals(rows);
+  const { income, expenses, net, onCard, bought, carried = 0 } = showCarry ? withCarry(totals, carryData.data.amount) : totals;
 
   return (
     <>
@@ -132,6 +166,7 @@ export default function Transactions() {
           <div>
             <span className="muted">Income</span>
             <strong className="num pos">{money(income)}</strong>
+            {carried > 0 && <span className="muted small">includes {money(carried)} left over from {monthLabel(carryData.data.from_month, { month: 'long' })}</span>}
           </div>
           <div>
             <span className="muted">Expenses</span>
@@ -161,12 +196,13 @@ export default function Transactions() {
           <ErrorBox error={error} />
         ) : !data ? (
           <Loading />
-        ) : rows.length === 0 ? (
+        ) : rows.length === 0 && !showCarry ? (
           <Empty title="No payments found">
             {status || type || pay || category || search ? 'Try clearing some filters.' : 'Nothing recorded for this month yet — add a payment to get started.'}
           </Empty>
         ) : (
           <div className="tx-list">
+            {showCarry && <CarryRow carry={carryData.data} state={carryState(month, today)} month={month} />}
             {rows.map((tx) => (
               <TxRow key={tx.id} tx={tx} onChange={reload} onEdit={setEditing} />
             ))}

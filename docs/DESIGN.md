@@ -411,3 +411,44 @@ grey list that ignores the theme, shows no category colours and looks different 
 
 **Where the code is.** `CategorySelect` in `ui.jsx` keeps its props and builds its options from the categories. The pure option
 logic stays in `filterLogic.js`, already tested.
+
+## 21. Carrying what is left over into the next month (defined before implementation)
+
+**What was wrong.** December ended at +€645.00 (income less expenses), but January's list and totals started from zero, as if that money
+did not exist. The running balance already includes it (it is the sum of everything), so nothing was lost, but the month's own screen did
+not say "you start January with €645.00 left from before".
+
+**The rule.** A month's *left over* is what remains after its own payments *and* what was carried into it:
+
+```
+carried into month M   =  leftover(M − 1)
+leftover(m)            =  max(0, carried into m  +  income(m) − expenses(m))
+```
+
+- It starts at the budget's first month with any payment, with nothing carried in. The starting balance is **not** part of it: that
+  money is already the opening of the running balance and is not "left over from a month".
+- Income and expenses are counted exactly as the Payments page counts them: by the day the payment *counts* (a card purchase counts
+  when the bill is paid, in the month of its `date`), skipped payments left out, paid and still-to-pay both counted.
+- **Only money, never debt, is carried.** A month that ends short is a month with nothing to carry; the shortfall is not carried
+  forward as a negative (the running balance and the forecast already show it). Because the chain keeps adding leftover and subtracting
+  shortfall inside a month first, a shortfall in a later month eats into what was carried before it.
+
+**A setting, on by default.** Settings → the budget gets a switch **"Carry what is left over into the next month"** (stored per
+budget as `workspace_settings.carry_over`, default on, so a shared budget behaves the same for both people). Off: nothing below
+appears and the Payments page is exactly as it was.
+
+**What appears (Payments page, a chosen month, nothing else changes).**
+
+- At the top of that month's list, one line that cannot be edited, skipped or deleted: **"Left over from December"**, dated the 1st,
+  `+€645.00`, with a "Carried over" badge. It reads **Expected** while that month has not started yet (it depends on payments still to
+  come) and is plain once the month has begun.
+- The strip above the list adds it to **Income** and **Net**, with "includes €645.00 left over from December" under the Income figure.
+- It shows only when the filters would show an income: status "All" (or "To pay" for a month not started, "Paid" for one that has),
+  type "Income & expenses" or "Income only", and no search, category, way-of-paying or person filter, since it belongs to none of those.
+  When it is hidden the totals do not include it either, so the strip always adds up to the rows below it.
+
+**What it is not.** It is not stored as a payment. A stored payment would count twice in the balance and the forecast, which already
+carry the money. It is worked out on request by `GET /api/carryover?month=YYYY-MM` → `{ enabled, month, from_month, amount }` (`amount`
+is `0` when the setting is off, when there was nothing left, or when the month is the budget's first). The pure rule is
+`carriedInto(netCents, month)` in `server/src/lib/carryover.js`; the client adds it to the strip with `withCarry()` in
+`client/src/carryLogic.js`, which is tested without a browser.

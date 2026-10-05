@@ -1247,6 +1247,62 @@ async function sessionFor(db, email) {
     eq(await count(page, '.modal'), 0, 'a second Escape closes the form');
   });
 
+  console.log('\nLeft over from last month');
+  await check('a month starts with a line for what was left over, it is in Income and Net, filters hide it, and the setting turns it off', async () => {
+    page = await open('/payments');
+    const before = (await api(page, 'GET', '/carryover?month=2031-04')).json.amount;
+    const made = [];
+    try {
+      for (const [type, amount] of [['income', 1000], ['expense', 400]]) {
+        const r = await api(page, 'POST', '/transactions', { type, description: 'E2E leftover ' + type, amount, date: '2031-03-10', status: 'pending', category_id: null });
+        eq(r.status, 201, 'a ' + type + ' in March 2031');
+        made.push(r.json.id);
+      }
+      const after = (await api(page, 'GET', '/carryover?month=2031-04')).json;
+      eq(Math.round((after.amount - before) * 100), 60000, 'March passes on 600 more than before');
+      const digits = (t) => t.replace(/[^0-9]/g, '');
+      page = await open('/payments?month=2031-04');
+      await page.waitForSelector('.tx-row.carry');
+      const row = await page.evaluate(() => { const r = document.querySelector('.tx-row.carry'); return { title: r.querySelector('.tx-title').textContent, amount: r.querySelector('.tx-amount').textContent, others: document.querySelectorAll('.tx-row:not(.carry)').length, strip: document.querySelector('.summary-strip')?.textContent ?? '' }; });
+      truthy(/Left over from March/.test(row.title) && /Carried over/.test(row.title), 'the line: ' + row.title);
+      eq(digits(row.amount), String(Math.round(after.amount * 100)), 'with the amount from the server');
+      truthy(/left over from March/.test(row.strip), 'the strip says Income includes it');
+      truthy(/expected/.test(await text(page, '.tx-row.carry .tx-date')), 'it is expected while April 2031 has not started');
+      page = await open('/payments?month=2031-04&type=expense');
+      await sleep(400);
+      eq(await count(page, '.tx-row.carry'), 0, 'hidden when only expenses are shown');
+      page = await open('/payments?month=2031-04&q=nothing');
+      await sleep(400);
+      eq(await count(page, '.tx-row.carry'), 0, 'hidden while searching');
+      const s0 = (await api(page, 'GET', '/settings')).json;
+      await api(page, 'PUT', '/settings', { opening_balance: s0.opening_balance, currency: s0.currency, carry_over: false });
+      try {
+        page = await open('/payments?month=2031-04');
+        await sleep(600);
+        eq(await count(page, '.tx-row.carry'), 0, 'gone when the setting is off');
+      } finally {
+        await api(page, 'PUT', '/settings', { opening_balance: s0.opening_balance, currency: s0.currency, carry_over: true });
+      }
+    } finally {
+      for (const id of made) await api(page, 'DELETE', '/transactions/' + id + '?hard=1');
+    }
+    eq((await api(page, 'GET', '/carryover?month=2031-04')).json.amount, before, 'cleaned up');
+  });
+  await check('Settings has the switch, on by default, and it saves', async () => {
+    page = await open('/settings');
+    await page.waitForSelector('.split-box input[type=checkbox]');
+    const state = () => page.evaluate(() => { const l = [...document.querySelectorAll('.split-box label')].find((x) => /left over/i.test(x.textContent)); return l?.querySelector('input')?.checked; });
+    eq(await state(), true, 'on by default');
+    await page.evaluate(() => [...document.querySelectorAll('.split-box label')].find((x) => /left over/i.test(x.textContent)).querySelector('input').click());
+    await page.evaluate(() => [...document.querySelectorAll('.form-actions .btn.primary')].find((b) => /^Save$/.test(b.textContent.trim())).click());
+    await sleep(700);
+    eq((await api(page, 'GET', '/settings')).json.carry_over, false, 'saved as off');
+    await page.evaluate(() => [...document.querySelectorAll('.split-box label')].find((x) => /left over/i.test(x.textContent)).querySelector('input').click());
+    await page.evaluate(() => [...document.querySelectorAll('.form-actions .btn.primary')].find((b) => /^Save$/.test(b.textContent.trim())).click());
+    await sleep(700);
+    eq((await api(page, 'GET', '/settings')).json.carry_over, true, 'and back on');
+  });
+
   console.log('\nSettings and avatar');
   await check('notification settings: every type has an in-app and an email switch, and changes save', async () => {
     page = await open('/settings?tab=notifications');

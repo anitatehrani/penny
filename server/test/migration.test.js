@@ -90,14 +90,14 @@ describe('upgrading from the first versions', () => {
       assert.equal(cats.length, 2, 'adopted the existing categories instead of seeding duplicates');
       assert.equal(ok(await first.get('/transactions?status=')).length, 1);
       assert.equal(ok(await first.get('/transactions?status=')).filter((t) => t.description === 'Before accounts')[0].member_username, `f${a}`);
-      assert.deepEqual(ok(await first.get('/settings')), { opening_balance: 99, currency: 'EUR', card_pay_day: 10 });
+      assert.deepEqual(ok(await first.get('/settings')), { opening_balance: 99, currency: 'EUR', card_pay_day: 10, carry_over: true });
       // the second account starts clean
       const second = new Client(solo.base);
       const b = uid();
       ok(await second.post('/auth/signup', { name: 'Second', email: `${b}@example.com`, username: `s${b}`, password: PW }), 201);
       assert.equal(ok(await second.get('/categories')).length, 14);
       assert.equal(ok(await second.get('/transactions?status=')).length, 0);
-      assert.deepEqual(ok(await second.get('/settings')), { opening_balance: 0, currency: 'USD', card_pay_day: 10 });
+      assert.deepEqual(ok(await second.get('/settings')), { opening_balance: 0, currency: 'USD', card_pay_day: 10, carry_over: true });
     } finally {
       await shutdown(solo);
     }

@@ -80,6 +80,7 @@ export default function Settings() {
   const [opening, setOpening] = useState(String(settings.opening_balance));
   const [currency, setCurrency] = useState(settings.currency);
   const [cardDay, setCardDay] = useState(String(settings.card_pay_day ?? 10));
+  const [carryOver, setCarryOver] = useState(settings.carry_over ?? true);
   const [editingCat, setEditingCat] = useState(null);
   const [catAlerts, setCatAlerts] = useState({}); // category id -> 'on' | 'off' (my own choices; missing = follow default)
 
@@ -108,12 +109,13 @@ export default function Settings() {
     setOpening(String(settings.opening_balance));
     setCurrency(settings.currency);
     setCardDay(String(settings.card_pay_day ?? 10));
+    setCarryOver(settings.carry_over ?? true);
   }, [settings]);
 
   async function save(e) {
     e.preventDefault();
     try {
-      await api.put('/settings', { opening_balance: Number(opening), currency, card_pay_day: Number(cardDay) });
+      await api.put('/settings', { opening_balance: Number(opening), currency, card_pay_day: Number(cardDay), carry_over: carryOver });
       reloadSettings();
       notify('Settings saved');
     } catch (err) {
@@ -183,6 +185,19 @@ export default function Settings() {
             <Field label="Credit card pay day" hint="The day of the month you pay your credit card bill (1 to 28). A purchase made with the card counts on this day of the month you choose.">
               <input type="number" min="1" max="28" step="1" inputMode="numeric" value={cardDay} onChange={(e) => setCardDay(e.target.value)} required />
             </Field>
+          </div>
+          <div className="split-box">
+            <label className="check">
+              <input type="checkbox" checked={carryOver} onChange={(e) => setCarryOver(e.target.checked)} />
+              <span>
+                Carry what is left over into the next month
+                <span className="muted block small">
+                  {carryOver
+                    ? 'The Payments page starts each month with a line for the money left from earlier months, and counts it in that month’s income and net. It is not a payment, so your balance is unchanged.'
+                    : 'Each month on the Payments page starts from nothing. Your balance and forecast still include everything.'}
+                </span>
+              </span>
+            </label>
           </div>
           <div className="form-actions left">
             <button className="btn primary">Save</button>
