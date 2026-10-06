@@ -57,7 +57,7 @@ export async function gatherFacts(workspaceId, { today = todayYMD() } = {}) {
               COALESCE(sum(t.amount) FILTER (WHERE t.status = 'paid' AND extract(day FROM t.date) <= $4 AND t.date <= $5), 0)::float AS mtd,
               count(*) FILTER (WHERE t.status = 'paid')::int AS paid_count
        FROM transactions t LEFT JOIN categories c ON c.id = t.category_id
-       WHERE t.workspace_id = $1 AND t.type = 'expense' AND t.status IN ('paid', 'pending') AND t.source <> 'adjustment' AND t.date >= $2 AND t.date < $3
+       WHERE t.workspace_id = $1 AND t.type = 'expense' AND t.status IN ('paid', 'pending') AND t.source NOT IN ('adjustment', 'loan') AND t.date >= $2 AND t.date < $3
        GROUP BY 1, 2, 3, 4`,
       [workspaceId, from, to, dayOfMonth, today],
     ),
@@ -66,7 +66,7 @@ export async function gatherFacts(workspaceId, { today = todayYMD() } = {}) {
               COALESCE(sum(t.amount) FILTER (WHERE t.status = 'paid'), 0)::float AS paid,
               COALESCE(sum(t.amount) FILTER (WHERE t.status = 'paid' AND extract(day FROM t.date) <= $4 AND t.date <= $5), 0)::float AS mtd
        FROM transactions t
-       WHERE t.workspace_id = $1 AND t.type = 'income' AND t.status IN ('paid', 'pending') AND t.source <> 'adjustment' AND t.date >= $2 AND t.date < $3
+       WHERE t.workspace_id = $1 AND t.type = 'income' AND t.status IN ('paid', 'pending') AND t.source NOT IN ('adjustment', 'debt') AND t.date >= $2 AND t.date < $3
        GROUP BY 1`,
       [workspaceId, from, to, dayOfMonth, today],
     ),
@@ -410,7 +410,7 @@ export function buildCompare(facts) {
 export async function periodFigures(workspaceId, fromDate, toDateExclusive) {
   const { rows } = await query(
     `SELECT type, sum(amount)::float AS total, count(*)::int AS n FROM transactions
-     WHERE workspace_id = $1 AND status = 'paid' AND source <> 'adjustment' AND date >= $2 AND date < $3 GROUP BY type`,
+     WHERE workspace_id = $1 AND status = 'paid' AND source NOT IN ('adjustment', 'loan') AND NOT (type = 'income' AND source = 'debt') AND date >= $2 AND date < $3 GROUP BY type`,
     [workspaceId, fromDate, toDateExclusive],
   );
   const get = (ty) => rows.find((r) => r.type === ty) ?? { total: 0, n: 0 };

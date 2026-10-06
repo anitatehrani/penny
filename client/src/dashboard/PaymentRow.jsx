@@ -61,8 +61,15 @@ export default function PaymentRow({ tx, onEdit }) {
             </Tooltip>
           )}
           {tx.source === 'debt' && (
-            <Tooltip label="Paying off a debt">
-              <span className="prow-ico" role="img" aria-label="Debt">
+            <Tooltip label={tx.type === 'income' ? 'Money paid back to you' : 'Paying off a debt'}>
+              <span className="prow-ico" role="img" aria-label={tx.type === 'income' ? 'Paid back' : 'Debt'}>
+                <Icon name="debt" size={12} />
+              </span>
+            </Tooltip>
+          )}
+          {tx.source === 'loan' && (
+            <Tooltip label="Money you lent">
+              <span className="prow-ico" role="img" aria-label="Loan">
                 <Icon name="debt" size={12} />
               </span>
             </Tooltip>

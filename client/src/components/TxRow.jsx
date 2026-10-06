@@ -74,8 +74,13 @@ export default function TxRow({ tx, onChange, onEdit, compact }) {
             </span>
           )}
           {tx.source === 'debt' && (
-            <span className="badge" title="Part of paying off a debt">
-              <Icon name="debt" size={12} /> Debt
+            <span className="badge" title={tx.type === 'income' ? 'Money paid back to you. It counts in your balance, not as earnings.' : 'Part of paying off a debt'}>
+              <Icon name="debt" size={12} /> {tx.type === 'income' ? 'Paid back' : 'Debt'}
+            </span>
+          )}
+          {tx.source === 'loan' && (
+            <span className="badge" title="Money you lent. It counts in your balance, not as spending.">
+              <Icon name="debt" size={12} /> Loan
             </span>
           )}
           {card && (

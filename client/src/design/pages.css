@@ -167,3 +167,6 @@
     padding: var(--s-3) var(--s-4);
   }
 }
+
+/* Debts: the switch between money you owe and money owed to you */
+.debt-sides { margin: 0 0 16px; }

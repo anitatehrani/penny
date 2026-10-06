@@ -167,7 +167,7 @@ export default function TransactionForm({ initial, defaultDate, onSaved, onCance
     <form onSubmit={submit} className="form">
       {initial?.source && initial.source !== 'manual' && (
         <div className="banner info">
-          This is one {initial.source === 'recurring' ? 'occurrence of a recurring item' : initial.source === 'debt' ? 'payment towards a debt' : 'installment of a plan'}. Changes here
+          This is one {initial.source === 'recurring' ? 'occurrence of a recurring item' : initial.source === 'debt' ? (initial.type === 'income' ? 'repayment of money you lent' : 'payment towards a debt') : initial.source === 'loan' ? 'loan you made' : 'installment of a plan'}. Changes here
           only affect this payment.
         </div>
       )}

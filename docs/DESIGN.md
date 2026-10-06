@@ -660,3 +660,46 @@ name. It counts in the balance and in the month's figures like any payment; dele
 - **Where to keep them**: a backup on the same disk as the database is not enough if the disk fails. Point `BACKUP_DIR` at another drive or
   a synced folder. The README says so.
 - Needs `pg_dump` / `pg_restore`: found through `PG_BIN`, the usual Windows folder, or the PATH. If they are not found, the status says why.
+
+## 30. Money owed to you, on the Debts page (defined before implementation)
+
+**What was missing.** The Debts page only holds money *you* owe. Money a friend owes *you* (a loan, half of a shared bill someone will
+pay back) had nowhere to go, so it was either forgotten or typed in as ordinary income, which hides that it is a loan.
+
+**What it is.** A debt now has a **direction**: `owe` (as before; every existing debt stays this) or `lent` (someone owes you). The Debts page
+has a switch at the top, **I owe** / **Owed to me**, and the form asks *"Who owes you?"*. It works like a debt in every other way: a total,
+a plan (not scheduled / all in one month / split over months), "count it in my budget", extra payments, settle, reopen, the repayment
+timeline. The words and the money flow turn round:
+
+| | I owe | Owed to me |
+| --- | --- | --- |
+| Repayment is | an **expense** (money out) | **income** (money in) |
+| Name of a repayment | *Payment to Faeze* / *Repay Faeze (1/3)* | *Payment from Sam* / *Sam repays (1/3)* |
+| "Count it in my budget" | planned repayments are pending expenses in Payments and the forecast | planned repayments are **pending income** in Payments and the forecast |
+| Summary | total owed, counted, planned, paid so far | **owed to you**, counted, expected, **received so far** |
+| Balance line | balance after paying every counted debt | balance **if everyone paid you back** |
+| Category (optional) | an expense category | an income category |
+
+**Money handed over.** When you lend money today, your balance should drop by it. The form has *"Also record the money I handed over"* (off by
+default, because a loan made long ago is already in your balance), with the day. Saving adds one paid expense *"Lent to Sam"* on that day, source
+`loan`, no link back to the debt. It is an ordinary payment on the Payments page that can be edited or deleted. It is **not spending**: like a
+balance adjustment it counts in the balance but not in the category breakdown, insights, assistant search or period summaries.
+
+**Not earnings.** A repayment you receive is real money in the balance and the forecast, and shows as income on the Payments page, but it
+is **not earnings**: insights and the weekly/monthly summaries leave income of source `debt` out, so a friend paying back €300 does not
+hide an overspent month. Likewise **safe to spend** does not treat an expected repayment as "the next income" and does not rely on it.
+
+**Rules.**
+- The direction is chosen when the debt is created and **cannot be changed** afterwards (the payments already made would change meaning);
+  an edit that tries gets 400.
+- A repayment can never be more than what is still owed to you, same as before.
+- The dashboard's **Paying off** widget and its total are only about what *you* owe; money owed to you is not "to pay".
+- `GET /api/debts` rows get `direction`; `totals` stays the figures of the debts you owe, and the new `lent_totals`
+  `{ owed_to_me, counted, expected, received }` are those of the debts owed to you.
+- `POST /api/debts` takes `direction` (default `owe`), and for `lent` optionally `record_loan: true` and `lent_on` (default today).
+- Money received is recorded by `POST /api/debts/:id/payments` (creates a paid *income*), or by marking a planned repayment received on the
+  Payments page.
+- Delete and settle behave as before: unpaid planned payments go, payments already made stay as history.
+
+**Tests.** The API (both directions, totals kept apart, income not expense, direction fixed, exclusions from spending/earnings, safe to
+spend), the pure client functions (labels, totals, "if everyone paid you back"), and the browser (switch, form, record a repayment).

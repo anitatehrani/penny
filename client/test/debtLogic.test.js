@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { installmentDates, splitInstallments } from '../../server/src/lib/schedule.js';
-import { budgetStatus, describePlan, previewPlan, splitCents, timelineSteps } from '../src/debtLogic.js';
+import { balanceAfter, budgetStatus, describePlan, directionOf, ofDirection, previewPlan, splitCents, timelineSteps, WORDS } from '../src/debtLogic.js';
 
 const long = (d) => `<${d}>`;
 
@@ -120,5 +120,50 @@ describe('the repayment timeline', () => {
 
   it('copes with a debt that has no payments list', () => {
     assert.deepEqual(timelineSteps({ status: 'settled', remaining: 0 }, TODAY), { steps: [], debtFree: null });
+  });
+});
+
+describe('money you owe and money owed to you', () => {
+  it('a debt with no direction (an older one) is one you owe', () => {
+    assert.equal(directionOf({}), 'owe');
+    assert.equal(directionOf(undefined), 'owe');
+    assert.equal(directionOf({ direction: 'owe' }), 'owe');
+    assert.equal(directionOf({ direction: 'lent' }), 'lent');
+    assert.equal(directionOf({ direction: 'anything else' }), 'owe');
+  });
+  it('splits a list by direction without losing or repeating any', () => {
+    const all = [{ id: 1 }, { id: 2, direction: 'lent' }, { id: 3, direction: 'owe' }, { id: 4, direction: 'lent' }];
+    assert.deepEqual(ofDirection(all, 'owe').map((d) => d.id), [1, 3]);
+    assert.deepEqual(ofDirection(all, 'lent').map((d) => d.id), [2, 4]);
+    assert.deepEqual(ofDirection(undefined, 'lent'), []);
+  });
+  it('both sides have every word the page needs, and they differ where the meaning does', () => {
+    const keys = Object.keys(WORDS.owe).sort();
+    assert.deepEqual(Object.keys(WORDS.lent).sort(), keys, 'no word is missing on one side');
+    for (const side of ['owe', 'lent']) for (const k of keys) assert.ok(WORDS[side][k] !== undefined && WORDS[side][k] !== '', side + '.' + k);
+    assert.equal(WORDS.owe.categoryKind, 'expense');
+    assert.equal(WORDS.lent.categoryKind, 'income', 'money coming back is income, so its category is an income one');
+    assert.deepEqual(Object.keys(WORDS.lent.stepWord), Object.keys(WORDS.owe.stepWord));
+    assert.equal(WORDS.lent.stepWord.paid, 'Received');
+  });
+  it('after everyone is settled: the balance falls by what you owe and rises by what is owed to you', () => {
+    assert.deepEqual(balanceAfter('owe', 1000, 300), { balance: 1000, after: 700, counted: 300 });
+    assert.deepEqual(balanceAfter('lent', 1000, 300), { balance: 1000, after: 1300, counted: 300 });
+    assert.equal(balanceAfter('owe', 100, 300).after, -200);
+    assert.equal(balanceAfter('lent', 0.1, 0.2).after, 0.3, 'cents add exactly');
+  });
+  it('says nothing when there is nothing counted or no balance yet', () => {
+    assert.equal(balanceAfter('lent', 1000, 0), null);
+    assert.equal(balanceAfter('owe', null, 300), null);
+    assert.equal(balanceAfter('owe', undefined, 300), null);
+  });
+  it('the plan line talks of repayments when the money is owed to you', () => {
+    assert.equal(describePlan({ plan: 'monthly', installment_count: 3, first_due_date: '2031-01-10', direction: 'lent' }, long), '3 monthly repayments from <2031-01-10>');
+    assert.equal(describePlan({ plan: 'monthly', installment_count: 3, first_due_date: '2031-01-10' }, long), '3 monthly payments from <2031-01-10>');
+  });
+  it('the badge says paid back for money owed to you, settled for a debt', () => {
+    assert.deepEqual(budgetStatus({ status: 'settled', direction: 'lent' }), { tone: 'ok', label: 'Paid back' });
+    assert.deepEqual(budgetStatus({ status: 'settled' }), { tone: 'ok', label: 'Settled' });
+    assert.equal(budgetStatus({ status: 'active', direction: 'lent', count_in_budget: true, scheduled_count: 2 }).label, 'In your forecast');
   });
 });

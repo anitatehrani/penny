@@ -27,12 +27,12 @@ export function previewPlan({ plan, owed, firstDate, count }) {
 export function describePlan(debt, dateLong) {
   if (debt.plan === 'none') return 'Not scheduled yet';
   if (debt.plan === 'once') return `All in one go on ${dateLong(debt.first_due_date)}`;
-  return `${debt.installment_count} monthly payments from ${dateLong(debt.first_due_date)}`;
+  return `${debt.installment_count} monthly ${debt.direction === 'lent' ? 'repayments' : 'payments'} from ${dateLong(debt.first_due_date)}`;
 }
 
 /** The short badge that says how the debt relates to the budget. */
 export function budgetStatus(debt) {
-  if (debt.status === 'settled') return { tone: 'ok', label: 'Settled' };
+  if (debt.status === 'settled') return { tone: 'ok', label: debt.direction === 'lent' ? 'Paid back' : 'Settled' };
   if (!debt.count_in_budget) return { tone: '', label: 'Not counted' };
   if (debt.scheduled_count > 0) return { tone: 'tone-forecast', label: 'In your forecast' };
   return { tone: '', label: 'Counted · no plan yet' };
@@ -67,4 +67,68 @@ export function timelineSteps(debt, today) {
   const openCents = debt.status === 'settled' ? 0 : Math.max(0, toCents(debt.remaining) - plannedCents);
   if (openCents > 0) steps.push({ key: 'open', state: 'open', date: null, amount: openCents / 100 });
   return { steps, debtFree: debt.status !== 'settled' && openCents === 0 && plannedCents > 0 ? lastPlanned : null };
+}
+
+/** Debts you owe and debts owed to you (docs/DESIGN.md section 30). A debt from before the direction existed counts as one you owe. */
+export const directionOf = (debt) => (debt?.direction === 'lent' ? 'lent' : 'owe');
+export const ofDirection = (debts, direction) => (debts ?? []).filter((d) => directionOf(d) === direction);
+
+/** The words of each side of the page, so the screen reads naturally both ways. */
+export const WORDS = {
+  owe: {
+    tab: 'I owe',
+    title: 'Debts',
+    lead: 'Money you owe. Pay it all in one month, split it over months, or just keep it on file for now.',
+    name: 'Who or what is it owed to?',
+    namePlaceholder: 'e.g. Faeze, Car loan',
+    amount: 'Amount owed',
+    still: 'Still owed',
+    add: 'Add debt',
+    addTitle: 'Add debt',
+    editTitle: 'Edit debt',
+    action: 'Record a payment',
+    paid: 'paid',
+    paidSoFar: 'Paid so far',
+    settle: 'Mark settled',
+    nextWord: 'Next payment',
+    emptyTitle: 'No debts',
+    empty: 'Add money you owe, for example to a friend. Choose when to pay it, and whether it counts in your balance and forecast.',
+    categoryKind: 'expense',
+    stepWord: { paid: 'Paid', overdue: 'Overdue', next: 'Next', later: 'Planned', open: 'Not scheduled yet' },
+    end: 'Debt-free',
+  },
+  lent: {
+    tab: 'Owed to me',
+    title: 'Debts',
+    lead: 'Money other people owe you: a loan to a friend, a share of a bill someone will pay back. Count it in your forecast, or just keep it on file.',
+    name: 'Who owes you?',
+    namePlaceholder: 'e.g. Sam, Dinner share',
+    amount: 'Amount owed to you',
+    still: 'Still owed to you',
+    add: 'Add what someone owes me',
+    addTitle: 'Someone owes me',
+    editTitle: 'Edit what someone owes me',
+    action: 'Record money received',
+    paid: 'received',
+    paidSoFar: 'Received so far',
+    settle: 'Mark as paid back',
+    nextWord: 'Next repayment',
+    emptyTitle: 'Nobody owes you',
+    empty: 'Add money a friend borrowed or will pay you back. Choose when you expect it, and whether it counts in your forecast.',
+    categoryKind: 'income',
+    stepWord: { paid: 'Received', overdue: 'Late', next: 'Next', later: 'Expected', open: 'Not scheduled yet' },
+    end: 'Paid back',
+  },
+};
+
+/**
+ * The line under the totals: what the balance becomes once every counted debt of this side is settled. For money you owe it goes
+ * down, for money owed to you it goes up. `balance` is today's balance; `counted` is what is still owed and counted in the budget.
+ * Returns null when there is nothing counted or no balance.
+ */
+export function balanceAfter(direction, balance, counted) {
+  if (balance == null || !(counted > 0)) return null;
+  const b = Math.round(balance * 100);
+  const c = Math.round(counted * 100);
+  return { balance, after: (direction === 'lent' ? b + c : b - c) / 100, counted };
 }

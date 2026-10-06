@@ -55,7 +55,7 @@ router.get(
                 sum(t.amount)::float8 AS total,
                 COALESCE(sum(t.amount) FILTER (WHERE t.status = 'paid'), 0)::float8 AS paid
          FROM transactions t LEFT JOIN categories c ON c.id = t.category_id
-         WHERE t.workspace_id = $1 AND t.type = 'expense' AND t.status <> 'skipped' AND t.source <> 'adjustment' AND t.date BETWEEN $2 AND $3
+         WHERE t.workspace_id = $1 AND t.type = 'expense' AND t.status <> 'skipped' AND t.source NOT IN ('adjustment', 'loan') AND t.date BETWEEN $2 AND $3
          GROUP BY t.category_id, c.name, c.color ORDER BY total DESC`,
         [uid, start, end],
       ),

@@ -17,7 +17,9 @@ router.get(
     // overdue and upcoming alike, but not further than the longest horizon plus a day: nothing later can matter
     const { rows } = await query(
       `SELECT type, date, description, round(amount * 100)::float8 AS cents
-       FROM transactions WHERE workspace_id = $1 AND status = 'pending' AND date <= $2 ORDER BY date, id`,
+       FROM transactions WHERE workspace_id = $1 AND status = 'pending' AND date <= $2
+         AND NOT (type = 'income' AND source = 'debt') -- a friend paying you back is not something to count on
+       ORDER BY date, id`,
       [ws, addDays(today, 63)],
     );
     res.json(

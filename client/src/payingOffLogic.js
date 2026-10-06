@@ -5,13 +5,14 @@ const cents = (v) => Math.round((Number(v) || 0) * 100);
 /**
  * The rows of the dashboard's "Paying off" widget: the active debts and installment plans, overdue first, then by next payment,
  * then the ones with nothing scheduled. `total` is what is still to pay in the person's budget: counted debts plus installment plans
- * (debts with "count it in my budget" off are listed but left out, as the Debts page does). `today` is 'YYYY-MM-DD'.
+ * (debts with "count it in my budget" off are listed but left out, as the Debts page does). Money owed TO the person is not something
+ * to pay off, so it is left out. `today` is 'YYYY-MM-DD'.
  */
 export function payingOff(debts, plans, today, limit = 5) {
   const rows = [];
   let totalCents = 0;
   for (const d of debts ?? []) {
-    if (d.status !== 'active') continue;
+    if (d.status !== 'active' || d.direction === 'lent') continue;
     const counted = d.count_in_budget !== false;
     if (counted) totalCents += cents(d.remaining);
     rows.push({

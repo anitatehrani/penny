@@ -470,3 +470,18 @@ BEGIN
     ALTER TABLE transactions ADD CONSTRAINT transactions_source_check CHECK (source IN ('manual', 'recurring', 'installment', 'debt', 'adjustment'));
   END IF;
 END $$;
+
+-- Money owed TO you: a debt has a direction ('owe' is what every earlier debt is, 'lent' is someone owing you).
+-- Repayments of a lent debt are income; the money handed over is a payment with source 'loan' (not spending).
+ALTER TABLE debts ADD COLUMN IF NOT EXISTS direction text NOT NULL DEFAULT 'owe';
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'debts'::regclass AND conname = 'debts_direction_check') THEN
+    ALTER TABLE debts ADD CONSTRAINT debts_direction_check CHECK (direction IN ('owe', 'lent'));
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'transactions'::regclass AND contype = 'c'
+                 AND pg_get_constraintdef(oid) LIKE '%source%' AND pg_get_constraintdef(oid) LIKE '%loan%') THEN
+    ALTER TABLE transactions DROP CONSTRAINT IF EXISTS transactions_source_check;
+    ALTER TABLE transactions ADD CONSTRAINT transactions_source_check CHECK (source IN ('manual', 'recurring', 'installment', 'debt', 'adjustment', 'loan'));
+  END IF;
+END $$;

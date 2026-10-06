@@ -17,6 +17,12 @@ describe('the dashboard "Paying off" rows', () => {
     assert.equal(r.count, 3, 'but the uncounted debt is still listed');
     assert.equal(r.items.find((x) => x.id === 2 && x.kind === 'debt').counted, false);
   });
+  it('leaves out money owed TO the person: it is not something to pay off, and not part of the total', () => {
+    const r = payingOff([debt({ remaining: 100 }), debt({ id: 2, name: 'Sam', direction: 'lent', remaining: 300 }), debt({ id: 3, name: 'Old', direction: 'owe', remaining: 50 })], [], TODAY);
+    assert.deepEqual(r.items.map((x) => x.name).sort(), ['Faeze', 'Old']);
+    assert.equal(r.total, 150);
+    assert.equal(r.count, 2);
+  });
   it('puts overdue first, then the soonest payment, then those with nothing scheduled', () => {
     const r = payingOff(
       [debt({ id: 1, name: 'Open', next_due: null }), debt({ id: 2, name: 'Late', next_due: '2031-02-01', next_amount: 50 }), debt({ id: 3, name: 'Later', next_due: '2031-04-01', next_amount: 50 })],

@@ -694,6 +694,109 @@ async function sessionFor(db, email) {
     eq((await api(page, 'GET', '/transactions?from=2000-01-01&to=2100-01-01&status=')).json.some((t) => /E2E (Faeze|Romena)/.test(t.description)), false, 'no test payments left');
   });
 
+  console.log('\nMoney owed to you');
+  const LENT = 'E2E Sam';
+  const sideTabs = () => page.$$eval('.debt-sides .segmented button', (bs) => bs.map((b) => b.textContent.trim()));
+  const clickSide = (label) => page.evaluate((l) => [...document.querySelectorAll('.debt-sides .segmented button')].find((b) => b.textContent.trim().startsWith(l))?.click(), label);
+  const lentCard = () => page.evaluate((n) => { const c = [...document.querySelectorAll('.card.debt')].find((x) => x.querySelector('h3')?.textContent === n); return c ? { text: c.textContent, direction: c.getAttribute('data-direction'), badge: c.querySelector('.badge')?.textContent.trim() } : null; }, LENT);
+  await check('Debts has two sides, and the palette starts one for money someone owes you', async () => {
+    page = await open('/debts');
+    await page.waitForSelector('.debt-sides');
+    truthy((await sideTabs())[0].startsWith('I owe') && (await sideTabs())[1].startsWith('Owed to me'), 'the two sides: ' + (await sideTabs()).join(' | '));
+    page = await open('/');
+    await page.keyboard.down('Control');
+    await page.keyboard.press('k');
+    await page.keyboard.up('Control');
+    await page.waitForSelector('.palette');
+    await page.type('.palette input', 'owes me');
+    await sleep(300);
+    eq(await page.$eval('.palette-item.active .palette-label', (e) => e.textContent.trim()), 'Someone owes me money', 'the palette finds it');
+    await page.keyboard.press('Enter');
+    await page.waitForSelector('.modal input[placeholder="e.g. Sam, Dinner share"]', { timeout: 4000 });
+    truthy(/show=lent/.test(page.url()) || /Who owes you/.test(await text(page, '.modal')), 'it opened the Owed to me form: ' + page.url());
+  });
+  await check('adding what someone owes you in three repayments: the preview, the wording and the income', async () => {
+    page = await open('/debts?show=lent');
+    await page.waitForSelector('.debt-sides');
+    await page.evaluate(() => [...document.querySelectorAll('button')].find((x) => /Add what someone owes me/.test(x.textContent))?.click());
+    await page.waitForSelector('.modal');
+    truthy(/Who owes you/.test(await text(page, '.modal')), 'it asks who owes you');
+    await page.type('input[placeholder="e.g. Sam, Dinner share"]', LENT);
+    await page.type('.modal input[placeholder="0.00"]', '300');
+    await pickSegment('Split over months');
+    truthy(/3 repayments of\s*€100\.00/.test(await text(page, '.modal .banner')), 'the preview says repayments: ' + (await text(page, '.modal .banner')));
+    truthy(/appear in Payments as money coming in/.test(await text(page, '.modal')), 'it says they come in as income');
+    truthy(/Also record the money I handed over/.test(await text(page, '.modal')) && /not counted as spending/.test(await text(page, '.modal')), 'the loan option, and that it is not spending');
+    eq(await page.$eval('.modal input[type=checkbox]', (e) => e.checked), false, 'off by default');
+    await page.click('.modal .form-actions .btn.primary');
+    await page.waitForSelector('.modal', { hidden: true });
+    const d = (await api(page, 'GET', '/debts')).json.debts.find((x) => x.name === LENT);
+    eq([d.direction, d.plan, d.scheduled_count, d.remaining].join(','), 'lent,monthly,3,300', 'a lent debt with three repayments');
+    const card = await lentCard();
+    truthy(card, 'its card is on the page');
+    eq(card.direction + ',' + card.badge, 'lent,In your forecast', 'direction and badge');
+    truthy(/Still owed to you\s*€300\.00/.test(card.text) && /3 monthly repayments/.test(card.text), 'figures: ' + card.text.slice(0, 140));
+    truthy(/Owed to you\s*€/.test(await text(page, '.summary-strip')) && /If everyone paid you back/.test(await text(page, 'body')), 'the summary and the balance line speak of money owed to you');
+  });
+  await check('the two sides are kept apart: it is not under "I owe", and not in the totals of what you owe', async () => {
+    await clickSide('I owe');
+    await sleep(300);
+    eq(await lentCard(), null, 'not on the I owe side');
+    const t = (await api(page, 'GET', '/debts')).json;
+    eq(t.lent_totals.owed_to_me >= 300, true, 'counted on the owed-to-me side');
+    eq(t.debts.filter((x) => x.direction === 'owe').some((x) => x.name === LENT), false, 'not among the debts you owe');
+    await clickSide('Owed to me');
+    await sleep(300);
+    truthy(await lentCard(), 'back on its own side');
+  });
+  await check('its repayments are pending income with a "Paid back" badge, and the Paying off widget ignores it', async () => {
+    const d = (await api(page, 'GET', '/debts')).json.debts.find((x) => x.name === LENT);
+    page = await open('/payments?month=' + d.next_due.slice(0, 7));
+    const row = await page.evaluate(() => {
+      const r = [...document.querySelectorAll('.tx-row')].find((x) => x.textContent.includes('Repayment from E2E Sam'));
+      return r ? { title: r.querySelector('.tx-title')?.textContent, income: !!r.querySelector('.amount.income, .num.income, .pos') || /\+/.test(r.textContent) } : null;
+    });
+    truthy(row && /Paid back/.test(row.title) && /\(1\/3\)/.test(row.title), 'a Paid back badge, numbered: ' + JSON.stringify(row));
+    const tx = (await api(page, 'GET', '/transactions?from=2000-01-01&to=2100-01-01&status=pending')).json.filter((t) => t.debt_id === d.id);
+    eq(tx.map((t) => t.type).join(','), 'income,income,income', 'all three are income');
+    page = await open('/');
+    await page.waitForSelector('[data-widget=paying]');
+    await sleep(500);
+    eq(await page.$eval('[data-widget=paying]', (w) => w.textContent.includes('E2E Sam')), false, 'money owed to you is not "paying off"');
+  });
+  await check('recording money received raises the balance and lowers what is still owed to you', async () => {
+    const before = (await api(page, 'GET', '/summary')).json.balance;
+    page = await open('/debts?show=lent');
+    await page.waitForSelector('.card.debt');
+    await page.evaluate((n) => [...document.querySelectorAll('.card.debt')].find((x) => x.querySelector('h3')?.textContent === n).querySelector('.debt-actions .primary-soft').click(), LENT);
+    await page.waitForSelector('.modal');
+    truthy(/raises your balance/.test(await text(page, '.modal')), 'it says money received raises the balance');
+    await page.click('.modal input[type=number]', { clickCount: 3 });
+    await page.type('.modal input[type=number]', '60');
+    await page.click('.modal .form-actions .btn.primary');
+    await page.waitForSelector('.modal', { hidden: true });
+    await sleep(500);
+    const d = (await api(page, 'GET', '/debts')).json.debts.find((x) => x.name === LENT);
+    eq([d.paid, d.remaining, d.scheduled_total].join(','), '60,240,240', '60 received, 240 still owed, the rest shares 240');
+    eq(Math.round(((await api(page, 'GET', '/summary')).json.balance - before) * 100), 6000, 'the balance rose by 60');
+    truthy(/Still owed to you\s*€240\.00/.test((await lentCard()).text) && /60\.00.{0,10}received/.test((await lentCard()).text), 'the card says received');
+  });
+  await check('the timeline says Received and Paid back, and a debt you owe is unchanged', async () => {
+    await page.evaluate((n) => [...document.querySelectorAll('.card.debt')].find((x) => x.querySelector('h3')?.textContent === n).querySelector('details.timeline-wrap > summary').click(), LENT);
+    await sleep(200);
+    const info = await page.evaluate((n) => { const c = [...document.querySelectorAll('.card.debt')].find((x) => x.querySelector('h3')?.textContent === n); return { text: c.querySelector('ol.timeline').textContent, steps: [...c.querySelectorAll('ol.timeline li')].map((li) => li.className.replace('tl-step ', '')) }; }, LENT);
+    eq(info.steps.join(','), 'paid,next,later,later,end', 'received 60, then three expected, then the end');
+    truthy(/Received/.test(info.text) && /Expected/.test(info.text) && /Paid back/.test(info.text), 'the words fit: ' + info.text.slice(0, 120));
+    truthy(!/Debt-free/.test(info.text), 'not "Debt-free"');
+  });
+  await check('clean up: the test money owed to you and its payments are gone', async () => {
+    page = await open('/debts?show=lent');
+    for (const d of (await api(page, 'GET', '/debts')).json.debts.filter((x) => x.name.startsWith('E2E '))) await api(page, 'DELETE', '/debts/' + d.id);
+    for (const t of (await api(page, 'GET', '/transactions?from=2000-01-01&to=2100-01-01&status=')).json.filter((x) => /E2E Sam/.test(x.description))) await api(page, 'DELETE', '/transactions/' + t.id + '?hard=1');
+    eq((await api(page, 'GET', '/debts')).json.debts.some((x) => x.name.startsWith('E2E ')), false, 'no test debts left');
+    eq((await api(page, 'GET', '/transactions?from=2000-01-01&to=2100-01-01&status=')).json.some((x) => /E2E Sam/.test(x.description)), false, 'no test payments left');
+  });
+
   console.log('\nInstallments');
   await check('an installment plan shows a step per payment, what each is, and the last day', async () => {
     page = await open('/installments');

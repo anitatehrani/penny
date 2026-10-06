@@ -20,9 +20,14 @@ const debtSchema = z
     installment_count: z.number().int('must be a whole number').min(2, 'must be at least 2').max(120, 'must be at most 120').nullable().optional(),
     count_in_budget: z.boolean().default(true),
     paid_by: usernameField.nullable().optional(), // group budgets: who the debt is in the name of
+    direction: z.enum(['owe', 'lent']).optional(), // 'owe' (default): you owe it; 'lent': someone owes you. Fixed once created.
+    record_loan: z.boolean().default(false), // lent only, on creation: also add the money handed over as a payment
+    lent_on: ymd.optional(),
   })
   .superRefine((d, ctx) => {
     const bad = (path, message) => ctx.addIssue({ code: 'custom', path: [path], message });
+    if (d.record_loan && d.direction !== 'lent') bad('record_loan', 'only applies to money you lent');
+    if (d.lent_on && !d.record_loan) bad('lent_on', 'only applies when the money you handed over is recorded');
     if (d.plan === 'none') {
       if (d.first_due_date) bad('first_due_date', 'only applies when there is a repayment plan');
       if (d.installment_count) bad('installment_count', 'only applies when the debt is split over months');
@@ -38,7 +43,7 @@ const debtSchema = z
 const paymentSchema = z.object({ amount: money, date: ymd.optional(), note });
 
 const SELECT = `
-  SELECT d.id, d.name, d.total_amount::float8 AS total_amount, d.note, d.category_id, d.plan, d.first_due_date, d.installment_count,
+  SELECT d.id, d.name, d.direction, d.total_amount::float8 AS total_amount, d.note, d.category_id, d.plan, d.first_due_date, d.installment_count,
          d.count_in_budget, d.settled_at, d.created_at,
          c.name AS category_name, c.color AS category_color,
          d.member_id, mu.name AS member_name, mu.username AS member_username, mu.avatar_url AS member_avatar,
@@ -74,6 +79,10 @@ async function resolveMember(workspaceId, defaultUserId, username) {
   return rows[0].id;
 }
 
+/** What a repayment is: money out when you owe, money in when you lent (docs/DESIGN.md section 30). */
+const repaymentType = (d) => (d.direction === 'lent' ? 'income' : 'expense');
+const repaymentName = (d) => (d.direction === 'lent' ? `Repayment from ${d.name}` : `Repay ${d.name}`);
+
 /**
  * Throw away the debt's unpaid scheduled payments and, if it should be in the budget, create them again from what is still owed:
  * one payment (plan 'once') or equal monthly payments (plan 'monthly'). Payments already made are never touched.
@@ -91,11 +100,11 @@ async function rebuildSchedule(client, debtId) {
   await client.query(
     `INSERT INTO transactions
        (user_id, workspace_id, member_id, type, description, amount, category_id, date, status, note, source, debt_id, installment_no)
-     SELECT $1::int, $2::int, $3::int, 'expense',
-            CASE WHEN $4::int = 1 THEN 'Repay ' || $5::text ELSE 'Repay ' || $5::text || ' (' || n || '/' || $4::int || ')' END,
+     SELECT $1::int, $2::int, $3::int, $11::text,
+            CASE WHEN $4::int = 1 THEN $5::text ELSE $5::text || ' (' || n || '/' || $4::int || ')' END,
             a / 100.0, $6::int, dt, 'pending', $7::text, 'debt', $8::int, n
      FROM unnest($9::int[], $10::date[]) WITH ORDINALITY AS u(a, dt, n)`,
-    [d.user_id ?? d.member_id, d.workspace_id, d.member_id ?? d.user_id, count, d.name, d.category_id, d.note, d.id, splitInstallments(remainingCents, count), dates],
+    [d.user_id ?? d.member_id, d.workspace_id, d.member_id ?? d.user_id, count, repaymentName(d), d.category_id, d.note, d.id, splitInstallments(remainingCents, count), dates, repaymentType(d)],
   );
 }
 
@@ -135,11 +144,18 @@ router.get(
       for (const p of pay) byDebt.get(p.debt_id)?.push({ id: p.id, date: p.date, amount: p.amount, status: p.status, installment_no: p.installment_no });
     }
     for (const r of rows) r.payments = byDebt.get(r.id);
-    const active = rows.filter((r) => r.status === 'active');
-    const sum =(list, key) => Math.round(list.reduce((t, r) => t + Math.round(r[key] * 100), 0)) / 100;
+    const sum = (list, key) => Math.round(list.reduce((t, r) => t + Math.round(r[key] * 100), 0)) / 100;
+    // The two directions are never added together: what you owe and what is owed to you are different things.
+    const figures = (direction) => {
+      const mine = rows.filter((r) => r.direction === direction);
+      const active = mine.filter((r) => r.status === 'active');
+      return { owed: sum(active, 'remaining'), counted: sum(active.filter((r) => r.count_in_budget), 'remaining'), scheduled: sum(active, 'scheduled_total'), paid: sum(mine, 'paid') };
+    };
+    const lent = figures('lent');
     res.json({
       debts: rows,
-      totals: { owed: sum(active, 'remaining'), counted: sum(active.filter((r) => r.count_in_budget), 'remaining'), scheduled: sum(active, 'scheduled_total'), paid: sum(rows, 'paid') },
+      totals: figures('owe'),
+      lent_totals: { owed_to_me: lent.owed, counted: lent.counted, expected: lent.scheduled, received: lent.paid },
     });
   }),
 );
@@ -151,13 +167,22 @@ router.post(
     const ws = req.workspace.id;
     await assertOwnCategory(ws, d.category_id);
     const memberId = await resolveMember(ws, req.user.id, d.paid_by);
+    const direction = d.direction ?? 'owe';
     const id = await withTransaction(async (client) => {
       const { rows } = await client.query(
-        `INSERT INTO debts (workspace_id, user_id, member_id, name, total_amount, note, category_id, plan, first_due_date, installment_count, count_in_budget)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
-        [ws, req.user.id, memberId, ...columns(d)],
+        `INSERT INTO debts (workspace_id, user_id, member_id, name, total_amount, note, category_id, plan, first_due_date, installment_count, count_in_budget, direction)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
+        [ws, req.user.id, memberId, ...columns(d), direction],
       );
       await rebuildSchedule(client, rows[0].id);
+      if (d.record_loan) {
+        // The money left the account on that day. Not linked to the debt (its repayments are what the debt adds up) and not spending.
+        await client.query(
+          `INSERT INTO transactions (user_id, workspace_id, member_id, type, description, amount, date, status, note, source)
+           VALUES ($1, $2, $3, 'expense', $4, $5, $6, 'paid', $7, 'loan')`,
+          [req.user.id, ws, memberId, `Lent to ${d.name}`, d.total_amount, d.lent_on ?? todayYMD(), d.note || null],
+        );
+      }
       return rows[0].id;
     });
     res.status(201).json(await findOne(ws, id));
@@ -170,8 +195,10 @@ router.put(
     const id = idParam(req);
     const d = debtSchema.parse(req.body);
     const ws = req.workspace.id;
-    const existing = (await query('SELECT member_id FROM debts WHERE id = $1 AND workspace_id = $2', [id, ws])).rows[0];
+    const existing = (await query('SELECT member_id, direction FROM debts WHERE id = $1 AND workspace_id = $2', [id, ws])).rows[0];
     if (!existing) throw new HttpError(404, 'Debt not found');
+    if (d.direction !== undefined && d.direction !== existing.direction) throw new HttpError(400, 'Who owes whom cannot be changed. Add a new one instead.');
+    if (d.record_loan) throw new HttpError(400, 'The money handed over can only be recorded when the debt is added.');
     await assertOwnCategory(ws, d.category_id);
     const memberId = d.paid_by === undefined ? existing.member_id : await resolveMember(ws, req.user.id, d.paid_by);
     await withTransaction(async (client) => {
@@ -211,16 +238,16 @@ router.post(
     const when = p.date ?? todayYMD();
     const paymentId = await withTransaction(async (client) => {
       // Lock the debt while the payment is checked and recorded: two payments at the same moment must not both fit into what is owed.
-      const debt = (await client.query('SELECT name, category_id, member_id, total_amount, settled_at FROM debts WHERE id = $1 AND workspace_id = $2 FOR UPDATE', [id, ws])).rows[0];
+      const debt = (await client.query('SELECT name, direction, category_id, member_id, total_amount, settled_at FROM debts WHERE id = $1 AND workspace_id = $2 FOR UPDATE', [id, ws])).rows[0];
       if (!debt) throw new HttpError(404, 'Debt not found');
       const paid = (await client.query(`SELECT COALESCE(sum(amount), 0)::float8 AS paid FROM transactions WHERE debt_id = $1 AND status = 'paid'`, [id])).rows[0].paid;
       const remainingCents = debt.settled_at ? 0 : Math.max(0, Math.round(debt.total_amount * 100) - Math.round(paid * 100));
-      if (remainingCents <= 0) throw new HttpError(400, 'This debt is already settled.');
-      if (Math.round(p.amount * 100) > remainingCents) throw new HttpError(400, `That is more than what is still owed (${(remainingCents / 100).toFixed(2)}).`);
+      if (remainingCents <= 0) throw new HttpError(400, debt.direction === 'lent' ? 'This is already paid back.' : 'This debt is already settled.');
+      if (Math.round(p.amount * 100) > remainingCents) throw new HttpError(400, `That is more than what is still owed${debt.direction === 'lent' ? ' to you' : ''} (${(remainingCents / 100).toFixed(2)}).`);
       const { rows } = await client.query(
         `INSERT INTO transactions (user_id, workspace_id, member_id, type, description, amount, category_id, date, status, note, source, debt_id)
-         VALUES ($1, $2, $3, 'expense', $4, $5, $6, $7, 'paid', $8, 'debt', $9) RETURNING id`,
-        [req.user.id, ws, debt.member_id ?? req.user.id, `Payment to ${debt.name}`, p.amount, debt.category_id, when, p.note || null, id],
+         VALUES ($1, $2, $3, $10, $4, $5, $6, $7, 'paid', $8, 'debt', $9) RETURNING id`,
+        [req.user.id, ws, debt.member_id ?? req.user.id, debt.direction === 'lent' ? `Payment from ${debt.name}` : `Payment to ${debt.name}`, p.amount, debt.category_id, when, p.note || null, id, repaymentType(debt)],
       );
       await resplitSchedule(client, id);
       return rows[0].id;

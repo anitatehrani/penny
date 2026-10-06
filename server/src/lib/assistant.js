@@ -147,7 +147,7 @@ export async function answerQuestion(rawQuestion, { workspaceId, facts }) {
     if (term) {
       const { rows } = await query(
         `SELECT to_char(date, 'YYYY-MM') AS month, sum(amount)::float AS total, count(*)::int AS n FROM transactions
-         WHERE workspace_id = $1 AND type = 'expense' AND status = 'paid' AND source <> 'adjustment' AND description ILIKE $2 AND date >= date_trunc('month', current_date) - interval '6 months'
+         WHERE workspace_id = $1 AND type = 'expense' AND status = 'paid' AND source NOT IN ('adjustment', 'loan') AND description ILIKE $2 AND date >= date_trunc('month', current_date) - interval '6 months'
          GROUP BY 1 ORDER BY 1 DESC`,
         [workspaceId, `%${term.replace(/[%_\\]/g, '\\$&')}%`],
       );
