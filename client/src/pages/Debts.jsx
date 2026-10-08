@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../api.js';
 import { Avatar, CategoryDot, CategorySelect, Empty, ErrorBox, Field, Icon, Loading, Modal, Segmented } from '../components/ui.jsx';
+import DatePicker from '../components/ds/DatePicker.jsx';
 import Select from '../components/ds/Select.jsx';
 import { useAuth } from '../auth.jsx';
 import { useApp } from '../context.jsx';
@@ -98,13 +99,13 @@ function DebtForm({ initial, direction, onSaved, onCancel }) {
       />
       {plan === 'once' && (
         <Field label={lent ? 'Expected on' : 'Pay it on'}>
-          <input type="date" value={firstDate} onChange={(e) => setFirstDate(e.target.value)} required />
+          <DatePicker label={lent ? 'Expected on' : 'Pay it on'} value={firstDate} onChange={setFirstDate} />
         </Field>
       )}
       {plan === 'monthly' && (
         <div className="form-grid">
           <Field label={lent ? 'First repayment' : 'First payment'} hint="The later ones fall on the same day each month.">
-            <input type="date" value={firstDate} onChange={(e) => setFirstDate(e.target.value)} required />
+            <DatePicker label={lent ? 'First repayment' : 'First payment'} value={firstDate} onChange={setFirstDate} />
           </Field>
           <Field label="Number of months">
             <input type="number" min="2" max="120" step="1" inputMode="numeric" value={count} onChange={(e) => setCount(e.target.value)} required />
@@ -143,7 +144,7 @@ function DebtForm({ initial, direction, onSaved, onCancel }) {
           </label>
           {recordLoan && (
             <Field label="Lent on">
-              <input type="date" value={lentOn} onChange={(e) => setLentOn(e.target.value)} required />
+              <DatePicker label="Lent on" value={lentOn} onChange={setLentOn} />
             </Field>
           )}
         </div>
@@ -232,7 +233,7 @@ function PaymentForm({ debt, onSaved, onCancel }) {
           <input type="number" step="0.01" min="0.01" max={debt.remaining} inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} required autoFocus />
         </Field>
         <Field label={lent ? 'Received on' : 'Paid on'}>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+          <DatePicker label={lent ? 'Received on' : 'Paid on'} value={date} onChange={setDate} />
         </Field>
       </div>
       <Field label="Note (optional)">

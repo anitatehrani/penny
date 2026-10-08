@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { api } from '../api.js';
 import { AlertPicker, useAlertChoice } from '../components/Alerts.jsx';
 import { CategoryDot, CategorySelect, Empty, ErrorBox, Field, Icon, Loading, Modal, Segmented } from '../components/ui.jsx';
+import DatePicker from '../components/ds/DatePicker.jsx';
 import Select from '../components/ds/Select.jsx';
 import { useAuth } from '../auth.jsx';
 import { useApp } from '../context.jsx';
@@ -99,7 +100,7 @@ function PlanForm({ initial, onSaved, onCancel }) {
               <input type="number" min="1" max="360" value={count} onChange={(e) => setCount(e.target.value)} required />
             </Field>
             <Field label="First due date" hint="Later ones fall on the same day each month">
-              <input type="date" value={first} onChange={(e) => setFirst(e.target.value)} required />
+              <DatePicker label="First due date" value={first} onChange={setFirst} />
             </Field>
           </div>
           <Field label="Already paid" hint="How many installments you have already paid (the earliest ones).">

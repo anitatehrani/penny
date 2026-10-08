@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { api } from '../api.js';
 import { AlertPicker, useAlertChoice } from '../components/Alerts.jsx';
 import { Avatar, CategoryDot, CategorySelect, Empty, ErrorBox, Field, Icon, Loading, Modal, Segmented } from '../components/ui.jsx';
+import DatePicker from '../components/ds/DatePicker.jsx';
 import Select from '../components/ds/Select.jsx';
 import { useAuth } from '../auth.jsx';
 import { useApp } from '../context.jsx';
@@ -143,8 +144,8 @@ function RuleForm({ initial, onSaved, onCancel }) {
         <Field label={`Every … ${unit}`}>
           <input type="number" min="1" max="60" value={f.interval_count} onChange={(e) => set({ interval_count: e.target.value })} required />
         </Field>
-        <Field label="Next / first date" hint="Sets the day of the month">
-          <input type="date" value={f.start_date} onChange={(e) => set({ start_date: e.target.value })} required />
+        <Field label="Next / first date" hint="Changing it moves every payment still to come; paid ones stay">
+          <DatePicker label="Next / first date" value={f.start_date} onChange={(start_date) => set({ start_date })} />
         </Field>
       </div>
       <div className="end-box">
@@ -160,7 +161,7 @@ function RuleForm({ initial, onSaved, onCancel }) {
         />
         {endMode === 'date' && (
           <Field label="Last day">
-            <input type="date" value={f.end_date} min={f.start_date} onChange={(e) => set({ end_date: e.target.value })} required />
+            <DatePicker label="Last day" value={f.end_date} min={f.start_date} onChange={(end_date) => set({ end_date })} />
           </Field>
         )}
         {endMode === 'count' && (

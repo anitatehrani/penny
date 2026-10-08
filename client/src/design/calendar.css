@@ -128,3 +128,159 @@
     animation: none;
   }
 }
+
+/* ==========================================================================
+   Date picker (docs/DESIGN.md section 32): replaces the browser's own calendar everywhere a day is chosen.
+   The button that opens it is the dropdown button in its "field" or "inline" form (filters.css), so it looks like every other field.
+   ========================================================================== */
+.date-btn.empty .filter-btn-text {
+  color: var(--ink-3);
+}
+
+.date-pop {
+  position: fixed;
+  z-index: 115;
+  top: var(--pop-top, 0);
+  left: var(--pop-left, 0);
+  width: 268px;
+  padding: var(--s-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-3, 14px);
+  background: var(--surface);
+  box-shadow: var(--pop);
+  animation: rise-in var(--t-base) var(--ease) both;
+}
+
+.date-head {
+  display: grid;
+  grid-template-columns: 32px 1fr 32px;
+  align-items: center;
+  gap: var(--s-1);
+  margin-bottom: var(--s-2);
+}
+.date-head .btn.icon {
+  width: 32px;
+  height: 32px;
+  min-height: 0;
+  padding: 0;
+}
+.date-title {
+  justify-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-3);
+  font-weight: 650;
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease);
+}
+.date-title:hover,
+.date-title[aria-expanded='true'] {
+  background: var(--hover);
+}
+.date-title svg {
+  color: var(--ink-3);
+  transition: transform var(--t-base) var(--ease);
+}
+.date-title[aria-expanded='true'] svg {
+  transform: rotate(180deg);
+}
+
+.date-week,
+.date-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+}
+.date-week {
+  margin-bottom: var(--s-1);
+}
+.date-week span {
+  text-align: center;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.date-grid {
+  gap: 2px;
+}
+.date-cell {
+  display: grid;
+  place-items: center;
+  height: 33px;
+  border: 0;
+  border-radius: var(--r-1, 6px);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-2);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.date-cell:hover:not(.off):not(.selected) {
+  background: var(--hover);
+}
+.date-cell.outside {
+  color: var(--ink-3);
+}
+.date-cell.today {
+  font-weight: 700;
+  color: var(--accent-text);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+.date-cell.selected {
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+  box-shadow: none;
+}
+/* a day that cannot be chosen: plain and struck through (not faded, so the text stays readable) */
+.date-cell.off {
+  color: var(--ink-3);
+  text-decoration: line-through;
+  cursor: not-allowed;
+}
+.date-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--s-2);
+  padding-top: var(--s-2);
+  border-top: 1px solid var(--line);
+}
+/* the month and year chooser, inside the date picker */
+.date-pop .month-cal-head {
+  display: none;
+}
+
+@media (max-width: 520px) {
+  .date-pop {
+    top: auto;
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    width: auto;
+  }
+  .date-cell {
+    height: 42px;
+    font-size: var(--fs-3);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .date-pop {
+    animation: none;
+  }
+  .date-title svg {
+    transition: none;
+  }
+}
+.date-pop .month-cal-cell {
+  min-height: 36px;
+}

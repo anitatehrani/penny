@@ -519,7 +519,8 @@ async function sessionFor(db, email) {
     await page.waitForSelector('.card-box');
     eq(await page.$eval('.card-box input[type=checkbox]', (e) => e.checked), true, 'the card switch is on');
     eq(await page.$eval('.card-box .month-cal-cell.selected', (e) => e.dataset.month), NEXT, 'its bill month');
-    eq(await page.$eval('.modal input[type=date]', (e) => e.value), TODAY, 'the date field is the purchase day');
+    const longToday = await page.evaluate((d) => { const [y, m, dd] = d.split('-').map(Number); return new Date(y, m - 1, dd).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); }, TODAY);
+    truthy((await page.$eval('.modal .date-btn', (e) => e.getAttribute('aria-label'))).includes(longToday), 'the date field is the purchase day');
     await page.click('.card-box .month-cal-head button:last-of-type'); // next year, where the later months are
     const later = await page.$$eval('.card-box .month-cal-cell:not(.off)', (cells) => cells.at(-1).dataset.month);
     await page.click(`.card-box [data-month="${later}"]`);
@@ -853,7 +854,7 @@ async function sessionFor(db, email) {
     await page.click('[aria-label="Edit E2E ends"]');
     await page.waitForSelector('.end-box');
     eq(await page.$eval('.end-box .segmented .active', (e) => e.textContent.trim()), 'On a date', 'an existing ending opens as a date');
-    truthy(/^\d{4}-\d{2}-\d{2}$/.test(await page.$eval('.end-box input[type=date]', (e) => e.value)), 'with its date filled in');
+    truthy(!/not set/.test(await page.$eval('.end-box .date-btn', (e) => e.getAttribute('aria-label'))), 'with its date filled in');
     await page.evaluate(() => [...document.querySelectorAll('.end-box .segmented button')].find((b) => b.textContent.trim() === 'Never')?.click());
     await page.click('.modal .form-actions .btn.primary');
     await page.waitForSelector('.modal', { hidden: true });
@@ -863,6 +864,139 @@ async function sessionFor(db, email) {
     page = await open('/recurring');
     eq((await api(page, 'DELETE', '/recurring/' + ruleId)).status, 204, 'deleted');
     eq((await api(page, 'GET', '/recurring')).json.some((r) => r.description === 'E2E ends'), false, 'gone');
+  });
+
+  console.log('\nDate picker');
+  let dateRule;
+  const longOf = (d) => page.evaluate((x) => { const [y, m, dd] = x.split('-').map(Number); return new Date(y, m - 1, dd).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); }, d);
+  const dateBtnLabel = () => page.$eval('.modal .date-btn', (e) => e.getAttribute('aria-label'));
+  const openDateEdit = async () => {
+    page = await open('/recurring');
+    await page.click('[aria-label="Edit E2E dates"]');
+    await page.waitForSelector('.modal');
+  };
+  await check('a date field is our own calendar, not the browser one: Monday first, today ringed, the chosen day filled', async () => {
+    const made = await api(page, 'POST', '/recurring', { type: 'expense', description: 'E2E dates', amount: 50, frequency: 'monthly', interval_count: 1, start_date: THIS + '-15', active: true });
+    eq(made.status, 201, 'a monthly item on the 15th');
+    dateRule = made.json.id;
+    await openDateEdit();
+    eq(await count(page, '.modal input[type=date]'), 0, 'no browser date input in the form');
+    await page.click('.modal .date-btn');
+    await page.waitForSelector('.date-pop');
+    const info = await page.evaluate(() => ({
+      week: [...document.querySelectorAll('.date-week span')].map((e) => e.textContent.trim().toLowerCase().slice(0, 2)),
+      cells: document.querySelectorAll('.date-cell').length,
+      selected: document.querySelector('.date-cell.selected')?.dataset.ymd,
+      today: document.querySelectorAll('.date-cell.today').length,
+      dialog: document.querySelector('.date-pop')?.getAttribute('role'),
+      focused: document.activeElement?.dataset?.ymd,
+    }));
+    eq(info.week.join(','), 'mo,tu,we,th,fr,sa,su', 'Monday first');
+    eq(info.cells, 42, 'six whole weeks, so the page keeps its height');
+    eq(info.selected, THIS + '-15', 'the chosen day is filled');
+    eq(info.today, 1, 'today has a ring');
+    eq(info.dialog, 'dialog', 'it is a dialog');
+    eq(info.focused, THIS + '-15', 'focus starts on the chosen day');
+    eq(await page.$eval('.modal .date-btn', (e) => e.getAttribute('aria-expanded')), 'true', 'the button says it is open');
+  });
+  await check('choosing a day closes the calendar, not the form; another month, a year and Today work', async () => {
+    await page.click('.date-pop [data-ymd="' + THIS + '-20"]');
+    await page.waitForSelector('.date-pop', { hidden: true });
+    truthy(await page.$('.modal'), 'the form is still open');
+    truthy((await dateBtnLabel()).includes(await longOf(THIS + '-20')), 'the button shows the new day: ' + (await dateBtnLabel()));
+    await page.click('.modal .date-btn');
+    await page.waitForSelector('.date-pop');
+    const title = () => page.$eval('.date-title', (e) => e.textContent.trim());
+    const before = await title();
+    await page.click('.date-head button[aria-label="Next month"]');
+    await sleep(150);
+    truthy((await title()) !== before, 'the arrow moved to the next month');
+    await page.click('.date-title');
+    await page.waitForSelector('.date-pop .month-cal-cell');
+    eq(await count(page, '.date-pop .month-cal-cell'), 12, 'twelve months to jump to');
+    await page.click('.date-head button[aria-label="Next year"]');
+    await sleep(150);
+    await page.evaluate(() => document.querySelector('.date-pop .month-cal-cell[data-month$="-03"]').click());
+    await page.waitForSelector('.date-grid');
+    truthy(/March/.test(await title()), 'back on the days of the month that was chosen: ' + (await title()));
+    await page.evaluate(() => [...document.querySelectorAll('.date-foot .btn')].find((b) => b.textContent.trim() === 'Today').click());
+    await page.waitForSelector('.date-pop', { hidden: true });
+    truthy((await dateBtnLabel()).includes(await longOf(TODAY)), 'Today picked today: ' + (await dateBtnLabel()));
+  });
+  await check('the keyboard: arrows and Page Down move, Escape closes the calendar first and the form second', async () => {
+    await page.click('.modal .date-btn');
+    await page.waitForSelector('.date-pop');
+    const focused = () => page.evaluate(() => document.activeElement?.dataset?.ymd ?? '');
+    const start = await focused();
+    eq(start, TODAY, 'on the chosen day');
+    await page.keyboard.press('ArrowRight');
+    const next = await focused();
+    truthy(next > start && next.slice(0, 7) >= start.slice(0, 7), 'ArrowRight went one day on: ' + start + ' -> ' + next);
+    await page.keyboard.press('ArrowDown');
+    truthy((await focused()) > next, 'ArrowDown went a week on');
+    const month = (await focused()).slice(0, 7);
+    await page.keyboard.press('PageDown');
+    truthy((await focused()).slice(0, 7) > month, 'Page Down went to the next month');
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('.date-pop', { hidden: true });
+    truthy(await page.$('.modal'), 'Escape closed only the calendar');
+    eq(await page.evaluate(() => document.activeElement?.classList.contains('date-btn')), true, 'focus came back to the field');
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('.modal', { hidden: true });
+  });
+  await check('days that cannot be chosen are struck through and refuse the click (the last day cannot be before the first)', async () => {
+    await openDateEdit();
+    await page.evaluate(() => [...document.querySelectorAll('.end-box .segmented button')].find((b) => /On a date/.test(b.textContent))?.click());
+    await page.waitForSelector('.end-box .date-btn');
+    const startLabel = await page.$eval('.end-box .date-btn', (e) => e.getAttribute('aria-label'));
+    await page.click('.end-box .date-btn');
+    await page.waitForSelector('.date-pop');
+    const off = await page.evaluate(() => ({ n: document.querySelectorAll('.date-cell.off').length, title: document.querySelector('.date-cell.off')?.getAttribute('title'), first: document.querySelector('.date-cell.off')?.dataset.ymd }));
+    truthy(off.n > 0 && off.title === 'Too early', 'days before the start are off: ' + JSON.stringify(off));
+    await page.click('.date-pop [data-ymd="' + off.first + '"]');
+    await sleep(150);
+    truthy(await page.$('.date-pop'), 'clicking a day that is off does nothing');
+    eq(await page.$eval('.end-box .date-btn', (e) => e.getAttribute('aria-label')), startLabel, 'the value did not change');
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('.modal', { hidden: true });
+  });
+  await check('changing the date of the recurring item on the Recurring page moves every unpaid month', async () => {
+    const pending = async () => (await api(page, 'GET', '/transactions?from=2000-01-01&to=2100-01-01&status=pending&limit=1000')).json.filter((t) => t.recurring_id === dateRule);
+    const before = await pending();
+    truthy(before.length >= 24, 'two years of payments: ' + before.length);
+    await openDateEdit();
+    await page.click('.modal .date-btn');
+    await page.waitForSelector('.date-pop');
+    await page.click('.date-pop [data-ymd="' + THIS + '-22"]');
+    await page.waitForSelector('.date-pop', { hidden: true });
+    await page.click('.modal .form-actions .btn.primary');
+    await page.waitForSelector('.modal', { hidden: true });
+    const after = await pending();
+    eq(after.length, before.length, 'the same number of months');
+    eq([...new Set(after.map((t) => t.date.slice(8)))].join(), '22', 'every month is on the 22nd now');
+  });
+  await check('changing one month on the Payments page changes only that month, not the recurring item', async () => {
+    page = await open('/payments?month=' + NEXT);
+    await page.evaluate(() => [...document.querySelectorAll('.tx-row')].find((r) => r.textContent.includes('E2E dates')).querySelector('[aria-label="Edit E2E dates"]').click());
+    await page.waitForSelector('.modal');
+    truthy(/only affect this payment/.test(await text(page, '.modal .banner')), 'the form says it changes only this payment');
+    await page.click('.modal .date-btn');
+    await page.waitForSelector('.date-pop');
+    await page.click('.date-pop [data-ymd="' + NEXT + '-03"]');
+    await page.waitForSelector('.date-pop', { hidden: true });
+    await page.click('.modal .form-actions .btn.primary');
+    await page.waitForSelector('.modal', { hidden: true });
+    const all = (await api(page, 'GET', '/transactions?from=2000-01-01&to=2100-01-01&status=pending&limit=1000')).json.filter((t) => t.recurring_id === dateRule);
+    eq(all.filter((t) => t.date === NEXT + '-03').length, 1, 'that month moved to the 3rd');
+    eq([...new Set(all.filter((t) => t.date !== NEXT + '-03').map((t) => t.date.slice(8)))].join(), '22', 'every other month is still on the 22nd');
+    const rule = (await api(page, 'GET', '/recurring')).json.find((r) => r.id === dateRule);
+    eq(rule.start_date.slice(8) + ',' + rule.amount, '22,50', 'the recurring item itself is as it was');
+  });
+  await check('clean up: the test recurring item for the dates is removed', async () => {
+    page = await open('/recurring');
+    eq((await api(page, 'DELETE', '/recurring/' + dateRule)).status, 204, 'deleted');
+    eq((await api(page, 'GET', '/recurring')).json.some((r) => r.description === 'E2E dates'), false, 'gone');
   });
 
   await check('recurring items say what they come to in a month, with a share bar that is only decoration', async () => {

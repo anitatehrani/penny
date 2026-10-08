@@ -9,6 +9,7 @@ import { useFetch } from '../hooks.js';
 import { useWorkspace } from '../workspace.jsx';
 import { AlertPicker, choiceFrom, NO_CHOICE, sameChoice, saveAlertChoice } from './Alerts.jsx';
 import Receipts, { uploadQueued, useReceiptList } from './Receipts.jsx';
+import DatePicker from './ds/DatePicker.jsx';
 import Select from './ds/Select.jsx';
 import { Avatar, CategorySelect, Field, Segmented } from './ui.jsx';
 
@@ -192,7 +193,7 @@ export default function TransactionForm({ initial, defaultDate, onSaved, onCance
           <input type="number" inputMode="decimal" step="0.01" min="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required placeholder="0.00" />
         </Field>
         <Field label={onCard ? 'Bought on' : 'Date'} hint={onCard ? 'The day you used the card.' : 'Use a past date to record something you already paid.'}>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+          <DatePicker label={onCard ? 'Bought on' : 'Date'} value={date} onChange={setDate} />
         </Field>
       </div>
       {type === 'expense' && (

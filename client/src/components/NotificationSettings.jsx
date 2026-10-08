@@ -4,6 +4,7 @@ import { useApp } from '../context.jsx';
 import { dateLabel, timeAgo } from '../format.js';
 import { pushSupported, useNotifications } from '../notifications.jsx';
 import EmailStatus from './EmailStatus.jsx';
+import DatePicker from './ds/DatePicker.jsx';
 import Select from './ds/Select.jsx';
 import { ErrorBox, Field, Icon, Loading, Switch } from './ui.jsx';
 
@@ -264,7 +265,7 @@ export default function NotificationSettings() {
             </button>
           ))}
           <span className="pause-custom">
-            <input type="date" value={pauseDate} min={addDays(0)} onChange={(e) => setPauseDate(e.target.value)} aria-label="Pause until this date" />
+            <DatePicker compact label="Pause until this date" placeholder="Pick a day" value={pauseDate} min={addDays(0)} onChange={setPauseDate} />
             <button className="btn sm" disabled={!pauseDate} onClick={() => update({ paused_until: pauseDate }, 'Alerts paused').then((ok) => ok && setPauseDate(''))}>
               Pause until
             </button>

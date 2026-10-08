@@ -724,3 +724,36 @@ session ended, and the port 5433 was shared with another project's database. The
   before); `.env` is created once with a made-up database password (unless the database volume already exists, then the old default is kept so Penny
   can still get in); a busy port is reported with the name of the program using it.
 - **Tests** read the files: the compose file, the Dockerfile, `.dockerignore`, the command list, the aliases, and the "asks before deleting" rules.
+
+## 32. One date picker everywhere, and what changing a recurring date changes (defined before implementation)
+
+**What was wrong.** Every date field used the browser's own calendar: a grey system popup that ignores the theme, looks different in each
+browser, sits oddly over the form and cannot say why a day is not allowed. Separately, it was not written down what happens when a
+recurring item's date is changed on the Recurring page, or when one month of it is changed on the Payments page, and a real flaw hid in it.
+
+**The date picker** (`components/ds/DatePicker.jsx`, rules in `client/src/dateLogic.js`) replaces all nine native date fields: a payment's
+date, the first date and last day of a recurring item, the first due date of an installment plan, the four dates of the Debts forms, and
+"pause alerts until".
+- A button that looks like the other form fields (the dropdown button in its "field" form, "inline" in a line of text) and shows the day
+  ("Oct 9, 2026"). It opens a calendar page: the month and year as a title, arrows, Monday-first weeks, always six weeks tall (so the popup does not
+  change height), today ringed, the chosen day filled, days of the neighbouring months faded, and a **Today** button.
+- The title opens a month chooser (the same month calendar as elsewhere); its arrows then change the year.
+- `min` and `max` limit the days. A day that cannot be chosen is struck through, has the reason as a tooltip ("Too early") and ignores a
+  click: the last day of a recurring item cannot be before its first.
+- **Keyboard:** arrows move a day or a week, Home and End go to the ends of the week, Page Up and Page Down change month (Shift: year), Enter
+  or Space choose, **Escape closes the calendar first and the form behind it second**, Tab stays inside while it is open, and focus goes back
+  to the field. The button is named "Bought on: Thursday, 8 October 2026" for a screen reader, and the days are named in full.
+- **Phone:** it becomes a sheet at the bottom of the screen with larger days. Light and dark come from the same tokens as everything else.
+- The value is `YYYY-MM-DD` exactly as with the native field, so no form or server rule changes. Arithmetic is done in UTC, so a daylight
+  saving change can never move a day.
+
+**What changing a recurring date changes.**
+- On the **Recurring page**, saving an item (a new day, amount, description ...) rebuilds **every unpaid payment from this month on**. A new day
+  of the month reaches all the months still to come. Paid payments stay as they were. (This was already so; it is now tested and the form says it.)
+- On the **Payments page**, changing one payment of a recurring item (its day, amount, even moving it to another month) changes **only that
+  payment**. The recurring item and every other month are untouched, and the changed payment is still that slot's payment, so it is not made
+  again. Marking one paid, skipping it or deleting it likewise touches only it.
+- **The flaw that was found and fixed:** a monthly item gets one payment a month (a yearly one, one a year). If this month's payment was already
+  paid (or skipped) on the old day and the item's day was changed, a second payment on the new day was added to the same month: the rent twice.
+  Now a month (a year, for a yearly item) that already holds a paid or skipped payment of the item is that period's payment and gets no second
+  one. This is in `materializeRule`, so it also holds for the daily top-up of the next months. Weekly items are not affected.
