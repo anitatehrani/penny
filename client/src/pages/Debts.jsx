@@ -337,7 +337,17 @@ export default function Debts() {
   const settled = mine.filter((d) => d.status === 'settled');
   const after = totals && balanceAfter(side, summary.data?.balance, totals.counted);
   const activeCount = (dir) => ofDirection(debts, dir).filter((d) => d.status === 'active').length;
-  const tabLabel = (dir) => `${WORDS[dir].tab}${data && activeCount(dir) > 0 ? ` · ${activeCount(dir)}` : ''}`;
+  // The name, and how many are still open as a small count pill (only when there are some).
+  const tabLabel = (dir) => (
+    <>
+      {WORDS[dir].tab}
+      {data && activeCount(dir) > 0 && (
+        <span className="seg-count" aria-label={`${activeCount(dir)} open`}>
+          {activeCount(dir)}
+        </span>
+      )}
+    </>
+  );
 
   const Card = ({ d }) => {
     const dw = WORDS[directionOf(d)];

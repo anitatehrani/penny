@@ -123,7 +123,7 @@ export async function runBackup({ dir = backupDir(), now = new Date(), label = '
   const tmp = `${final}.tmp`;
   try {
     const conn = connectionArgs(url);
-    await run(pgTool('pg_dump'), [...conn.args, '--format=custom', '--compress=6', '--no-owner', '--file', tmp], conn.env);
+    await run(pgTool('pg_dump'), [...conn.args, '-w', '--format=custom', '--compress=6', '--no-owner', '--file', tmp], conn.env);
     const bytes = fs.statSync(tmp).size;
     if (bytes < 200) throw new Error('The backup came out empty.');
     await run(pgTool('pg_restore'), ['--list', tmp]); // the dump must be readable, or it is not a backup

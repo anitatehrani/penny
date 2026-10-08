@@ -1,6 +1,7 @@
 **/node_modules
 .git
 .pgdata
+backups
 .env
 **/.env
 client/dist
@@ -14,3 +15,5 @@ server/test-mail-*
 Dockerfile
 docker-compose*.yml
 .dockerignore
+penny.ps1
+penny.cmd

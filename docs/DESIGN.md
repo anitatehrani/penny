@@ -703,3 +703,24 @@ hide an overspent month. Likewise **safe to spend** does not treat an expected r
 
 **Tests.** The API (both directions, totals kept apart, income not expense, direction fixed, exclusions from spending/earnings, safe to
 spend), the pure client functions (labels, totals, "if everyone paid you back"), and the browser (switch, form, record a repayment).
+
+## 31. Everything in Docker, and one command file (defined before implementation)
+
+**What was missing.** Penny ran on the host: its own Postgres cluster (`.pgdata`, port 5433) started by hand, a Node server started by hand, and
+a half-working Docker setup (an empty database, no backups, nothing for development). Two things stopped for no visible reason when a tool
+session ended, and the port 5433 was shared with another project's database. The whole thing needs to start with one word.
+
+**What it is.**
+- **`penny.ps1`** (started by `penny.cmd`) is the one file that runs everything. Each command is one `Command <name> '<help>' { ... }` line, and
+  `Alias bfu up` gives it a short name, so adding or changing a command means editing one line. Docker Desktop is the only requirement.
+- **Two modes in `docker-compose.yml`:** the default (`app` + `db`: one container serves the API and the built UI, like production), and the
+  profile `dev` (`api` with `nodemon --legacy-watch`, `web` with Vite and polling, both with the source mounted and `node_modules` in named volumes).
+  They use the same port, so `up` stops the dev containers and `dev` stops `app`.
+- **Backups stay on.** The runtime image installs the PostgreSQL 17 tools; `/backups` is a folder of the computer (`BACKUP_HOST_DIR`,
+  default `./backups`). `backup`, `restore` and `import-local` are commands. The backups folder is in `.dockerignore` and `.gitignore`.
+- **`import-local`** backs up the old local database with the host's `pg_dump` (read only) and restores it into the Docker database; it asks first and
+  never changes or stops the old database. The compose project has a name (`penny`), so the volumes do not depend on the folder name.
+- **Safety:** commands that replace or delete data ask first (`restore`, `import-local`: y/n; `wipe`: type DELETE, and a backup is made
+  before); `.env` is created once with a made-up database password (unless the database volume already exists, then the old default is kept so Penny
+  can still get in); a busy port is reported with the name of the program using it.
+- **Tests** read the files: the compose file, the Dockerfile, `.dockerignore`, the command list, the aliases, and the "asks before deleting" rules.

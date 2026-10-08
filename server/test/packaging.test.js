@@ -123,17 +123,43 @@ describe('Docker packaging', () => {
     const used = new Set();
     for (const f of walk('server/src').filter((x) => x.endsWith('.js'))) for (const m of read(f).matchAll(/process\.env\.([A-Z_]+)/g)) used.add(m[1]);
     // Not wired on purpose: PORT is fixed inside the container (the host port is mapped instead), the rest are set in the Dockerfile,
-    // are test-only, or are developer switches. The backup settings only matter where the app makes its own backups (not in the
-    // container, which has BACKUPS=off and no pg_dump): BACKUP_DIR, BACKUP_COPY_DIR and PG_BIN.
+    // are test-only, or are developer switches. BACKUP_DIR is fixed to /backups inside the container (the host folder is mounted
+    // there, see BACKUP_HOST_DIR); BACKUP_COPY_DIR and PG_BIN are for running outside Docker (pg_dump is on the PATH in the image).
     const notNeeded = new Set(['PORT', 'MAIL_PREVIEW_DIR', 'ALERT_SCAN_MINUTES', 'SMTP_IGNORE_TLS', 'NODE_ENV', 'BACKUP_DIR', 'BACKUP_COPY_DIR', 'PG_BIN']);
     const unwired = [...used].filter((n) => !notNeeded.has(n) && !compose.includes(`${n}:`));
     assert.deepEqual(unwired, [], 'a new setting was added to the server but not to docker-compose.yml');
     assert.ok(used.has('DATABASE_URL') && used.has('SMTP_HOST'), 'the scan itself is working');
   });
 
-  it('switches the app\'s own backups off in the container, which has no pg_dump, and says how to back up the database instead', () => {
-    assert.match(compose, /BACKUPS: "off"/);
-    assert.match(compose, /docker compose exec -T db pg_dump/);
+  it('keeps the app\'s own daily backups ON in the container: pg_dump is in the image and /backups is a folder of the computer', () => {
+    assert.match(dockerfile, /apk add --no-cache postgresql17-client/);
+    assert.match(dockerfile, /ENV BACKUP_DIR=\/backups/);
+    const prod = compose.split('# ---- development')[0];
+    assert.match(prod, /BACKUP_DIR: \/backups/);
+    assert.match(prod, /\$\{BACKUP_HOST_DIR:-\.\/backups\}:\/backups/);
+    assert.doesNotMatch(prod, /BACKUPS: "off"/, 'the real app must back itself up');
+    assert.match(dockerfile, /mkdir -p \/data\/mail-preview \/backups && chown -R node:node/);
+  });
+
+  it('keeps the backups folder out of the build context (it holds real financial data)', () => {
+    assert.ok(ignoredBy(ignore, 'backups/penny-2026-10-05-2151.dump'));
+    assert.ok(read('.gitignore').split(/\r?\n/).includes('backups/'));
+  });
+
+  it('has a development profile: the backend and the frontend as separate containers that reload on change', () => {
+    const dev = compose.split('# ---- development')[1];
+    assert.match(dev, /api:\s+profiles: \["dev"\]/);
+    assert.match(dev, /web:\s+profiles: \["dev"\]/);
+    assert.match(dev, /nodemon --legacy-watch --watch src --ext js,json,sql src\/index\.js/);
+    assert.match(dev, /API_URL: http:\/\/api:3001/);
+    assert.match(read('client/vite.config.js'), /process\.env\.API_URL/);
+    assert.match(dockerfile, /AS dev/);
+    // The production image stays the last stage, so a plain `docker build .` makes it.
+    assert.ok(dockerfile.lastIndexOf('FROM node:22-alpine\n') > dockerfile.indexOf('AS dev'));
+  });
+
+  it('gives a project name of its own, so its volumes do not depend on the folder name', () => {
+    assert.match(compose, /^name: penny$/m);
   });
 
   it('points the app at the db service and waits for it to be healthy', () => {
@@ -149,5 +175,47 @@ describe('Docker packaging', () => {
     assert.match(published, /^127\.0\.0\.1:/);
     assert.doesNotMatch(published, /:5433:/);
     assert.doesNotMatch(compose, /ports:\s+- "(?!127\.0\.0\.1)[^"]*:5432"/);
+  });
+});
+
+describe('the penny command file', () => {
+  const script = read('penny.ps1');
+  const cmd = read('penny.cmd');
+
+  it('is a PowerShell file with a .cmd starter, so it runs without changing the script policy', () => {
+    assert.match(cmd, /-ExecutionPolicy Bypass -File "%~dp0penny\.ps1" %\*/);
+    assert.match(script, /^param\(/m);
+  });
+
+  it('has the everyday commands, each with a help line', () => {
+    const defined = [...script.matchAll(/^Command (\S+) '([^']+)'/gm)].map((m) => m[1]);
+    for (const c of ['help', 'install', 'up', 'down', 'stop', 'restart', 'build', 'rebuild', 'dev', 'status', 'logs', 'shell', 'psql', 'backup', 'restore', 'import-local', 'seed', 'test', 'e2e', 'stop-local', 'wipe']) {
+      assert.ok(defined.includes(c), `${c} is a command`);
+    }
+    assert.equal(new Set(defined).size, defined.length, 'no command is defined twice');
+  });
+
+  it('has the short names, and each one points at a real command', () => {
+    const defined = new Set([...script.matchAll(/^Command (\S+) '/gm)].map((m) => m[1]));
+    const aliases = [...script.matchAll(/^Alias (\S+) (\S+)/gm)];
+    assert.ok(aliases.some((m) => m[1] === 'bfu' && m[2] === 'up'), 'bfu starts everything');
+    for (const [, short, target] of aliases) assert.ok(defined.has(target), `${short} -> ${target}`);
+  });
+
+  it('asks before anything that replaces or deletes data, and says what a restore does', () => {
+    assert.match(script, /Command restore[\s\S]*?Ask 'Go ahead\?'/);
+    assert.match(script, /Command import-local[\s\S]*?Ask 'Go ahead\?'/);
+    assert.match(script, /Command wipe[\s\S]*?Type DELETE to go on/);
+    assert.match(script, /A safety copy of what is there now is made first/);
+  });
+
+  it('makes a backup before it deletes the database, and never touches the old local database by itself', () => {
+    assert.match(script, /Command wipe[\s\S]*?scripts\/backup\.mjs[\s\S]*?down -v/);
+    assert.doesNotMatch(script, /pg_ctl|dropdb|DROP DATABASE|\.pgdata/);
+  });
+
+  it('keeps every setting the compose file reads in one place (.env), and creates it with a made-up password', () => {
+    assert.match(script, /Copy-Item \.env\.docker\.example \.env/);
+    assert.match(script, /DB_PASSWORD=\$password/);
   });
 });

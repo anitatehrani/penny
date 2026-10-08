@@ -1,8 +1,12 @@
 # Penny with its own Postgres:  docker compose up -d --build   ->  http://localhost:3001
+# Easier: use the command file at the top of the repo, `.\penny up` (see README, "The penny command").
+# Development with hot reload, backend and frontend as separate containers:  .\penny dev   (profile "dev")
 #
 # Settings are read from a `.env` file next to this one (copy .env.docker.example); every value has a default.
 # Only Postgres is needed while developing?  docker compose up -d db
 #   then set DATABASE_URL=postgres://penny:penny@127.0.0.1:5434/penny in server/.env
+name: penny
+
 services:
   db:
     image: postgres:17-alpine
@@ -47,12 +51,63 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       MAIL_FROM: ${MAIL_FROM:-Penny <no-reply@localhost>}
-      # The app image has no PostgreSQL command-line tools, so it cannot make its own backups here. Back up the database service instead:
-      #   docker compose exec -T db pg_dump -U penny -Fc penny > penny.dump
-      BACKUPS: "off"
+      # The app makes its own daily backup (pg_dump is in the image) into /backups, which is a folder of this computer (see volumes).
+      BACKUP_DIR: /backups
     volumes:
       - penny-mail:/data/mail-preview
+      # Where the backups land on this computer. Set BACKUP_HOST_DIR to another drive or a synced folder to keep a copy elsewhere.
+      - ${BACKUP_HOST_DIR:-./backups}:/backups
+
+  # ---- development (profile "dev"): backend and frontend as two containers with hot reload ----------------------------------
+  # Start with `.\penny dev`. Do not run it together with "app": both use the port below.
+  api:
+    profiles: ["dev"]
+    build:
+      context: .
+      target: dev
+    image: penny-dev:latest
+    working_dir: /app/server
+    command: sh -c "npm install --no-audit --no-fund && npx --yes nodemon --legacy-watch --watch src --ext js,json,sql src/index.js"
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${PORT:-3001}:3001"
+    environment:
+      PORT: "3001"
+      DATABASE_URL: postgres://penny:${DB_PASSWORD:-penny}@db:5432/penny
+      APP_URL: ${APP_URL:-http://localhost:5173}
+      BACKUP_DIR: /backups
+      BACKUPS: "off"
+      MAIL_PREVIEW_DIR: /data/mail-preview
+    volumes:
+      - ./server:/app/server
+      - api-node-modules:/app/server/node_modules
+      - penny-mail:/data/mail-preview
+      - ${BACKUP_HOST_DIR:-./backups}:/backups
+
+  web:
+    profiles: ["dev"]
+    build:
+      context: .
+      target: dev
+    image: penny-dev:latest
+    working_dir: /app/client
+    command: sh -c "npm install --no-audit --no-fund && npx vite --host"
+    depends_on:
+      - api
+    ports:
+      - "${WEB_PORT:-5173}:5173"
+    environment:
+      API_URL: http://api:3001
+      VITE_HOST: "true"
+      VITE_POLL: "true"
+    volumes:
+      - ./client:/app/client
+      - web-node-modules:/app/client/node_modules
 
 volumes:
   penny-data:
   penny-mail:
+  api-node-modules:
+  web-node-modules:

@@ -211,7 +211,7 @@ describe('making a backup and putting it back (real pg_dump and pg_restore)', ()
     const dir = tmpdir();
     const r = await runBackup({ dir, url: srcUrl });
     const c = connectionArgs(dstUrl);
-    const out = spawnSync(pgTool('pg_restore'), [...c.args, '--no-owner', '--single-transaction', r.path], { encoding: 'utf8' });
+    const out = spawnSync(pgTool('pg_restore'), [...c.args, '-w', '--no-owner', '--single-transaction', r.path], { encoding: 'utf8', env: { ...process.env, ...c.env } });
     assert.equal(out.status, 0, out.stderr);
     assert.deepEqual(await rows(dstUrl, 'SELECT id, body FROM notes ORDER BY id'), await rows(srcUrl, 'SELECT id, body FROM notes ORDER BY id'));
     assert.equal((await rows(dstUrl, 'SELECT body FROM notes WHERE id = 3'))[0].body, 'naïve café – €1,234.56');

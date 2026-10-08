@@ -14,10 +14,18 @@ WORKDIR /build/server
 COPY server/package.json server/package-lock.json ./
 RUN npm ci --omit=dev --no-audit --no-fund
 
-# ---- 3. Runtime image: Node serves the API and the built client -------------
+# ---- 3. Development image: only Node and the PostgreSQL tools --------------
+# The source and node_modules are mounted by docker-compose (profile "dev"), so nothing is copied here.
+FROM node:22-alpine AS dev
+RUN apk add --no-cache postgresql17-client
+WORKDIR /app
+
+# ---- 4. Runtime image: Node serves the API and the built client -------------
 FROM node:22-alpine
 ENV NODE_ENV=production \
     PORT=3001
+# pg_dump / pg_restore, so the app can make its own daily backups (see README > Backups and restoring).
+RUN apk add --no-cache postgresql17-client
 WORKDIR /app
 
 # The server looks for the client at ../../client/dist relative to server/src.
@@ -29,8 +37,11 @@ COPY --from=client /build/client/dist ./client/dist
 
 # Without SMTP_HOST, e-mails are written here instead of being sent (see README > E-mail alerts).
 ENV MAIL_PREVIEW_DIR=/data/mail-preview
-RUN mkdir -p /data/mail-preview && chown -R node:node /data
+RUN mkdir -p /data/mail-preview /backups && chown -R node:node /data /backups
 VOLUME /data/mail-preview
+
+# Backups are written here; docker-compose mounts a folder of the host on it so they survive the container.
+ENV BACKUP_DIR=/backups
 
 USER node
 WORKDIR /app/server

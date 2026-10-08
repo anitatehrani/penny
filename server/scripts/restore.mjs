@@ -44,7 +44,7 @@ try {
 }
 
 const code = await new Promise((resolve) => {
-  const child = spawn(pgTool('pg_restore'), [...conn.args, '--clean', '--if-exists', '--no-owner', '--single-transaction', file], { env: { ...process.env, ...conn.env }, stdio: 'inherit' });
+  const child = spawn(pgTool('pg_restore'), [...conn.args, '-w', '--clean', '--if-exists', '--no-owner', '--single-transaction', file], { env: { ...process.env, ...conn.env }, stdio: 'inherit' });
   child.on('error', (e) => {
     console.error(e.message);
     resolve(1);

@@ -73,13 +73,47 @@ npm run build
 npm start
 ```
 
-### With Docker
+### With Docker, and the `penny` command
 
-Needs only Docker. One command builds the app and starts it together with its own Postgres:
+Needs only Docker Desktop. Everything (the database, the backend and the frontend) runs in containers, and one file, `penny.ps1`
+(started through `penny.cmd`), runs it all. In PowerShell, in the project folder:
+
+```powershell
+.\penny install        # first time: makes .env (with a made-up database password), builds, starts
+.\penny up             # (short name: bfu) start database + backend + frontend, then open http://localhost:3001
+.\penny down           # (bfd) stop and remove the containers; the data stays in a Docker volume
+.\penny help           # every command
+```
+
+| Command | What it does |
+| --- | --- |
+| `up` (`bfu`), `down` (`bfd`), `stop`, `restart [service]` (`bfr`) | start, stop (and remove) or restart the containers |
+| `install` | first time: `.env`, build, start |
+| `build [--no-cache]`, `rebuild` | build the image again |
+| `dev` | development with hot reload: the backend (`api`, `nodemon` in polling mode) and the frontend (`web`, Vite on port 5173) as two containers |
+| `status` (`s`), `logs [service]` (`l`), `open`, `shell [service]`, `psql` | look at it, follow the log, open the browser, get a shell or the database prompt |
+| `backup`, `restore latest`, `restore <file>` | make a backup now, or put one back (asks first, makes a safety copy first) |
+| `import-local` | move the data of the old local database (`npm start`, port 5433) into Docker; the old one is not touched |
+| `seed` | demo accounts and data |
+| `test`, `e2e`, `deps` | run the tests against the Docker database, the browser checks, install packages on this computer |
+| `stop-local`, `db-local start\|stop` | stop the old local server, start or stop the old local database |
+| `wipe` | delete the Docker database (makes a backup first and asks you to type DELETE) |
+
+**Add your own command** at the bottom of `penny.ps1`, in "YOUR COMMANDS", one line each:
+
+```powershell
+Command fresh 'Rebuild, start and open the browser' { Up; Start-Process (Url) }
+Alias   bfu up
+```
+
+Inside the braces anything PowerShell works; `Compose ...` runs `docker compose ...`, `Up` and `Down` are the commands above, `$Rest` is what was
+typed after the name.
+
+The same thing without the command file:
 
 ```bash
 docker compose up -d --build     # then open http://localhost:3001
-docker compose exec app npm run seed:demo   # optional: fill it with the demo data (see "Demo data")
+docker compose exec app node scripts/seed-demo.mjs   # optional: fill it with the demo data (see "Demo data")
 docker compose logs -f app       # follow the server log
 docker compose down              # stop (your data stays in the penny-data volume); add -v to delete it
 ```
@@ -92,7 +126,12 @@ password (set it before the first start), `APP_URL`, `COOKIE_SECURE=true` behind
 Without `SMTP_HOST`, e-mails are saved in the `penny-mail` volume instead of being sent:
 `docker compose exec app ls /data/mail-preview`.
 
-Data lives in two named volumes: `penny-data` (Postgres) and `penny-mail`. To update after pulling new code, run `docker compose up -d --build` again.
+Data lives in two named volumes: `penny-data` (Postgres) and `penny-mail`, and the backups in a folder of this computer (`backups/`, or
+`BACKUP_HOST_DIR` in `.env`, better on another drive or a synced folder). To update after pulling new code, run `.\penny up` again.
+The old local database and `npm start` keep working next to it, but both use port 3001: only one at a time (`.\penny stop-local`).
+
+**Moving to Docker with your existing budget:** `.\penny import-local` makes a backup of the old local database and restores it into the Docker
+database (after asking). Check the result at http://localhost:3001; the old database stays as it was.
 
 ### Tests
 
@@ -154,8 +193,8 @@ All of the data is in one database on one computer, so Penny copies it for you.
   3. A restore **replaces** what is in the database. It first makes a `pre-restore` backup of what is there now (kept 90 days, so even a wrong
      restore can be undone), then restores in a single step: if anything fails, the database is left exactly as it was.
   4. Start the server again.
-* **In Docker** the app's own backups are off (its image has no PostgreSQL command-line tools). Back up the database service instead:
-  `docker compose exec -T db pg_dump -U penny -Fc penny > penny.dump`, and keep that file somewhere safe.
+* **In Docker** the app makes its own daily backups too (`pg_dump` is in the image) into `/backups`, which is the `backups/` folder of this
+  computer (`BACKUP_HOST_DIR` in `.env` changes where). `.\penny backup` makes one now, `.\penny restore latest` puts one back.
 * **Switch off:** `BACKUPS=off` in `server/.env`. The tools `pg_dump` and `pg_restore` are found through `PG_BIN`, the usual Windows folders
   (`C:\Program Files\PostgreSQL\17\bin`) or the PATH.
 
@@ -340,6 +379,7 @@ client/src   pages/ (older screens) · layout/ (sidebar, top bar, bottom bar) ·
              design/ (tokens, base, components, shell, dashboard, assistant CSS) · prefs.jsx · quick.jsx
 e2e          browser checks (puppeteer-core)
 Dockerfile · docker-compose.yml · .env.docker.example   run the whole app (and its Postgres) in containers
+penny.ps1 · penny.cmd                                   the command file: `.\penny up`, `down`, `dev`, `backup`, ... (add your own)
 docs         DESIGN.md · brand/ (the original wordmark artwork)
 client/public favicon, app icons, manifest, standalone wordmark SVGs (generated by scripts/make-brand-assets.cjs)
 scripts      pg-local.ps1 (start/stop the local Postgres) · make-brand-assets.cjs (redraw the favicon and app icons)
