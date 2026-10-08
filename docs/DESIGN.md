@@ -757,3 +757,78 @@ date, the first date and last day of a recurring item, the first due date of an 
   paid (or skipped) on the old day and the item's day was changed, a second payment on the new day was added to the same month: the rent twice.
   Now a month (a year, for a yearly item) that already holds a paid or skipped payment of the item is that period's payment and gets no second
   one. This is in `materializeRule`, so it also holds for the daily top-up of the next months. Weekly items are not affected.
+
+## 33. An admin dashboard for running Penny in public (defined before implementation)
+
+**Why.** Once Penny is public, the person running it needs to see how it is doing (who signs up, whether people use it, whether it is healthy,
+whether backups and e-mail work), to deal with an abusive or broken account, and to know that someone is guessing passwords. Nothing of that
+existed: no admin, no way to stop an account, no record of sign-ins.
+
+**The rule that comes first: the dashboard never shows anyone's money.** Penny holds private financial data. The dashboard shows accounts and how the
+service is running: names, e-mail addresses, when someone joined and was last seen, how they sign in, how many payments they have (a count),
+how big the database is. It never shows a payment, an amount, a debt, a note, a category name, a budget name or a receipt, and no dashboard
+route returns one. The single exception is **View as** (below), which is deliberate, deterred, limited and visible.
+
+**Who is an admin.** `users.is_admin`. It is set only from the command line (`.\penny make-admin you@example.com`, `remove-admin`), never
+through the website, so there is no page or request that can promote anyone, and an account made with an admin's e-mail address cannot become
+one. Everything under `/api/admin` answers **404** to anyone who is not an admin (the page does not reveal that it exists), and the Admin
+page only appears in the menu for admins. An admin cannot suspend, sign out or delete themselves or another admin.
+
+**What it shows** (a page at `/admin`, four tabs):
+- **Overview:** people (total, new in 24 hours / 7 / 30 days, active in 24 hours / 7 / 30 days, e-mail confirmed, signing in with Google or a
+  password, suspended, admins), content as counts only (personal and shared budgets, payments, receipts and their size), the last 24 hours (sign-ins,
+  failed sign-ins, sign-ups, people turned away by the rate limit), a bar chart of sign-ups per day for 30 days, and a **going-public checklist**
+  that reads the real settings: secure cookie on, public address is not localhost, real mail server (not the preview folder), backups on, the proxy
+  setting present.
+- **Users:** search (name, username, e-mail), a filter (all, active, suspended, e-mail not confirmed, admins), sort (newest, last seen, name), 25 a
+  page. A row opens its details (devices signed in, shared budgets, recent events) and its actions: **Suspend** (with a reason shown only to
+  admins), **Reinstate**, **Sign out everywhere**, **Delete account** (type the username to confirm).
+- **Activity:** a log of sign-ups, sign-ins, failed sign-ins, blocked sign-ins, password changes, e-mail confirmations, rate-limit hits and every
+  admin action (who did what to whom), filterable by kind, 50 a page. A failed attempt records only that it was by e-mail or by username, never
+  what was typed. The source of an event is a short hash of the IP address (the address itself is not kept): enough to see that twenty failures
+  came from one place, not enough to identify anyone. Events are kept 90 days.
+- **System:** database size, connections, the biggest tables, uptime, memory, backups (last one, how many, any problem), mail (sent and failed in
+  24 hours, the latest failures with their error).
+
+**Suspending** an account (`suspended_at`, `suspended_reason`) ends all its sessions and refuses its sign-in with a plain message ("This
+account has been suspended. Contact support if you think this is a mistake.") shown only after the right password (or a Google sign-in), so it
+reveals nothing to someone guessing. A suspended person's data stays and nothing is deleted. Reinstating restores access.
+
+**Deleting an account** removes the person and everything only they own, and is refused when it would harm other people: **a person who is in a
+shared budget with others cannot be deleted** (their payments in that budget, and a budget they own, would be removed from the others), so the
+admin gets a clear message to suspend instead or to have them leave the shared budgets first. The person's own budgets are removed first, in
+their own step; deleting a person and a budget that holds debts in one go used to fail on a foreign-key check (found while building this).
+Audit events about a deleted person stay, with no name or address.
+
+**Behind a proxy.** A public site sits behind a reverse proxy, where every visitor would otherwise look like the same IP and share one
+rate-limit allowance. `TRUST_PROXY` (for example `1`) makes Penny use the real address; it is wired in `docker-compose.yml` and explained in the README.
+
+**Tests.** The API (admin only, 404 for others, never any financial field, search, filters and paging, each action and its guards, the delete
+rules, events recorded without secrets, suspension blocks sign-in and sessions), the pure client functions, the make-admin script, and the browser.
+
+### View as: signing in as a person to help them
+
+A support person sometimes has to see what the person sees. This is the one place an admin can see someone's money, so it is built the way
+the careful products build it (a stated reason, the admin's password again, a short time, read-only by default, a banner that cannot be missed,
+a log, and telling the person), and it is limited so that it can never turn into taking over an account.
+
+- **Starting** (`POST /api/admin/users/:id/view-as`, the "View as" button on a person): the admin gives a **reason** (5 to 200 characters), types **their own
+  password** again (a wrong one is a 403, never a 401, so it cannot sign the admin out; 10 tries in 15 minutes), and chooses whether to **allow changes**
+  (off by default). It works for any person who is not an admin and not the admin themself, including a suspended person.
+- **How it works.** Nothing is copied and no new login is made. The admin's own session gets four columns (`acting_as`, `acting_started_at`,
+  `acting_read_only`, `acting_reason`); while they are set and under **30 minutes** old, `authenticate` makes the request run as that person (`req.user`) with the
+  real admin in `req.admin`. It ends by itself after 30 minutes, when the admin stops being an admin, or on "Exit".
+  The admin tools answer 404 while viewing (it is an ordinary account then), so no admin action can be done from inside a person's account.
+- **Read-only (the default), enforced on the server.** `impersonationGuard` refuses every request that changes anything (403 "You are viewing this
+  account in read-only mode ..."). Looking is allowed, and so is asking the assistant a question (it only reads).
+- **With "allow changes"** only the person's **budget data** can change: payments, recurring items, installments, debts, categories, settings,
+  card bills, balance matching. Never their name, username, phone or privacy choices, their password, Google link or e-mail confirmation, their
+  connections, their budgets' members and invitations, their preferences, or their notifications and alerts. So viewing as someone can never become
+  owning their account. Each change is logged (`admin_acted_as`, the method and path only, never a value), against the admin.
+- **Visible.** A banner on every page ("You are viewing Sam Rivera as an admin, read-only, 27 min left") with an Exit button; amber for read-only, red when
+  changes are allowed. "Sign out" while viewing only exits the viewing; it never ends the admin's own session.
+- **Recorded and told.** The activity log has `admin_impersonate_start` (who, whom, mode and reason), `admin_impersonate_stop` and every `admin_acted_as`;
+  the person gets an in-app notification right away: *"A Penny admin signed in to your account to help with: '...'. It was read-only, so nothing was
+  changed. If you do not expect this, contact support."* Being viewed does not mark the person as active.
+- **Before real strangers use Penny:** the privacy policy must say that an admin can view an account to give support, under these rules, and the
+  person must be able to find that out. That is a legal text, not code; have it read by someone who knows the rules where your users live.

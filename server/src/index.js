@@ -3,12 +3,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
 import { initDb, pool } from './db.js';
-import { authenticate, purgeExpiredSessions, requireAuth, sameOriginOnly } from './lib/auth.js';
+import { pruneAuditEvents } from './lib/audit.js';
+import { authenticate, impersonationGuard, purgeExpiredSessions, requireAuth, sameOriginOnly } from './lib/auth.js';
 import { startBackupSchedule } from './lib/backup.js';
 import { errorHandler, wrap } from './lib/http.js';
 import { materializeAll } from './lib/materialize.js';
 import { runAlertScan } from './lib/notifications.js';
 import { resolveWorkspace } from './lib/workspace.js';
+import admin from './routes/admin.js';
 import auth from './routes/auth.js';
 import avatars from './routes/avatars.js';
 import backups from './routes/backups.js';
@@ -33,6 +35,12 @@ import workspaces from './routes/workspaces.js';
 
 const app = express();
 app.disable('x-powered-by');
+// Behind a web server or proxy (a public site), the visitor's address is in a header only that proxy sets: say how many proxies to trust
+// (TRUST_PROXY=1), or every visitor looks like the proxy and shares one rate limit. Left unset, the address of the connection is used.
+if (process.env.TRUST_PROXY) {
+  const tp = process.env.TRUST_PROXY.trim();
+  app.set('trust proxy', /^\d+$/.test(tp) ? Number(tp) : tp === 'true' ? true : tp === 'false' ? false : tp);
+}
 app.use((_req, res, next) => {
   res.set({
     'X-Content-Type-Options': 'nosniff',
@@ -56,11 +64,11 @@ app.get(
     res.json({ ok: true });
   }),
 );
-app.use('/api', sameOriginOnly, authenticate);
+app.use('/api', sameOriginOnly, authenticate, impersonationGuard);
 app.use('/api/auth', auth);
 app.use('/api', publicNotifications); // one-click unsubscribe from an e-mail (signed link, no login)
 app.use('/api', requireAuth);
-for (const r of [profile, avatars, people, workspaces, notifications, receiptFiles, preferences, backups]) app.use('/api', r);
+for (const r of [profile, avatars, people, workspaces, notifications, receiptFiles, preferences, backups, admin]) app.use('/api', r);
 app.use('/api', resolveWorkspace);
 for (const r of [settings, carryover, cardBills, safeToSpend, reconcile, transactions, receipts, recurring, installments, debts, reports, shared, insights]) app.use('/api', r);
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found' }));
@@ -80,13 +88,14 @@ try {
   await initDb();
   await materializeAll();
   await purgeExpiredSessions();
+  await pruneAuditEvents();
 } catch (err) {
   console.error('Could not initialise the database. Is Postgres running and DATABASE_URL correct?\n', err.message);
   process.exit(1);
 }
 // Housekeeping: keep the 24-month horizon of recurring payments rolling and drop expired sessions.
 setInterval(
-  () => Promise.all([materializeAll(), purgeExpiredSessions()]).catch((e) => console.error(e)),
+  () => Promise.all([materializeAll(), purgeExpiredSessions(), pruneAuditEvents()]).catch((e) => console.error(e)),
   6 * 60 * 60 * 1000,
 ).unref();
 

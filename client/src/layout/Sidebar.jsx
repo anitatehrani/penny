@@ -6,8 +6,32 @@ import { Icon } from '../components/ui.jsx';
 import { useInsights } from '../assistant/insights.jsx';
 import { usePrefs } from '../prefs.jsx';
 import { useWorkspace } from '../workspace.jsx';
-import { NAV, navById } from './nav.js';
+import { useAuth } from '../auth.jsx';
+import { ADMIN_NAV, NAV, navById } from './nav.js';
 import UserMenu from './UserMenu.jsx';
+
+/** The Admin link: only for admins, set apart under the other destinations, and not pinnable. */
+function AdminItem({ collapsed }) {
+  const link = (
+    <NavLink to={ADMIN_NAV.to} className="nav-link" data-nav={ADMIN_NAV.icon} aria-label={collapsed ? ADMIN_NAV.label : undefined}>
+      <span className="nav-icon">
+        <Icon name={ADMIN_NAV.icon} size={18} />
+      </span>
+      {!collapsed && <span className="nav-label">{ADMIN_NAV.label}</span>}
+    </NavLink>
+  );
+  return (
+    <li className="nav-item">
+      {collapsed ? (
+        <Tooltip label={ADMIN_NAV.label} side="right">
+          {link}
+        </Tooltip>
+      ) : (
+        link
+      )}
+    </li>
+  );
+}
 
 /** A small contextual marker on a nav item: a count, or a dot with a meaning. */
 function Marker({ count, dot, tone, label }) {
@@ -53,6 +77,7 @@ function NavItem({ item, collapsed, marker, pinned, onPin }) {
 
 export default function Sidebar({ collapsed, onToggle }) {
   const { badge } = useWorkspace();
+  const { user } = useAuth();
   const { overdueCount, hasForecastWarning } = useInsights();
   const { prefs, setPrefs } = usePrefs();
   const pinnedIds = prefs.favorites;
@@ -85,6 +110,14 @@ export default function Sidebar({ collapsed, onToggle }) {
           </>
         )}
         <ul className="nav-list">{rest.map((n) => renderItem(n, false))}</ul>
+        {user?.is_admin && (
+          <>
+            <div className="nav-rule" role="presentation" />
+            <ul className="nav-list" aria-label="Administration">
+              <AdminItem collapsed={collapsed} />
+            </ul>
+          </>
+        )}
       </nav>
       <div className="sidebar-foot">
         <Tooltip label={collapsed ? 'Expand sidebar' : ''} side="right">

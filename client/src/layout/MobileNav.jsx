@@ -4,12 +4,14 @@ import { useInsights } from '../assistant/insights.jsx';
 import { useCommand } from '../command/command.jsx';
 import { Menu, MenuItem, MenuSeparator } from '../components/ds/Menu.jsx';
 import { Icon } from '../components/ui.jsx';
+import { useAuth } from '../auth.jsx';
 import { useWorkspace } from '../workspace.jsx';
-import { MOBILE_PRIMARY, NAV, navById } from './nav.js';
+import { ADMIN_NAV, MOBILE_PRIMARY, NAV, navById } from './nav.js';
 
 /** Bottom tab bar for phones. The four most-used places, and "More" for the rest. */
 export default function MobileNav() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { badge } = useWorkspace();
   const { overdueCount, hasForecastWarning } = useInsights();
   const { openAssistant } = useAssistant();
@@ -53,6 +55,11 @@ export default function MobileNav() {
             {n.label}
           </MenuItem>
         ))}
+        {user?.is_admin && (
+          <MenuItem icon={ADMIN_NAV.icon} onSelect={() => navigate(ADMIN_NAV.to)}>
+            {ADMIN_NAV.label}
+          </MenuItem>
+        )}
         <MenuSeparator />
         <MenuItem icon="bell" onSelect={() => navigate('/notifications')}>
           All notifications

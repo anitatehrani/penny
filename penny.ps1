@@ -258,6 +258,25 @@ Command seed 'Fill Penny with demo accounts and data (demo logins are in DEMO-LO
   Compose exec -T app node scripts/seed-demo.mjs
 }
 
+# Run a script of the app in its container (the running one, or a one-off one when Penny is stopped).
+function App-Script([string]$Script, [string[]]$ScriptArgs) {
+  if (Running 'app') { Compose exec -T app node "scripts/$Script" @ScriptArgs }
+  else { Compose up -d --wait db; Compose run --rm --no-deps app node "scripts/$Script" @ScriptArgs }
+}
+
+Command make-admin 'Make a person an admin of the website (they need an account): .\penny make-admin you@example.com' {
+  Need-Docker; Ensure-Env
+  $email = (Args-Without @('--force') | Select-Object -First 1)
+  if (-not $email) { throw 'Say whose e-mail address:  .\penny make-admin you@example.com   (add --force if their e-mail is not confirmed yet and the account is yours)' }
+  App-Script 'make-admin.mjs' (@($email) + @($Rest | Where-Object { $_ -eq '--force' }))
+}
+Command remove-admin 'Take the admin role away from a person: .\penny remove-admin you@example.com' {
+  Need-Docker; Ensure-Env
+  $email = (Args-Without @() | Select-Object -First 1)
+  if (-not $email) { throw 'Say whose e-mail address:  .\penny remove-admin you@example.com' }
+  App-Script 'make-admin.mjs' @($email, '--remove')
+}
+
 Command test 'Run the server and client tests (against the Docker database)' {
   Need-Docker; Ensure-Env
   Compose up -d --wait db

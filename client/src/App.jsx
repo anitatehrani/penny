@@ -6,6 +6,7 @@ import { Loading } from './components/ui.jsx';
 import DashboardPage from './dashboard/DashboardPage.jsx';
 import DashboardLayout from './layout/DashboardLayout.jsx';
 import { useApp } from './context.jsx';
+import Admin from './pages/Admin.jsx';
 import Forecast from './pages/Forecast.jsx';
 import Debts from './pages/Debts.jsx';
 import Installments from './pages/Installments.jsx';
@@ -55,6 +56,7 @@ export default function App() {
             <Route path="/u/:username" element={<PublicProfile />} />
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/admin" element={<Admin />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </ErrorBoundary>

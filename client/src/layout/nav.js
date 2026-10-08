@@ -10,6 +10,9 @@ export const NAV = [
   { id: 'settings', to: '/settings', label: 'Settings', icon: 'gear' },
 ];
 
+/** Only for admins (docs/DESIGN.md section 33); not one of the pinnable destinations. */
+export const ADMIN_NAV = { id: 'admin', to: '/admin', label: 'Admin', icon: 'shield' };
+
 /** Shown in the bottom bar on phones; everything else lives under "More". */
 export const MOBILE_PRIMARY = ['dashboard', 'payments', 'forecast', 'people'];
 
@@ -20,6 +23,7 @@ export function titleFor(pathname) {
   if (pathname === '/') return 'Dashboard';
   const hit = NAV.find((n) => n.to !== '/' && pathname.startsWith(n.to));
   if (hit) return hit.label;
+  if (pathname.startsWith('/admin')) return 'Admin';
   if (pathname.startsWith('/notifications')) return 'Notifications';
   if (pathname.startsWith('/profile')) return 'Profile';
   if (pathname.startsWith('/u/')) return 'Profile';

@@ -41,6 +41,7 @@ installments) and see where your balance is heading — including when it goes n
 | **Backups** | Once a day (and at start-up if there is none from the last 24 hours) the server writes a compressed copy of the whole database to `backups/`, checks it can be read back, and keeps the newest 14 days plus the first backup of each of the last 6 months. Settings shows when the last one was made. `npm run backup` makes one now; `npm run restore` puts one back. See "Backups and restoring". |
 | **Date picker** | Every date field is Penny's own calendar, not the browser's: Monday-first weeks, today ringed, the chosen day filled, a Today button, a month and year chooser (click the title), days that are not allowed struck through, full keyboard use (arrows, Page Up/Down, Home/End, Escape closes only the calendar), and a bottom sheet on a phone. |
 | **Editing recurring items** | Saving a recurring item on the Recurring page changes every unpaid payment from this month on (a new day reaches all the months to come; paid ones stay). Changing one month on the Payments page changes only that payment, never the recurring item or other months. A month that is already paid (or skipped) is not given a second payment when the item's day changes. |
+| **Admin dashboard** | For running Penny in public: a page at `/admin` for admins only (everyone else gets "not found"). **Overview** (people, new and active, e-mail confirmed, sign-ins and failures in 24 hours, a 30-day sign-up chart, and a going-public checklist read from the real settings), **People** (search, filters, suspend with a reason, reinstate, sign out everywhere, delete), **Activity** (sign-ups, sign-ins, failed sign-ins, password changes, rate-limit hits and every admin action; kept 90 days, no passwords, sources only as a short hash of the address) and **System** (database size, uptime, backups, mail failures). The dashboard never shows payments, amounts, debts, notes or budget names. The one way to see a person's money is **View as** (a button on each person, to help them): it needs a reason and the admin's password, lasts 30 minutes, is **read-only unless the admin allows changes**, shows a banner you cannot miss, is written in the activity log, and **tells the person in the app**; even with changes allowed it can never change who they are, how they sign in, their friends or sharing. Make someone an admin only from the command line: `.\penny make-admin you@example.com`. |
 | **Themes** | Light, Dark or System (follows your device), switchable from the sidebar, the sign-in page and Profile. |
 
 The balance **can be negative** everywhere; negative values are shown in red with a warning icon.
@@ -199,6 +200,16 @@ All of the data is in one database on one computer, so Penny copies it for you.
   computer (`BACKUP_HOST_DIR` in `.env` changes where). `.\penny backup` makes one now, `.\penny restore latest` puts one back.
 * **Switch off:** `BACKUPS=off` in `server/.env`. The tools `pg_dump` and `pg_restore` are found through `PG_BIN`, the usual Windows folders
   (`C:\Program Files\PostgreSQL\17\bin`) or the PATH.
+
+### Running Penny in public
+
+1. **An address and HTTPS.** Put a web server or proxy in front (Caddy and nginx both do HTTPS for you) and point your domain at it. In `.env`: `APP_URL=https://your.domain`, `COOKIE_SECURE=true`.
+2. **`TRUST_PROXY=1`** (the number of proxies in front of Penny). Without it every visitor looks like the proxy: they share one rate limit and the activity log cannot tell them apart.
+3. **A real mail server** (`SMTP_HOST` and the other `SMTP_` settings), so confirmation and alert e-mails reach people.
+4. **Backups** stay on (they are by default), with a second copy somewhere else (`BACKUP_HOST_DIR`).
+5. **Make yourself an admin:** sign up, confirm your e-mail, then `.\penny make-admin you@example.com`. The **Going public** card on the Admin page shows what is still missing.
+
+Not built yet, and worth having before real strangers use it: "forgot my password" by e-mail, two-step sign-in, a terms and privacy page, and letting people delete their own account.
 
 ## The interface
 
@@ -367,6 +378,7 @@ Membership is checked on every request. `paid_by` (username) and `participants` 
 | `GET/POST/PUT/DELETE /recurring` | recurring rules. End with `end_date` or `ends_after` (a number of payments, 1 to 600; the server works out the date). Not both |
 | `GET/POST/PUT/DELETE /installments` | installment plans |
 | `GET/POST/PUT/DELETE /debts` | debts: `{name, total_amount, plan: none\|once\|monthly, first_due_date, installment_count, count_in_budget, category_id, note, paid_by, direction: owe\|lent, record_loan?, lent_on?}`. `direction` is chosen when adding and cannot change; `lent` means someone owes you, so repayments are income, and `record_loan` also adds the money handed over (source `loan`). `GET` returns `{debts, totals, lent_totals}` (`totals` is what you owe, `lent_totals` is `{owed_to_me, counted, expected, received}`); saving rebuilds the unpaid payments from what is still owed |
+| `GET /admin/overview` · `/admin/users?q=&status=&sort=&page=` · `/admin/users/:id` · `/admin/events?kind=&user_id=&page=` · `/admin/system` · `POST /admin/users/:id/suspend` `{reason?}` · `/unsuspend` · `/sign-out` · `/view-as` `{reason, password, read_only}` · `DELETE /admin/users/:id` `{confirm: username}` | the admin dashboard, **admins only** (404 for everyone else); accounts and service health only, never a payment, amount or note |
 | `POST /debts/:id/payments` `{amount, date?, note?}` · `POST /debts/:id/settle` · `POST /debts/:id/reopen` | record a payment (at most what is owed) / settle by hand / open again |
 | `GET /summary?month=YYYY-MM` | dashboard numbers |
 | `GET /forecast?months=12&past=3&estimateExpenses=1&estimateIncome=0` | forecast |

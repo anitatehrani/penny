@@ -485,3 +485,30 @@ BEGIN
     ALTER TABLE transactions ADD CONSTRAINT transactions_source_check CHECK (source IN ('manual', 'recurring', 'installment', 'debt', 'adjustment', 'loan'));
   END IF;
 END $$;
+
+-- Admin dashboard (docs/DESIGN.md section 33): who is an admin (set only from the command line), suspended accounts, and a record of events.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin boolean NOT NULL DEFAULT false;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS suspended_at timestamptz;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS suspended_reason text;
+
+-- Sign-ups, sign-ins, failures and what admins did. Never a password, an amount or anything typed into a form: `source` is a short hash of
+-- the IP address (not the address), `detail` a short plain sentence. Kept 90 days; an event about a deleted person stays without a name.
+CREATE TABLE IF NOT EXISTS audit_events (
+  id       bigserial PRIMARY KEY,
+  at       timestamptz NOT NULL DEFAULT now(),
+  kind     text NOT NULL,
+  user_id  integer REFERENCES users(id) ON DELETE SET NULL,
+  actor_id integer REFERENCES users(id) ON DELETE SET NULL,
+  source   text,
+  detail   text
+);
+CREATE INDEX IF NOT EXISTS audit_events_at_idx ON audit_events (at DESC);
+CREATE INDEX IF NOT EXISTS audit_events_kind_idx ON audit_events (kind, at DESC);
+CREATE INDEX IF NOT EXISTS audit_events_user_idx ON audit_events (user_id, at DESC);
+
+-- "View as" (docs/DESIGN.md section 33): an admin's own session can be acting as someone else for a short time. Nothing is copied: the
+-- session only says who it is acting as, since when, whether it may change anything, and the reason that was given.
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS acting_as integer REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS acting_started_at timestamptz;
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS acting_read_only boolean NOT NULL DEFAULT true;
+ALTER TABLE sessions ADD COLUMN IF NOT EXISTS acting_reason text;

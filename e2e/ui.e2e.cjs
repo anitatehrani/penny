@@ -1938,6 +1938,198 @@ async function sessionFor(db, email) {
     truthy(!/\.dump|penny-20/.test(await text(page, 'main')), 'no file names on the page');
   });
 
+  console.log('\nAdmin dashboard');
+  const setAdmin = (on) => db.query('UPDATE users SET is_admin = $2 WHERE id = $1', [userId, on]);
+  const adminTab = async (tab) => {
+    page = await open('/admin' + (tab ? '?tab=' + tab : ''));
+    await page.waitForSelector('[role=tabpanel]');
+    await sleep(500);
+  };
+  const SPAM = 'e2e_spam_' + Date.now().toString(36).slice(-5);
+  await check('an ordinary person has no Admin link, is sent home from /admin, and the admin API says "not found"', async () => {
+    await setAdmin(false);
+    page = await open('/admin');
+    await sleep(600);
+    truthy(!/\/admin/.test(page.url()), 'sent away from /admin: ' + page.url());
+    eq(await count(page, '.sidebar a[href="/admin"]'), 0, 'no Admin link in the sidebar');
+    eq((await api(page, 'GET', '/admin/overview')).status, 404, 'the admin API answers not found');
+  });
+  await check('an admin gets the Admin link, a privacy note, and four tabs', async () => {
+    await setAdmin(true);
+    await adminTab();
+    eq(await count(page, '.sidebar a[href="/admin"]'), 1, 'an Admin link in the sidebar');
+    truthy(/never payments, amounts, debts or notes/.test(await text(page, '.admin-privacy')) && /View as/.test(await text(page, '.admin-privacy')), 'it says money is not shown, and that View as is the way: ' + (await text(page, '.admin-privacy')));
+    eq((await page.$$eval('[role=tab]', (t) => t.map((x) => x.textContent.trim()))).join(), 'Overview,People,Activity,System', 'the four tabs');
+  });
+  await check('the overview has counts, a 30-day sign-up chart and a going-public checklist read from the settings', async () => {
+    await adminTab();
+    const info = await page.evaluate(() => ({
+      stats: [...document.querySelectorAll('.stat')].map((e) => e.querySelector('span')?.textContent.trim()),
+      bars: document.querySelectorAll('.admin-chart .su-col').length,
+      chart: document.querySelector('.admin-chart .su-bars')?.getAttribute('aria-label') ?? '',
+      checks: document.querySelectorAll('.admin-checks li').length,
+      badge: document.querySelector('.admin-checks .badge')?.textContent.trim() ?? '',
+      todos: document.querySelectorAll('.admin-checks li.todo p').length,
+    }));
+    truthy(['People', 'Active this week', 'Sign-ins', 'Failed sign-ins', 'Payments', 'Receipts'].every((n) => info.stats.includes(n)), 'the stat cards: ' + info.stats.join());
+    eq(info.bars, 30, 'thirty days of bars');
+    truthy(/last 30 days/.test(info.chart), 'the chart is described for a screen reader');
+    eq(info.checks, 5, 'five checks');
+    truthy(/\d of 5 ready/.test(info.badge), 'it says how many are ready: ' + info.badge);
+    truthy(info.todos >= 1, 'a check that is not done says what to do');
+    truthy(!/€|\$|£/.test(await text(page, '[role=tabpanel]')) || /Payments/.test(await text(page, '[role=tabpanel]')), 'no money on the page');
+  });
+  await check('People: search finds someone, a row opens its details and actions, nothing about their money', async () => {
+    await adminTab('people');
+    await page.type('.admin-search input', 'sam');
+    await sleep(900);
+    const names = await page.$$eval('.admin-person .admin-name strong', (e) => e.map((x) => x.textContent.trim()));
+    truthy(names.some((n) => /Sam Rivera/.test(n)), 'Sam is found: ' + names.join());
+    await page.evaluate(() => [...document.querySelectorAll('.admin-person')].find((b) => /Sam Rivera/.test(b.textContent)).click());
+    await page.waitForSelector('.admin-detail-panel');
+    const panel = await text(page, '.admin-detail-panel');
+    truthy(/Devices signed in/.test(panel) && /Shared budgets/.test(panel) && /sam.rivera@example.com/.test(panel), 'details: ' + panel.slice(0, 160));
+    truthy(/a count only/.test(panel), 'payments are only a count');
+    const buttons = await page.$$eval('.admin-actions .btn', (b) => b.map((x) => ({ t: x.textContent.trim(), off: x.disabled })));
+    truthy(['Suspend', 'Sign out everywhere', 'Delete account'].every((t) => buttons.some((b) => b.t === t)), 'the three actions: ' + JSON.stringify(buttons));
+    truthy(buttons.find((b) => b.t === 'Delete account').off, 'Sam shares budgets with others, so deleting is off');
+    truthy(/Cannot be deleted/.test(await text(page, '.admin-actions')), 'and it says why');
+  });
+  await check('a throwaway account can be suspended (with a reason), cannot sign in, is reinstated, signed out and deleted', async () => {
+    const make = await fetch(BASE + '/api/auth/signup', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'E2E Spam Person', email: SPAM + '@example.com', username: SPAM, password: 'Tr1cky-Horse!Battery' }) });
+    eq(make.status, 201, 'the throwaway account');
+    await adminTab('people');
+    await page.type('.admin-search input', SPAM);
+    await sleep(900);
+    await page.evaluate(() => document.querySelector('.admin-person').click());
+    await page.waitForSelector('.admin-detail-panel');
+    await page.evaluate(() => [...document.querySelectorAll('.admin-actions .btn')].find((b) => b.textContent.trim() === 'Suspend').click());
+    await page.waitForSelector('.modal');
+    await page.type('.modal input', 'e2e spam');
+    await page.evaluate(() => [...document.querySelectorAll('.modal .btn')].find((b) => b.textContent.trim() === 'Suspend').click());
+    await page.waitForSelector('.modal', { hidden: true });
+    await sleep(700);
+    truthy(await page.evaluate(() => [...document.querySelectorAll('.admin-person .badge')].some((b) => b.textContent.trim() === 'Suspended')), 'the row says Suspended');
+    truthy(/e2e spam/.test(await text(page, '.admin-detail-panel')), 'the reason is shown to the admin');
+    const blocked = await fetch(BASE + '/api/auth/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ identifier: SPAM, password: 'Tr1cky-Horse!Battery' }) });
+    eq(blocked.status, 403, 'they cannot sign in');
+    await page.evaluate(() => [...document.querySelectorAll('.admin-actions .btn')].find((b) => /Reinstate/.test(b.textContent)).click());
+    await sleep(900);
+    const back = await fetch(BASE + '/api/auth/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ identifier: SPAM, password: 'Tr1cky-Horse!Battery' }) });
+    eq(back.status, 200, 'reinstated, they can sign in again');
+    // they signed in from outside this page, so close and open the row again for the current number of devices
+    await page.evaluate(() => document.querySelector('.admin-person').click());
+    await sleep(250);
+    await page.evaluate(() => document.querySelector('.admin-person').click());
+    await page.waitForSelector('.admin-detail-panel');
+    await sleep(500);
+    truthy(/Devices signed in\s*1/.test(await text(page, '.admin-detail-panel')), 'the panel now shows one device: ' + (await text(page, '.admin-detail-panel')).slice(0, 120));
+    await page.evaluate(() => [...document.querySelectorAll('.admin-actions .btn')].find((b) => /Sign out everywhere/.test(b.textContent)).click());
+    await sleep(900);
+    const gone = await fetch(BASE + '/api/auth/me', { headers: { cookie: (back.headers.get('set-cookie') || '').split(';')[0] } });
+    eq(gone.status, 401, 'signed out everywhere');
+    await page.evaluate(() => [...document.querySelectorAll('.admin-actions .btn')].find((b) => /Delete account/.test(b.textContent)).click());
+    await page.waitForSelector('.modal');
+    truthy(await page.$eval('.modal .btn.danger[type=submit]', (b) => b.disabled), 'delete waits for the username');
+    await page.type('.modal input', '@' + SPAM);
+    await page.evaluate(() => [...document.querySelectorAll('.modal .btn')].find((b) => /Delete account/.test(b.textContent)).click());
+    await page.waitForSelector('.modal', { hidden: true });
+    await sleep(900);
+    eq(await count(page, '.admin-person'), 0, 'they are gone from the list');
+    eq((await db.query('SELECT 1 FROM users WHERE username = $1', [SPAM])).rowCount, 0, 'and from the database');
+  });
+  await check('Activity lists what happened, filters by kind, and never shows what was typed', async () => {
+    await adminTab('activity');
+    const all = await text(page, '.admin-events');
+    truthy(/Suspended by an admin/.test(all) && /Account deleted by an admin/.test(all) && /Signed in/.test(all), 'the log has the sign-in and the admin actions');
+    truthy(!/Tr1cky-Horse|e2e spam person@/i.test(all), 'no password in the log');
+    await page.click('.admin-filters button[aria-label^="Show:"]');
+    await page.waitForSelector('.filter-pop [role=option]');
+    await page.evaluate(() => [...document.querySelectorAll('.filter-pop [role=option]')].find((e) => e.textContent.trim() === 'Suspended by an admin').click());
+    await sleep(800);
+    const kinds = await page.$$eval('.admin-events .badge', (b) => [...new Set(b.map((x) => x.textContent.trim()))]);
+    eq(kinds.join(), 'Suspended by an admin', 'only that kind is shown');
+    truthy(/Kept for 90 days/.test(await text(page, '.admin-note')), 'it says how long events are kept');
+  });
+  await check('System shows the database, the app, backups and mail', async () => {
+    await adminTab('system');
+    const t = await text(page, '.admin-system');
+    truthy(/Database/.test(t) && /Biggest tables/.test(t) && /users/.test(t), 'database and tables');
+    truthy(/Running for/.test(t) && /Version/.test(t), 'the app');
+    truthy(/Backups/.test(t) && /E-mail/.test(t), 'backups and mail');
+    truthy(/\d+ (KB|MB)/.test(t), 'sizes are readable: ' + t.slice(0, 120));
+  });
+  await check('the Admin page fits a phone: nothing overflows sideways, and a person row can be opened', async () => {
+    page = await open('/admin?tab=people', { width: 390, height: 844 });
+    await page.waitForSelector('.admin-person');
+    const o = await page.evaluate(() => ({ w: document.documentElement.scrollWidth, v: window.innerWidth }));
+    truthy(o.w <= o.v + 1, 'no sideways scroll: ' + JSON.stringify(o));
+    await page.evaluate(() => document.querySelector('.admin-person').click());
+    await page.waitForSelector('.admin-detail-panel');
+    const o2 = await page.evaluate(() => ({ w: document.documentElement.scrollWidth, v: window.innerWidth }));
+    truthy(o2.w <= o2.v + 1, 'still none with a row open: ' + JSON.stringify(o2));
+    page = await open('/admin', { width: 390, height: 844 });
+    await sleep(500);
+    const o3 = await page.evaluate(() => ({ w: document.documentElement.scrollWidth, v: window.innerWidth }));
+    truthy(o3.w <= o3.v + 1, 'the overview fits too: ' + JSON.stringify(o3));
+  });
+  const openViewAs = async (name) => {
+    await adminTab('people');
+    await page.type('.admin-search input', name);
+    await sleep(900);
+    await page.evaluate(() => document.querySelector('.admin-person').click());
+    await page.waitForSelector('.admin-detail-panel');
+    await page.evaluate((n) => [...document.querySelectorAll('.admin-actions .btn')].find((b) => b.textContent.includes('View as')).click(), name);
+    await page.waitForSelector('.modal');
+  };
+  await check('View as: it asks why and for the admin password, and says what happens; a wrong password changes nothing', async () => {
+    await openViewAs('priya');
+    const dlg = await text(page, '.modal');
+    truthy(/they are told in the app/.test(dlg) && /30 minutes/.test(dlg), 'it says they are told, and for how long: ' + dlg.slice(0, 160));
+    truthy(await page.$eval('.modal .btn.primary', (b) => b.disabled), 'the button waits for a reason and a password');
+    await page.type('.modal input:not([type=password]):not([type=checkbox])', 'e2e check of view as');
+    truthy(await page.$eval('.modal .btn.primary', (b) => b.disabled), 'still waiting for the password');
+    await page.type('.modal input[type=password]', 'Wrong-Password-1!x');
+    await page.click('.modal .btn.primary');
+    await sleep(900);
+    truthy(/password is not correct/i.test(await text(page, 'body')), 'a wrong password is refused with a message');
+    truthy(!!(await page.$('.modal')), 'the dialog stays, and so does the admin');
+    eq(await count(page, '.viewing-bar'), 0, 'nothing started');
+    eq((await api(page, 'GET', '/admin/overview')).status, 200, 'still signed in as the admin');
+  });
+  await check('View as: the page becomes that person\'s account with a banner, read-only, and a change is refused', async () => {
+    await page.click('.modal input[type=password]', { clickCount: 3 });
+    await page.type('.modal input[type=password]', DEMO_PASSWORD);
+    await Promise.all([page.waitForNavigation({ waitUntil: 'networkidle0' }), page.click('.modal .btn.primary')]);
+    await page.waitForSelector('.viewing-bar');
+    const bar = await text(page, '.viewing-bar');
+    truthy(/Priya Nair/.test(bar) && /read-only/.test(bar) && /min left/.test(bar), 'the banner says who, how and for how long: ' + bar);
+    truthy(/Priya/.test(await text(page, '.sidebar-foot')), 'the sidebar shows her account');
+    eq(await count(page, '.sidebar a[href="/admin"]'), 0, 'no Admin link while viewing as someone else');
+    eq((await api(page, 'GET', '/admin/overview')).status, 404, 'the admin tools are not available while viewing');
+    const add = await api(page, 'POST', '/transactions', { type: 'expense', description: 'E2E should not exist', amount: 1, date: TODAY });
+    eq(add.status, 403, 'a change is refused');
+    truthy(/read-only/i.test(add.json.error), 'with a plain message: ' + add.json.error);
+    eq((await db.query("SELECT 1 FROM transactions WHERE description = 'E2E should not exist'")).rowCount, 0, 'and nothing was saved');
+  });
+  await check('View as: Exit goes back to the admin\'s own account, and the log says who looked at whom and why', async () => {
+    await Promise.all([page.waitForNavigation({ waitUntil: 'networkidle0' }), page.click('.viewing-bar .btn')]);
+    await page.waitForSelector('[role=tabpanel]');
+    eq(await count(page, '.viewing-bar'), 0, 'the banner is gone');
+    eq(await count(page, '.sidebar a[href="/admin"]'), 1, 'the Admin link is back');
+    eq((await api(page, 'GET', '/admin/overview')).status, 200, 'the admin tools work again');
+    await adminTab('activity');
+    const log = await text(page, '.admin-events');
+    truthy(/An admin viewed their account/.test(log) && /An admin stopped viewing their account/.test(log), 'both are in the log');
+    truthy(/read-only: e2e check of view as/.test(log), 'with the reason');
+    const note = (await db.query("SELECT body FROM notifications WHERE title = 'An admin viewed your account' ORDER BY id DESC LIMIT 1")).rows[0];
+    truthy(note && /e2e check of view as/.test(note.body), 'and the person was told, with the reason');
+  });
+  await check('clean up: the demo person is an ordinary person again', async () => {
+    await setAdmin(false);
+    eq((await db.query('SELECT is_admin FROM users WHERE id = $1', [userId])).rows[0].is_admin, false, 'not an admin');
+  });
+
   console.log('\nSettings and avatar');
   await check('notification settings: every type has an in-app and an email switch, and changes save', async () => {
     page = await open('/settings?tab=notifications');

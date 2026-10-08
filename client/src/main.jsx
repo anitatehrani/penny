@@ -29,6 +29,7 @@ import './design/rows.css';
 import './design/shell.css';
 import './design/dashboard.css';
 import './design/assistant.css';
+import './design/admin.css';
 
 /** Re-mounts the data layer whenever the open budget changes, so every page reloads its own data. */
 function Scoped() {

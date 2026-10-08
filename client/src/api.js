@@ -34,7 +34,7 @@ const methods = (workspace) => ({
   post: (url, body) => send('POST', url, { body: body ?? {}, workspace }),
   put: (url, body) => send('PUT', url, { body, workspace }),
   patch: (url, body) => send('PATCH', url, { body, workspace }),
-  del: (url) => send('DELETE', url, { workspace }),
+  del: (url, body) => send('DELETE', url, { body, workspace }),
   /** Send a file as the raw request body (profile picture, receipts). */
   upload: (method, url, blob, headers = {}) => send(method, url, { rawBody: blob, headers: { 'Content-Type': blob.type || 'application/octet-stream', ...headers }, workspace }),
 });

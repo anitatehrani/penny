@@ -53,7 +53,7 @@ function Highlight({ text, indexes }) {
 
 function Palette({ initialQuery, onClose }) {
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const { money } = useApp();
   const [theme, setTheme] = useTheme();
   const { prefs, setPrefs } = usePrefs();
@@ -114,6 +114,7 @@ function Palette({ initialQuery, onClose }) {
       { id: 'g-forecast', group: 'Go to', label: 'Open forecast', icon: 'trend', keywords: 'future predict balance outlook projection', run: go('/forecast') },
       { id: 'g-people', group: 'Go to', label: 'People & shared budgets', icon: 'users', keywords: 'friends partner family groups connections', run: go('/people') },
       { id: 'g-settings', group: 'Go to', label: 'Settings', icon: 'gear', keywords: 'categories currency balance preferences', run: go('/settings') },
+      ...(user?.is_admin ? [{ id: 'g-admin', group: 'Go to', label: 'Admin dashboard', icon: 'shield', keywords: 'admin users people sign-ups activity system health backups suspend', run: go('/admin') }] : []),
       { id: 'g-notif', group: 'Go to', label: 'Notifications', icon: 'bell', keywords: 'inbox alerts', run: go('/notifications') },
       { id: 'g-notif-settings', group: 'Go to', label: 'Notification settings', icon: 'bell', keywords: 'email alerts reminders preferences', run: go('/settings?tab=notifications') },
       { id: 'g-profile', group: 'Go to', label: 'Your profile', icon: 'user', keywords: 'avatar username share', run: go('/profile') },
@@ -128,7 +129,7 @@ function Palette({ initialQuery, onClose }) {
       { id: 'logout', group: 'Account', label: 'Sign out', icon: 'logout', keywords: 'log out exit', run: logout },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [unread, theme, prefs.density, prefs.sidebar_collapsed, prefs.accent],
+    [unread, theme, prefs.density, prefs.sidebar_collapsed, prefs.accent, user?.is_admin],
   );
 
   const q = query.trim();

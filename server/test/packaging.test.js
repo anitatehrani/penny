@@ -189,7 +189,7 @@ describe('the penny command file', () => {
 
   it('has the everyday commands, each with a help line', () => {
     const defined = [...script.matchAll(/^Command (\S+) '([^']+)'/gm)].map((m) => m[1]);
-    for (const c of ['help', 'install', 'up', 'down', 'stop', 'restart', 'build', 'rebuild', 'dev', 'status', 'logs', 'shell', 'psql', 'backup', 'restore', 'import-local', 'seed', 'test', 'e2e', 'stop-local', 'wipe']) {
+    for (const c of ['help', 'install', 'up', 'down', 'stop', 'restart', 'build', 'rebuild', 'dev', 'status', 'logs', 'shell', 'psql', 'backup', 'restore', 'import-local', 'seed', 'make-admin', 'remove-admin', 'test', 'e2e', 'stop-local', 'wipe']) {
       assert.ok(defined.includes(c), `${c} is a command`);
     }
     assert.equal(new Set(defined).size, defined.length, 'no command is defined twice');
