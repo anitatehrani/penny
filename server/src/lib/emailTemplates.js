@@ -104,3 +104,29 @@ export function testEmail({ name, unsubscribeUrl }) {
     text: `Hi ${name.split(' ')[0]},\n\nThis is a test. Your e-mail alerts are set up correctly.\n${appUrl()}/notifications?tab=settings${unsubscribeUrl ? `\n\nTurn e-mail alerts off: ${unsubscribeUrl}` : ''}`,
   };
 }
+
+export function passwordResetEmail({ name, link, minutes = 60 }) {
+  const first = name.split(' ')[0];
+  return {
+    subject: 'Reset your Penny password',
+    html: shell(
+      'Reset your password',
+      `<p style="margin:0">Hi ${esc(first)}, someone asked to reset the password of your Penny account. If that was you, choose a new one here.</p>${button(link, 'Choose a new password')}<p style="color:#6b6a65;font-size:13px">This link works once and expires in ${minutes} minutes. If you did not ask for it, you can ignore this message: your password stays the same.</p>`,
+      footerFor(null),
+    ),
+    text: `Hi ${first},\n\nSomeone asked to reset the password of your Penny account. If that was you, choose a new one here:\n${link}\n\nThe link works once and expires in ${minutes} minutes. If you did not ask for it, ignore this message: your password stays the same.`,
+  };
+}
+
+export function passwordChangedEmail({ name }) {
+  const first = name.split(' ')[0];
+  return {
+    subject: 'Your Penny password was changed',
+    html: shell(
+      'Your password was changed',
+      `<p style="margin:0">Hi ${esc(first)}, the password of your Penny account was just reset with a link sent to this address, and every device was signed out.</p><p style="margin:12px 0 0">If this was you, there is nothing to do. If it was not, ask for another reset right away and check that nobody else can read your e-mail.</p>${button(`${appUrl()}/forgot-password`, 'Reset it again')}`,
+      footerFor(null),
+    ),
+    text: `Hi ${first},\n\nThe password of your Penny account was just reset with a link sent to this address, and every device was signed out.\n\nIf this was you, there is nothing to do. If it was not, ask for another reset right away: ${appUrl()}/forgot-password`,
+  };
+}

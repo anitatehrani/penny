@@ -39,6 +39,17 @@
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+/* "Forgot your password?" sits just under the password box, on the right, where people look for it. */
+.auth-forgot {
+  margin: -6px 0 2px;
+  text-align: right;
+  font-size: 0.875rem;
+}
+.auth-forgot a {
+  color: var(--ink-2);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 .auth-hint {
   margin-bottom: 6px;
 }

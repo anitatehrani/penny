@@ -209,7 +209,7 @@ All of the data is in one database on one computer, so Penny copies it for you.
 4. **Backups** stay on (they are by default), with a second copy somewhere else (`BACKUP_HOST_DIR`).
 5. **Make yourself an admin:** sign up, confirm your e-mail, then `.\penny make-admin you@example.com`. The **Going public** card on the Admin page shows what is still missing.
 
-Not built yet, and worth having before real strangers use it: "forgot my password" by e-mail, two-step sign-in, a terms and privacy page, and letting people delete their own account.
+Not built yet, and worth having before real strangers use it: two-step sign-in, a terms and privacy page, and letting people delete their own account. ("Forgot my password" by e-mail is built: it switches itself on when a real mail server is set.)
 
 ### Putting Penny online (DigitalOcean)
 
@@ -290,8 +290,8 @@ scp backups\penny-2026-10-10-1200.dump penny@SERVER_IP:penny/backups/    # use t
 **Keep copies of the backups somewhere other than the server** (run `.\penny prod-backup` every week or so, and keep the files on another drive or a synced folder): the weekly server backups
 and Penny's own daily ones live on the same machine, which does not help if the machine is lost or someone deletes the server.
 
-**Before you open sign-ups to strangers:** a "forgot my password" e-mail, a terms and privacy page (that says an admin can view an account to give support), letting people delete their own account,
-and a real mail server (the **Going public** card on the Admin page shows what is still missing). Without a password reset, a person who forgets their password is locked out.
+**Before you open sign-ups to strangers:** a real mail server (it also switches "Forgot your password?" on, see below), a terms and privacy page (that says an admin can view an account to give support),
+and letting people delete their own account. The **Going public** card on the Admin page shows what is still missing.
 
 ## The interface
 
@@ -370,8 +370,11 @@ Log in as Sam or Priya to see the other side of the same data.
   stops sharing between the two of you. People you add only see description, date, amount and their own share.
 * **Not included:** settling up / "who owes whom" tracking, and per-member permissions inside a group.
 * **Email:** your address counts as confirmed once you open the link we email you (valid 24 hours, single use). Alerts are only
-  ever sent to a confirmed address. "Forgot password" emails are **not** included: if you forget a password, ask whoever runs the
-  server to reset it, or sign in with Google if you connected it.
+  ever sent to a confirmed address.
+* **Forgot your password:** the sign-in page links to a page that asks for the e-mail address and sends a link (valid one hour, works once, only the newest link works).
+  The page says the same thing whether or not the address has an account. Choosing the new password signs the person out everywhere, tells them by e-mail and in the app,
+  and does not sign them in. It needs a real mail server: **without `SMTP_HOST` on a server running in production the option stays hidden and the endpoints answer
+  "not set up"**, because a link that is only saved in a folder reaches nobody. On your own computer the link is saved in `server/mail-preview`, so you can try it.
 
 ## Email alerts: setting up a mail server (optional)
 

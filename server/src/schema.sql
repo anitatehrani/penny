@@ -279,12 +279,15 @@ CREATE TABLE IF NOT EXISTS app_config (
 CREATE TABLE IF NOT EXISTS email_tokens (
   token_hash text PRIMARY KEY,
   user_id    integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  purpose    text NOT NULL CHECK (purpose IN ('verify')),
+  purpose    text NOT NULL CHECK (purpose IN ('verify', 'reset')),
   email      text NOT NULL,
   expires_at timestamptz NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS email_tokens_user_idx ON email_tokens (user_id);
+-- 'reset' (password reset by e-mail) was added later: widen the check on databases made before it.
+ALTER TABLE email_tokens DROP CONSTRAINT IF EXISTS email_tokens_purpose_check;
+ALTER TABLE email_tokens ADD CONSTRAINT email_tokens_purpose_check CHECK (purpose IN ('verify', 'reset'));
 
 CREATE TABLE IF NOT EXISTS notifications (
   id         bigserial PRIMARY KEY,

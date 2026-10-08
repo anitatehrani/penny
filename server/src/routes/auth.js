@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { Router } from 'express';
 import { OAuth2Client } from 'google-auth-library';
-import { verificationEmail } from '../lib/emailTemplates.js';
+import { passwordChangedEmail, passwordResetEmail, verificationEmail } from '../lib/emailTemplates.js';
 import { appUrl, mailMode, sendMail } from '../lib/mailer.js';
 import { notify } from '../lib/notifications.js';
 import { z } from 'zod';
@@ -11,6 +11,7 @@ import { record } from '../lib/audit.js';
 import { clearActing, createSession, destroySession, IMPERSONATION_MINUTES, publicUser, rateLimit, requireAuth } from '../lib/auth.js';
 import { HttpError, wrap } from '../lib/http.js';
 import { hashPassword, validatePassword, verifyAgainstDummy, verifyPassword } from '../lib/password.js';
+import { RESET_MINUTES, RESET_UNAVAILABLE, resetAvailable } from '../lib/passwordReset.js';
 import { phoneField, usernameField } from '../lib/profile.js';
 import { SIGNUPS_CLOSED, signupsOpen } from '../lib/signups.js';
 
@@ -65,7 +66,7 @@ async function verifyGoogleCredential(credential) {
   }
 }
 
-router.get('/config', (_req, res) => res.json({ googleClientId: GOOGLE_CLIENT_ID, signupsOpen: signupsOpen() }));
+router.get('/config', (_req, res) => res.json({ googleClientId: GOOGLE_CLIENT_ID, signupsOpen: signupsOpen(), passwordResetAvailable: resetAvailable() }));
 
 router.get('/me', (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Not signed in.' });
@@ -301,6 +302,102 @@ router.post(
     await query('UPDATE users SET email_verified_at = COALESCE(email_verified_at, now()) WHERE id = $1 AND lower(email) = lower($2)', [rows[0].user_id, rows[0].email]);
     await record('email_verified', { req, userId: rows[0].user_id });
     await notify(rows[0].user_id, { kind: 'system', title: 'E-mail address confirmed', body: 'You can now turn on e-mail alerts for upcoming payments.', link: '/notifications?tab=settings', dedupeKey: `verified:${Date.now()}` });
+    res.json({ ok: true });
+  }),
+);
+
+// ---- forgot my password ----
+// Three steps: ask (an e-mail with a link goes to the address), check (is the link still good, without using it up), reset (choose a new
+// password). The answer to "ask" is the same for every address, so it cannot be used to find out who has an account.
+const forgotIpLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 10, keyFn: (req) => `forgot-ip:${req.ip}`, onLimit: (req) => record('rate_limited', { req, detail: 'too many password reset requests from one place' }) });
+const forgotAddressLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 3,
+  keyFn: (req) => `forgot-address:${normalizeLogin(req.body?.email)}`,
+  message: 'Too many reset e-mails for this address. Try again in an hour.',
+  onLimit: (req) => record('rate_limited', { req, detail: 'too many reset e-mails for one address' }),
+});
+const resetLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, keyFn: (req) => `reset:${req.ip}`, onLimit: (req) => record('rate_limited', { req, detail: 'too many password reset attempts' }) });
+
+/** Make a one-time link for this person and mail it. Never throws (it runs after the answer has gone out). */
+async function sendPasswordReset(req, address) {
+  try {
+    const user = (await query('SELECT id, name, email, suspended_at FROM users WHERE lower(email) = $1', [address])).rows[0];
+    if (!user || user.suspended_at) return; // a stranger's address or a suspended account gets nothing, and the answer does not say so
+    const token = randomBytes(32).toString('base64url');
+    await query(`DELETE FROM email_tokens WHERE expires_at <= now() OR (user_id = $1 AND purpose = 'reset')`, [user.id]); // only the newest link works
+    await query(`INSERT INTO email_tokens (token_hash, user_id, purpose, email, expires_at) VALUES ($1, $2, 'reset', $3, now() + make_interval(mins => $4))`, [sha256(token), user.id, user.email, RESET_MINUTES]);
+    await record('password_reset_requested', { req, userId: user.id });
+    const mail = passwordResetEmail({ name: user.name, link: `${appUrl()}/reset-password?token=${token}`, minutes: RESET_MINUTES });
+    try {
+      const r = await sendMail({ to: user.email, ...mail });
+      await query(`INSERT INTO email_log (user_id, to_email, subject, kind, status) VALUES ($1, $2, $3, 'reset', $4)`, [user.id, user.email, mail.subject, r.status]);
+    } catch (err) {
+      await query(`INSERT INTO email_log (user_id, to_email, subject, kind, status, error) VALUES ($1, $2, $3, 'reset', 'failed', $4)`, [user.id, user.email, mail.subject, String(err.message).slice(0, 300)]);
+    }
+  } catch {
+    /* nothing to tell the person: the answer has already been sent */
+  }
+}
+
+router.post(
+  '/password/forgot',
+  forgotIpLimiter,
+  forgotAddressLimiter,
+  wrap(async (req, res) => {
+    if (!resetAvailable()) throw new HttpError(503, RESET_UNAVAILABLE);
+    const { email: address } = z.object({ email }).parse(req.body);
+    // the same answer whether or not the address has an account, sent before any of the work, so it takes the same time too
+    res.json({ ok: true });
+    await sendPasswordReset(req, address);
+  }),
+);
+
+// Is the link still good? Looking does not use it up, so a mail scanner that opens the link cannot spoil it.
+router.post(
+  '/password/check',
+  ipLimiter,
+  wrap(async (req, res) => {
+    if (!resetAvailable()) throw new HttpError(503, RESET_UNAVAILABLE);
+    const { token } = z.object({ token: z.string().min(20).max(200) }).parse(req.body);
+    const { rowCount } = await query(`SELECT 1 FROM email_tokens WHERE token_hash = $1 AND purpose = 'reset' AND expires_at > now()`, [sha256(token)]);
+    res.json({ valid: rowCount > 0 });
+  }),
+);
+
+router.post(
+  '/password/reset',
+  resetLimiter,
+  wrap(async (req, res) => {
+    if (!resetAvailable()) throw new HttpError(503, RESET_UNAVAILABLE);
+    const body = z.object({ token: z.string().min(20).max(200), new_password: z.string().max(1000) }).parse(req.body);
+    const hash = sha256(body.token);
+    const found = (
+      await query(
+        `SELECT u.* FROM email_tokens t JOIN users u ON u.id = t.user_id WHERE t.token_hash = $1 AND t.purpose = 'reset' AND t.expires_at > now()`,
+        [hash],
+      )
+    ).rows[0];
+    if (!found) throw new HttpError(400, 'This reset link is not valid or has expired. Ask for a new one.');
+    // a weak password is refused BEFORE the link is spent, so the person can simply try again
+    const problems = validatePassword(body.new_password, found);
+    if (problems.length) return passwordProblems(res, problems);
+    const spent = await query(`DELETE FROM email_tokens WHERE token_hash = $1 AND purpose = 'reset' AND expires_at > now() RETURNING user_id`, [hash]);
+    if (!spent.rows[0]) throw new HttpError(400, 'This reset link is not valid or has expired. Ask for a new one.');
+    const userId = found.id;
+    // Getting the link proves the address is theirs, so it counts as confirmed too.
+    await query('UPDATE users SET password_hash = $1, email_verified_at = COALESCE(email_verified_at, now()) WHERE id = $2', [await hashPassword(body.new_password), userId]);
+    await query('DELETE FROM sessions WHERE user_id = $1', [userId]); // signed out everywhere, including whoever knew the old password
+    await query(`DELETE FROM email_tokens WHERE user_id = $1 AND purpose = 'reset'`, [userId]);
+    await record('password_reset', { req, userId });
+    await notify(userId, { kind: 'security', title: 'Your password was reset', body: 'It was reset with a link sent to your e-mail address, and every device was signed out. If this was not you, ask for another reset right away.', link: '/settings?tab=account', dedupeKey: `password-reset:${Date.now()}` });
+    try {
+      const mail = passwordChangedEmail({ name: found.name });
+      const r = await sendMail({ to: found.email, ...mail });
+      await query(`INSERT INTO email_log (user_id, to_email, subject, kind, status) VALUES ($1, $2, $3, 'reset-done', $4)`, [userId, found.email, mail.subject, r.status]);
+    } catch (err) {
+      await query(`INSERT INTO email_log (user_id, to_email, subject, kind, status, error) VALUES ($1, $2, $3, 'reset-done', 'failed', $4)`, [userId, found.email, 'Your Penny password was changed', String(err.message).slice(0, 300)]);
+    }
     res.json({ ok: true });
   }),
 );

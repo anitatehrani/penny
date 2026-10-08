@@ -10,7 +10,7 @@ import { AppProvider } from './context.jsx';
 import { NotificationsProvider } from './notifications.jsx';
 import { installNumberWheelGuard } from './numberInputs.js';
 import AuthPages from './pages/Auth.jsx';
-import { Unsubscribe, VerifyEmail } from './pages/EmailLinks.jsx';
+import { ResetPassword, Unsubscribe, VerifyEmail } from './pages/EmailLinks.jsx';
 import { PreferencesProvider } from './prefs.jsx';
 import { PresenceProvider } from './presence.jsx';
 import { QuickProvider } from './quick.jsx';
@@ -55,6 +55,7 @@ function Root() {
   // links from emails work whether or not you are signed in
   if (!loading && !error && pathname === '/verify-email') return <VerifyEmail />;
   if (!loading && !error && pathname === '/unsubscribe') return <Unsubscribe />;
+  if (!loading && !error && pathname === '/reset-password') return <ResetPassword />;
   if (loading) return <div className="loading">Loading…</div>;
   if (error) return <div className="loading">Cannot reach the server: {error.message}</div>;
   if (!user) return <AuthPages />;

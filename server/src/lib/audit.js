@@ -12,6 +12,8 @@ export const EVENT_KINDS = {
   google_signup: { label: 'Signed up with Google', tone: 'ok' },
   password_changed: { label: 'Changed password', tone: '' },
   email_verified: { label: 'Confirmed e-mail', tone: 'ok' },
+  password_reset_requested: { label: 'Asked to reset the password', tone: '' },
+  password_reset: { label: 'Reset the password by e-mail', tone: 'ok' },
   rate_limited: { label: 'Turned away (too many tries)', tone: 'warn' },
   admin_suspend: { label: 'Suspended by an admin', tone: 'neg' },
   admin_unsuspend: { label: 'Reinstated by an admin', tone: 'ok' },

@@ -4,6 +4,7 @@ import GoogleButton from '../components/GoogleButton.jsx';
 import { Wordmark } from '../components/Logo.jsx';
 import PasswordField from '../components/PasswordField.jsx';
 import { Field, Icon, ThemeToggle } from '../components/ui.jsx';
+import { api } from '../api.js';
 import { useAuth } from '../auth.jsx';
 import { useUsernameCheck } from '../hooks.js';
 import { passwordOk } from '../passwordRules.js';
@@ -63,7 +64,7 @@ function ErrorList({ error }) {
 }
 
 function Login() {
-  const { login, googleClientId, signupsOpen } = useAuth();
+  const { login, googleClientId, signupsOpen, passwordResetAvailable } = useAuth();
   const [identifier, setIdentifier] = useState(''); // an email address or a username
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
@@ -90,8 +91,69 @@ function Login() {
           <input type="text" value={identifier} onChange={(e) => setIdentifier(e.target.value)} autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder="you@example.com or @username" required autoFocus={!googleClientId} />
         </Field>
         <PasswordField label="Password" value={password} onChange={setPassword} autoComplete="current-password" />
+        {passwordResetAvailable && (
+          <p className="auth-forgot">
+            <Link to="/forgot-password">Forgot your password?</Link>
+          </p>
+        )}
         <button className="btn primary wide" disabled={busy}>
           {busy ? 'Signing in…' : 'Sign in'}
+        </button>
+      </form>
+    </Shell>
+  );
+}
+
+/** /forgot-password: ask for an e-mail with a link. The answer is the same for every address, and the page says so. */
+function ForgotPassword() {
+  const { passwordResetAvailable } = useAuth();
+  const [address, setAddress] = useState('');
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  async function submit(e) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post('/auth/password/forgot', { email: address });
+      setSent(true);
+    } catch (err) {
+      setError(err);
+    }
+    setBusy(false);
+  }
+
+  const back = <>Remembered it? <Link to="/login">Back to sign in</Link></>;
+  if (!passwordResetAvailable) {
+    return (
+      <Shell title="Reset your password" subtitle="This is not available yet." footer={back}>
+        <p className="muted">Password reset by e-mail is not set up on this server. Ask the person who runs Penny to reset it for you.</p>
+      </Shell>
+    );
+  }
+  if (sent) {
+    return (
+      <Shell title="Check your e-mail" subtitle="Almost there." footer={back}>
+        <div className="banner ok" role="status">
+          <Icon name="check" />
+          <div>
+            If an account uses <strong>{address.trim().toLowerCase()}</strong>, an e-mail with a link is on its way. The link works once and expires in an hour. It can take a few minutes, and it may land in spam.
+          </div>
+        </div>
+      </Shell>
+    );
+  }
+  return (
+    <Shell title="Reset your password" subtitle="Enter the e-mail address of your account and we will send you a link." footer={back}>
+      <form onSubmit={submit} className="form">
+        <ErrorList error={error} />
+        <Field label="Email">
+          <input type="email" value={address} onChange={(e) => setAddress(e.target.value)} autoComplete="email" autoCapitalize="none" autoCorrect="off" spellCheck={false} required autoFocus />
+        </Field>
+        <button className="btn primary wide" disabled={busy || !address.trim()}>
+          {busy ? 'Sending…' : 'Send me a link'}
         </button>
       </form>
     </Shell>
@@ -204,6 +266,7 @@ export default function AuthPages() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="*" element={<ToLogin />} />
     </Routes>
   );

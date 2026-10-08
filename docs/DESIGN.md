@@ -854,5 +854,29 @@ the people you trust before strangers can sign up, since some things (password r
 - **Tested** by reading the files (the database and app have no published ports, only 80 and 443 are open, the firewall list, Unix line endings, the backup comes before the update,
   every setting in the template is read) and by starting the real thing on a computer in an isolated project: HTTPS answers, http redirects, the security headers are there, the
   session cookie is `Secure`, nothing but the web server is published, and `SIGNUPS=closed` refuses a sign-up while an existing person can still sign in.
-- **Not done, on purpose:** the server itself was not created (that needs the owner's account); password reset by e-mail, 2FA, terms and privacy pages and self-service account deletion
+- **Not done, on purpose:** the server itself was not created (that needs the owner's account); password reset by e-mail (built afterwards, section 35), 2FA, terms and privacy pages and self-service account deletion
   are still to build before sign-ups are opened to strangers.
+
+## 35. Forgot my password (defined before implementation)
+
+**What was missing.** A person who forgot their password was locked out unless whoever runs the server reset it by hand. That cannot be the answer for a public site.
+
+- **Three steps, one-time links.** `POST /api/auth/password/forgot` (an e-mail address), `POST /api/auth/password/check` (is a link still good), `POST /api/auth/password/reset`
+  (the link and a new password). The link is 32 random bytes; only its SHA-256 is stored (table `email_tokens`, purpose `reset`, which the check constraint now allows). It works once and for
+  60 minutes, and asking again cancels the one before, so only the newest link works. The link is never put in an answer.
+- **It must not reveal who has an account.** "Forgot" gives the same answer (`{ ok: true }`) for every well-formed address, sent *before* any work is done so the time is the same too;
+  a stranger's address and a suspended account simply get no mail. The limits are per address (3 an hour) and per place (10 an hour), and an address nobody uses is limited exactly like one
+  somebody uses, so the limit tells a guesser nothing. The address is never written to the activity log.
+- **Looking at a link does not use it up** (`check` only reads), so a mail scanner that opens links cannot spoil it; the page asks first and shows the form only for a good link.
+- **A weak password is refused before the link is spent**, judged against the real person (a password made from their own e-mail is refused), and the person can try again with the same link.
+  Two people using one link at the same moment: the single `DELETE ... RETURNING` lets exactly one through.
+- **After a reset:** every session of that person is deleted (including whoever knew the old password), no new session is made (the person signs in with the new password), getting the link counts
+  as confirming the address, a security notification is added and an e-mail "your password was changed" is sent (best effort; a failing mail server is logged in `email_log`, never shown). Google-only
+  accounts can use it to choose a password. Two activity kinds, "Asked to reset the password" and "Reset the password by e-mail", appear in the Admin activity list.
+- **Switched off where it cannot work.** It needs a real mail server. `resetAvailable()` is true with `SMTP_HOST`, or outside production (so a developer can use the preview folder). A production
+  server without a mail server hides "Forgot your password?" (`/api/auth/config` says `passwordResetAvailable`), and the three endpoints answer 503, because handing the link back in the answer
+  (as the confirmation e-mail does for a signed-in person) would let anyone take over any account just by asking. The Admin "Going public" hint now says so.
+- **Tested** by 22 API tests (same answer for known and unknown addresses; hash only; one hour; newest link only; suspended; both limits; looking does not spend a link; a confirmation link cannot
+  reset a password; weak password keeps the link; person-specific rules; expired; two at once; all sessions gone and no new one; verified, notified, mailed, logged; Google-only; production with and without
+  a mail server; a failing mail server), seven deliberate breakages (each caught), six browser checks (the whole path through the real pages, with a throw-away account) and screenshots in light,
+  dark and phone width.

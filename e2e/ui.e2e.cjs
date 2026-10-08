@@ -2299,6 +2299,112 @@ async function sessionFor(db, email) {
     eq((await api(page, 'GET', '/debts')).json.debts.filter((d) => d.name.startsWith('E2E ')).length, 0, 'none left');
   });
 
+  console.log('\nForgot password');
+  // A throw-away person (never the demo account), in a browser that is signed out. Where the server has no mail server and runs in production
+  // (the real Docker stack) the feature is switched off on purpose, so these checks are skipped there.
+  const MAIL_DIR = process.env.MAIL_PREVIEW_DIR || require('node:path').join(__dirname, '..', 'server', 'mail-preview');
+  const resetPerson = { name: 'E2E Reset', email: `e2e-reset-${Date.now().toString(36)}@example.com`, username: `e2ereset${Date.now().toString(36)}`.slice(0, 24), password: 'Tr1cky-Horse!Battery' };
+  const newPassword = 'Fresh-Start#2026-ok';
+  const resetOn = (await (await fetch(BASE + '/api/auth/config')).json()).passwordResetAvailable === true;
+  if (!resetOn) console.log('  skip password reset checks: switched off on this server (production without a mail server)');
+  else {
+    const signed = await fetch(BASE + '/api/auth/signup', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(resetPerson) });
+    eq(signed.status, 201, 'the throw-away account is made');
+    const ctx = await browser.createBrowserContext();
+    const out = await ctx.newPage();
+    await out.setViewport({ width: 1100, height: 800 });
+    out.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+    const bodyText = () => out.evaluate(() => document.body.innerText);
+    const link = async () => {
+      for (let i = 0; i < 60; i++) {
+        if (fs.existsSync(MAIL_DIR)) {
+          const hit = fs.readdirSync(MAIL_DIR).filter((n) => n.endsWith('.txt')).sort().map((n) => fs.readFileSync(require('node:path').join(MAIL_DIR, n), 'utf8')).filter((t) => t.startsWith(`To: ${resetPerson.email}\n`) && /Reset your Penny password/.test(t)).at(-1);
+          const m = hit && /(https?:\/\/\S+\/reset-password\?token=[\w-]+)/.exec(hit);
+          if (m) return m[1];
+        }
+        await sleep(250);
+      }
+      throw new Error('the reset e-mail never arrived in ' + MAIL_DIR);
+    };
+    let resetUrl;
+    try {
+      await check('the sign-in page offers "Forgot your password?" and it leads to a page asking for the e-mail address', async () => {
+        await out.goto(BASE + '/login', { waitUntil: 'networkidle0' });
+        truthy(/Forgot your password\?/.test(await bodyText()), 'the link is there');
+        await out.evaluate(() => [...document.querySelectorAll('a')].find((a) => /Forgot your password/.test(a.textContent))?.click());
+        await out.waitForSelector('input[type=email]');
+        eq(new URL(out.url()).pathname, '/forgot-password', 'the address');
+        truthy(/Send me a link/.test(await bodyText()), 'the button');
+      });
+      await check('asking for a link says the same thing for every address, and a link arrives for the real one', async () => {
+        await out.type('input[type=email]', resetPerson.email);
+        await out.evaluate(() => [...document.querySelectorAll('button')].find((b) => /Send me a link/.test(b.textContent))?.click());
+        await out.waitForFunction(() => /is on its way/.test(document.body.innerText));
+        truthy(!/no account|not found|does not exist/i.test(await bodyText()), 'it does not say whether the account exists');
+        resetUrl = await link();
+        truthy(/reset-password\?token=/.test(resetUrl), 'the link points at the reset page');
+      });
+      await check('the link opens a page for choosing a new password; a weak one cannot be sent, a mismatch cannot be sent', async () => {
+        await out.goto(resetUrl, { waitUntil: 'networkidle0' });
+        await out.waitForSelector('input[autocomplete=new-password]');
+        const [a, b] = await out.$$('input[autocomplete=new-password]');
+        const disabled = () => out.$eval('button.btn.primary', (x) => x.disabled);
+        eq(await disabled(), true, 'nothing typed yet');
+        await a.type('short');
+        await b.type('short');
+        eq(await disabled(), true, 'a weak password');
+        await a.click({ clickCount: 3 });
+        await a.type(newPassword);
+        eq(await disabled(), true, 'the two boxes differ');
+        await b.click({ clickCount: 3 });
+        await b.type(newPassword);
+        eq(await disabled(), false, 'a good password, typed twice');
+      });
+      await check('choosing the password changes it, and the new password signs in (the old one does not)', async () => {
+        await out.evaluate(() => document.querySelector('button.btn.primary').click());
+        await out.waitForFunction(() => /Password changed/.test(document.body.innerText));
+        await out.evaluate(() => [...document.querySelectorAll('button')].find((b) => /Go to sign in/.test(b.textContent))?.click());
+        await out.waitForSelector('input[autocomplete=username]');
+        const tryLogin = async (pw) => {
+          await out.goto(BASE + '/login', { waitUntil: 'networkidle0' });
+          await out.type('input[autocomplete=username]', resetPerson.email);
+          await out.type('input[autocomplete=current-password]', pw);
+          await out.evaluate(() => document.querySelector('form button.btn.primary').click());
+        };
+        await tryLogin(resetPerson.password);
+        await out.waitForFunction(() => /Invalid email, username or password/.test(document.body.innerText));
+        await tryLogin(newPassword);
+        await out.waitForFunction(() => !document.querySelector('input[autocomplete=username]'), { timeout: 15000 });
+      });
+      await check('the same link a second time says it has expired, and offers to ask for a new one', async () => {
+        const again = await ctx.newPage();
+        await again.goto(resetUrl, { waitUntil: 'networkidle0' });
+        await again.waitForFunction(() => /This link has expired/.test(document.body.innerText));
+        truthy(await again.evaluate(() => [...document.querySelectorAll('a')].some((a) => /Ask for a new link/.test(a.textContent))), 'a way forward');
+        await again.close();
+      });
+      await check('a made-up link says it has expired, without a flicker of the password form', async () => {
+        const bad = await ctx.newPage();
+        await bad.goto(BASE + '/reset-password?token=' + 'a'.repeat(43), { waitUntil: 'networkidle0' });
+        await bad.waitForFunction(() => /This link has expired/.test(document.body.innerText));
+        eq(await bad.$$eval('input[autocomplete=new-password]', (n) => n.length), 0, 'no password boxes');
+        await bad.close();
+      });
+    } finally {
+      await ctx.close();
+      await db.query('DELETE FROM users WHERE email = $1', [resetPerson.email]);
+      if (fs.existsSync(MAIL_DIR)) {
+        for (const n of fs.readdirSync(MAIL_DIR)) {
+          const p = require('node:path').join(MAIL_DIR, n);
+          if (n.endsWith('.txt') && fs.readFileSync(p, 'utf8').startsWith(`To: ${resetPerson.email}\n`)) {
+            fs.rmSync(p, { force: true });
+            fs.rmSync(p.replace(/\.txt$/, '.html'), { force: true });
+          }
+        }
+      }
+    }
+  }
+
   console.log('\nHealth');
   await check('no script errors or failed requests (other than expected 401/404s) during the run', async () => {
     eq(errors.length, 0, errors.slice(0, 3).join(' | '));
