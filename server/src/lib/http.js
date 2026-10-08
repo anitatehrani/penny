@@ -2,9 +2,10 @@ import { z } from 'zod';
 import { isValidYMD } from './dates.js';
 
 export class HttpError extends Error {
-  constructor(status, message) {
+  constructor(status, message, code) {
     super(message);
     this.status = status;
+    if (code) this.code = code;
   }
 }
 
@@ -22,7 +23,7 @@ export function errorHandler(err, _req, res, _next) {
     const message = err.issues.map((i) => `${i.path.join('.') || 'body'}: ${i.message}`).join('; ');
     return res.status(400).json({ error: message, issues: err.issues });
   }
-  if (err instanceof HttpError) return res.status(err.status).json({ error: err.message });
+  if (err instanceof HttpError) return res.status(err.status).json({ error: err.message, ...(err.code ? { code: err.code } : {}) });
   if (err.code === '23505') return res.status(409).json({ error: 'That item already exists.' });
   if (err.code === '23503') return res.status(400).json({ error: 'Referenced item does not exist.' });
   if (err.type === 'entity.parse.failed') return res.status(400).json({ error: 'Invalid JSON body.' });

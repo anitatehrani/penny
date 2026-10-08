@@ -267,6 +267,19 @@ describe('Production on a server', () => {
     assert.match(read('.gitattributes'), /^\*\.sh text eol=lf$/m);
   });
 
+  it('has the server scripts marked as runnable in git, so a server that clones them can run them', async () => {
+    const { execFileSync } = await import('node:child_process');
+    let listed;
+    try {
+      listed = execFileSync('git', ['ls-files', '-s', 'deploy/bootstrap.sh', 'deploy/update.sh'], { cwd: root, encoding: 'utf8' });
+    } catch {
+      return; // not a git checkout (an unpacked copy): nothing to check
+    }
+    const lines = listed.trim().split('\n');
+    assert.equal(lines.length, 2);
+    for (const line of lines) assert.match(line, /^100755 /, `mode 100755 (executable), not 100644: ${line}`);
+  });
+
   it('sets a new server up safely: a normal user, a firewall for 22, 80 and 443 only, and keys-only SSH, but only when a key is in place', () => {
     assert.match(bootstrap, /adduser --disabled-password/);
     const allowed = [...bootstrap.matchAll(/^ufw allow (\S+)/gm)].map((m) => m[1]);
@@ -309,7 +322,8 @@ describe('Production on a server', () => {
     const script = read('penny.ps1');
     for (const c of ['deploy', 'remote', 'prod-backup']) assert.match(script, new RegExp(`^Command ${c} '`, 'm'));
     assert.match(script, /DEPLOY_HOST=penny@your\.server\.address/);
-    assert.match(script, /\.\/deploy\/update\.sh/);
+    assert.match(script, /ssh \$h 'cd penny && bash deploy\/update\.sh'/, 'runs the update through bash: a file committed from Windows has no run permission, so ./deploy/update.sh would be refused');
+    assert.doesNotMatch(script, /&& \.\/deploy\/update\.sh/);
     assert.doesNotMatch(script, /StrictHostKeyChecking=no/, 'never turns off the check that it is the right server');
   });
 });

@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { OfflineBanner } from '../components/ds/States.jsx';
+import TermsNotice from '../components/TermsNotice.jsx';
 import ViewingBanner from '../components/ViewingBanner.jsx';
 import { Icon } from '../components/ui.jsx';
 import { usePrefs } from '../prefs.jsx';
@@ -36,6 +37,7 @@ export default function DashboardLayout({ children }) {
       <Sidebar collapsed={collapsed} onToggle={() => setPrefs({ sidebar_collapsed: !collapsed })} />
       <div className="shell-main">
         <ViewingBanner />
+        <TermsNotice />
         <OfflineBanner />
         <TopBar />
         <main className="main" id="main" tabIndex={-1}>

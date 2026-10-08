@@ -130,3 +130,16 @@ export function passwordChangedEmail({ name }) {
     text: `Hi ${first},\n\nThe password of your Penny account was just reset with a link sent to this address, and every device was signed out.\n\nIf this was you, there is nothing to do. If it was not, ask for another reset right away: ${appUrl()}/forgot-password`,
   };
 }
+
+export function accountDeletedEmail({ name }) {
+  const first = name.split(' ')[0];
+  return {
+    subject: 'Your Penny account was deleted',
+    html: shell(
+      'Your account was deleted',
+      `<p style="margin:0">Hi ${esc(first)}, your Penny account and everything in it was deleted, as you asked.</p><p style="margin:12px 0 0">Copies kept in our backups are overwritten within about six months. If you did not do this, reply to this e-mail or contact the person who runs the site right away.</p>`,
+      footerFor(null),
+    ),
+    text: `Hi ${first},\n\nYour Penny account and everything in it was deleted, as you asked.\n\nCopies kept in our backups are overwritten within about six months. If you did not do this, contact the person who runs the site right away.`,
+  };
+}

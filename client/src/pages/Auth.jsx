@@ -24,19 +24,62 @@ export function Shell({ title, subtitle, children, footer }) {
         <p className="muted">{subtitle}</p>
         {children}
         <p className="auth-footer">{footer}</p>
+        <p className="auth-legal">
+          <Link to="/terms">Terms</Link> · <Link to="/privacy">Privacy</Link>
+        </p>
       </div>
     </main>
   );
 }
 
-function GoogleSection({ onError, text }) {
+/** The two documents, opened in a new tab so a half-filled form is not lost. */
+function TermsLinks() {
+  return (
+    <>
+      <a href="/terms" target="_blank" rel="noopener noreferrer">
+        Terms of use
+      </a>{' '}
+      and the{' '}
+      <a href="/privacy" target="_blank" rel="noopener noreferrer">
+        Privacy policy
+      </a>
+    </>
+  );
+}
+
+/** "Sign in with Google" for somebody who has no account yet: the account is only made once they accept. */
+function GoogleTermsPrompt({ onAccept, onCancel, busy }) {
+  const [agree, setAgree] = useState(false);
+  return (
+    <div className="banner" role="group" aria-label="Accept the terms to create your account">
+      <Icon name="shield" />
+      <div>
+        <p>There is no Penny account for this Google account yet. To create one, please read and accept the <TermsLinks />.</p>
+        <label className="consent">
+          <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} />
+          <span>I have read and accept them.</span>
+        </label>
+        <div className="form-actions left">
+          <button type="button" className="btn primary" disabled={!agree || busy} onClick={onAccept}>
+            {busy ? 'Creating…' : 'Create my account'}
+          </button>
+          <button type="button" className="btn" onClick={onCancel}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GoogleSection({ onError, text, acceptTerms = false, onNeedTerms }) {
   const { googleClientId, loginWithGoogle } = useAuth();
   if (!googleClientId) {
     return <p className="field-hint auth-hint">Google sign-in is not set up on this server yet. See the README ("Google sign-in") to enable it.</p>;
   }
   return (
     <>
-      <GoogleButton clientId={googleClientId} text={text} onCredential={(c) => loginWithGoogle(c).catch((e) => onError(e.message))} onError={(e) => onError(e.message)} />
+      <GoogleButton clientId={googleClientId} text={text} onCredential={(c) => loginWithGoogle(c, acceptTerms).catch((e) => (e.code === 'terms_required' && onNeedTerms ? onNeedTerms(c) : onError(e.message)))} onError={(e) => onError(e.message)} />
       <div className="divider">
         <span>or use your email</span>
       </div>
@@ -64,7 +107,8 @@ function ErrorList({ error }) {
 }
 
 function Login() {
-  const { login, googleClientId, signupsOpen, passwordResetAvailable } = useAuth();
+  const { login, loginWithGoogle, googleClientId, signupsOpen, passwordResetAvailable } = useAuth();
+  const [pendingGoogle, setPendingGoogle] = useState(null); // a Google answer waiting for the terms to be accepted
   const [identifier, setIdentifier] = useState(''); // an email address or a username
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
@@ -84,7 +128,23 @@ function Login() {
 
   return (
     <Shell title="Welcome back" subtitle="Sign in to see your budget." footer={signupsOpen ? <>New here? <Link to="/signup">Create an account</Link></> : <>Sign-ups are closed for now.</>}>
-      <GoogleSection text="signin_with" onError={(m) => setError(new Error(m))} />
+      <GoogleSection text="signin_with" onError={(m) => setError(new Error(m))} onNeedTerms={setPendingGoogle} />
+      {pendingGoogle && (
+        <GoogleTermsPrompt
+          busy={busy}
+          onCancel={() => setPendingGoogle(null)}
+          onAccept={async () => {
+            setBusy(true);
+            try {
+              await loginWithGoogle(pendingGoogle, true);
+            } catch (err) {
+              setPendingGoogle(null);
+              setError(err);
+              setBusy(false);
+            }
+          }}
+        />
+      )}
       <form onSubmit={submit} className="form" noValidate={false}>
         <ErrorList error={error} />
         <Field label="Email or username">
@@ -168,6 +228,7 @@ function Signup() {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [accepted, setAccepted] = useState(false);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
 
@@ -189,7 +250,7 @@ function Signup() {
     setBusy(true);
     setError(null);
     try {
-      await signup({ name, email, username, phone: phone.trim() || null, password });
+      await signup({ name, email, username, phone: phone.trim() || null, password, accept_terms: true });
     } catch (err) {
       setError(err);
       setBusy(false);
@@ -205,7 +266,18 @@ function Signup() {
   }
   return (
     <Shell title="Create your account" subtitle="Keep your payments, plans and forecast in one private place." footer={<>Already have an account? <Link to="/login">Sign in</Link></>}>
-      <GoogleSection text="signup_with" onError={(m) => setError(new Error(m))} />
+      <label className="consent">
+        <input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} />
+        <span>
+          I have read and accept the <TermsLinks />.
+        </span>
+      </label>
+      <GoogleSection
+        text="signup_with"
+        acceptTerms={accepted}
+        onError={(m) => setError(new Error(m))}
+        onNeedTerms={() => setError(new Error('Tick the box to accept the terms and the privacy policy first, then use Google again.'))}
+      />
       <form onSubmit={submit} className="form">
         <ErrorList error={error} />
         <Field label="Your name">
@@ -242,7 +314,7 @@ function Signup() {
           autoComplete="new-password"
           hint={mismatch ? 'The passwords do not match yet.' : undefined}
         />
-        <button className="btn primary wide" disabled={busy || !valid || confirm !== password || !username || !check.available || check.checking}>
+        <button className="btn primary wide" disabled={busy || !accepted || !valid || confirm !== password || !username || !check.available || check.checking}>
           {busy ? 'Creating account…' : 'Create account'}
         </button>
       </form>

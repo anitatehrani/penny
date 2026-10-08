@@ -2,6 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { query } from '../db.js';
 import { record } from './audit.js';
 import { HttpError } from './http.js';
+import { TERMS_VERSION } from './legal.js';
 
 export const COOKIE_NAME = 'sid';
 /** How long an admin's "view as" lasts (docs/DESIGN.md section 33). After that the session is the admin's own again. */
@@ -69,6 +70,7 @@ export const publicUser = (u) => ({
   has_password: !!u.password_hash,
   google_linked: !!u.google_id,
   is_admin: !!u.is_admin,
+  terms_accepted: u.terms_version === TERMS_VERSION,
 });
 
 /** Attach req.user when the request carries a valid session cookie (does not reject anonymous requests). */

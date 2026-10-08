@@ -515,3 +515,8 @@ ALTER TABLE sessions ADD COLUMN IF NOT EXISTS acting_as integer REFERENCES users
 ALTER TABLE sessions ADD COLUMN IF NOT EXISTS acting_started_at timestamptz;
 ALTER TABLE sessions ADD COLUMN IF NOT EXISTS acting_read_only boolean NOT NULL DEFAULT true;
 ALTER TABLE sessions ADD COLUMN IF NOT EXISTS acting_reason text;
+
+-- Terms and privacy (docs/DESIGN.md section 36): which version of the terms a person accepted, and when. People who signed up before the
+-- terms existed have neither, and are asked once.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS terms_accepted_at timestamptz;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS terms_version text;

@@ -138,8 +138,8 @@ describe('asking for a link', () => {
     const stranger = `ghost-${uid()}@example.com`;
     for (let i = 0; i < 3; i++) ok(await forgot(preview, stranger));
     fails(await forgot(preview, stranger), 429);
-    const logged = await preview.db.query(`SELECT 1 FROM audit_events WHERE kind = 'rate_limited' AND detail = 'too many reset e-mails for one address'`);
-    assert.ok(logged.rowCount >= 1);
+    // the event is written just after the answer goes out, so wait for it instead of looking at once
+    await eventually(async () => (await preview.db.query(`SELECT 1 FROM audit_events WHERE kind = 'rate_limited' AND detail = 'too many reset e-mails for one address'`)).rowCount >= 1, { what: 'the limit being logged' });
   });
 
   it('is limited per place (10 an hour), whichever addresses are tried', async () => {

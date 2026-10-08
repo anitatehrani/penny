@@ -209,7 +209,7 @@ All of the data is in one database on one computer, so Penny copies it for you.
 4. **Backups** stay on (they are by default), with a second copy somewhere else (`BACKUP_HOST_DIR`).
 5. **Make yourself an admin:** sign up, confirm your e-mail, then `.\penny make-admin you@example.com`. The **Going public** card on the Admin page shows what is still missing.
 
-Not built yet, and worth having before real strangers use it: two-step sign-in, a terms and privacy page, and letting people delete their own account. ("Forgot my password" by e-mail is built: it switches itself on when a real mail server is set.)
+Not built yet, and worth having before real strangers use it: two-step sign-in. ("Forgot my password" by e-mail, the terms of use and privacy policy, "download my data" and "delete my account" are built.)
 
 ### Putting Penny online (DigitalOcean)
 
@@ -290,8 +290,9 @@ scp backups\penny-2026-10-10-1200.dump penny@SERVER_IP:penny/backups/    # use t
 **Keep copies of the backups somewhere other than the server** (run `.\penny prod-backup` every week or so, and keep the files on another drive or a synced folder): the weekly server backups
 and Penny's own daily ones live on the same machine, which does not help if the machine is lost or someone deletes the server.
 
-**Before you open sign-ups to strangers:** a real mail server (it also switches "Forgot your password?" on, see below), a terms and privacy page (that says an admin can view an account to give support),
-and letting people delete their own account. The **Going public** card on the Admin page shows what is still missing.
+**Before you open sign-ups to strangers:** a real mail server (it also switches "Forgot your password?" on, see below), and **who runs the site** on the terms and privacy pages: set `OPERATOR_NAME`
+(your name, or the name you run it under) and `CONTACT_EMAIL` (an address people can write to about their data) in `.env`. The **Going public** card on the Admin page shows what is still missing.
+The two pages (`/terms` and `/privacy`) are written in plain language to describe what Penny really does; have a lawyer read them if the site grows.
 
 ## The interface
 
@@ -371,6 +372,11 @@ Log in as Sam or Priya to see the other side of the same data.
 * **Not included:** settling up / "who owes whom" tracking, and per-member permissions inside a group.
 * **Email:** your address counts as confirmed once you open the link we email you (valid 24 hours, single use). Alerts are only
   ever sent to a confirmed address.
+* **Terms, privacy, your data:** `/terms` and `/privacy` are public pages. Signing up needs the box ticked (the version and time are kept), and so does creating an account with
+  Google; people who signed up before they existed see a one-time notice. **Settings, Account** has "Download my data" (a file with everything: profile, budgets and what is in them, connections,
+  notifications; never a password, other members' e-mail addresses or the bytes of photos and receipts) and "Delete my account" (password, or a fresh Google sign-in for an account without a password, and
+  the word DELETE; refused while you are an admin or share a budget with other people, and everything is removed at once). When the text changes, bump `TERMS_VERSION` in `server/src/lib/legal.js`
+  so people are asked again.
 * **Forgot your password:** the sign-in page links to a page that asks for the e-mail address and sends a link (valid one hour, works once, only the newest link works).
   The page says the same thing whether or not the address has an account. Choosing the new password signs the person out everywhere, tells them by e-mail and in the app,
   and does not sign them in. It needs a real mail server: **without `SMTP_HOST` on a server running in production the option stays hidden and the endpoints answer

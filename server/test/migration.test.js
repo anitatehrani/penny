@@ -27,7 +27,7 @@ describe('upgrading from the first versions', () => {
   it('re-running the schema on a populated database changes nothing', async () => {
     const c = new Client(srv.base);
     const n = uid();
-    ok(await c.post('/auth/signup', { name: 'Stay', email: `${n}@example.com`, username: `s${n}`, password: PW }), 201);
+    ok(await c.post('/auth/signup', { accept_terms: true, name: 'Stay', email: `${n}@example.com`, username: `s${n}`, password: PW }), 201);
     const before = (await q('SELECT (SELECT count(*) FROM users) u, (SELECT count(*) FROM workspaces) w, (SELECT count(*) FROM categories) c, (SELECT count(*) FROM workspace_settings) s')).rows[0];
     await restart();
     await restart();
@@ -88,7 +88,7 @@ describe('upgrading from the first versions', () => {
       await solo.db.query(`UPDATE settings SET opening_balance = 99, currency = 'EUR' WHERE id = 1`);
       const first = new Client(solo.base);
       const a = uid();
-      ok(await first.post('/auth/signup', { name: 'First', email: `${a}@example.com`, username: `f${a}`, password: PW }), 201);
+      ok(await first.post('/auth/signup', { accept_terms: true, name: 'First', email: `${a}@example.com`, username: `f${a}`, password: PW }), 201);
       const cats = ok(await first.get('/categories'));
       assert.equal(cats.length, 2, 'adopted the existing categories instead of seeding duplicates');
       assert.equal(ok(await first.get('/transactions?status=')).length, 1);
@@ -97,7 +97,7 @@ describe('upgrading from the first versions', () => {
       // the second account starts clean
       const second = new Client(solo.base);
       const b = uid();
-      ok(await second.post('/auth/signup', { name: 'Second', email: `${b}@example.com`, username: `s${b}`, password: PW }), 201);
+      ok(await second.post('/auth/signup', { accept_terms: true, name: 'Second', email: `${b}@example.com`, username: `s${b}`, password: PW }), 201);
       assert.equal(ok(await second.get('/categories')).length, 14);
       assert.equal(ok(await second.get('/transactions?status=')).length, 0);
       assert.deepEqual(ok(await second.get('/settings')), { opening_balance: 0, currency: 'USD', card_pay_day: 10, carry_over: true, min_balance: 0 });
@@ -124,7 +124,7 @@ describe('database-level safety nets', () => {
   const fresh = async () => {
     const c = new Client(srv.base);
     const n = uid();
-    const r = ok(await c.post('/auth/signup', { name: 'DB', email: `${n}@example.com`, username: `d${n}`, password: PW }), 201);
+    const r = ok(await c.post('/auth/signup', { accept_terms: true, name: 'DB', email: `${n}@example.com`, username: `d${n}`, password: PW }), 201);
     const ws = (await q(`SELECT id FROM workspaces WHERE owner_id = $1`, [r.user.id])).rows[0].id;
     return { c, user: r.user, ws };
   };

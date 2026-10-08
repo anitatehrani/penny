@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../api.js';
 import AccountCard from '../components/AccountCard.jsx';
+import YourDataCard from '../components/YourDataCard.jsx';
 import AppearanceSettings from '../components/AppearanceSettings.jsx';
 import NotificationSettings from '../components/NotificationSettings.jsx';
 import Select from '../components/ds/Select.jsx';
@@ -169,7 +170,12 @@ export default function Settings() {
       </div>
 
       <div id="set-panel" role="tabpanel" aria-labelledby={`set-${tab}`} className="tab-panel">
-      {tab === 'account' && <AccountCard />}
+      {tab === 'account' && (
+        <>
+          <AccountCard />
+          <YourDataCard />
+        </>
+      )}
       {tab === 'notifications' && <NotificationSettings />}
       {tab === 'appearance' && <AppearanceSettings />}
       {tab === 'general' && (

@@ -43,6 +43,8 @@ services:
       TRUST_PROXY: ${TRUST_PROXY:-}
       # "closed" stops new people from signing up (people who already have an account can still sign in). Open it when you are ready.
       SIGNUPS: ${SIGNUPS:-open}
+      OPERATOR_NAME: ${OPERATOR_NAME:-}
+      CONTACT_EMAIL: ${CONTACT_EMAIL:-}
       # Set to true when you serve Penny over HTTPS, so the session cookie is marked Secure.
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       # Optional. When empty, a random secret is created once and kept in the database.

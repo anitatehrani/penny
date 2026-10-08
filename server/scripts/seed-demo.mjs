@@ -112,7 +112,7 @@ await db.end();
 const who = {};
 for (const [key, p] of Object.entries(PEOPLE)) {
   const c = new Client();
-  await c.post('/auth/signup', { ...p, password: PASSWORD });
+  await c.post('/auth/signup', { ...p, password: PASSWORD, accept_terms: true });
   who[key] = c;
 }
 const { alex, sam, jordan, priya, chris, dana } = who;

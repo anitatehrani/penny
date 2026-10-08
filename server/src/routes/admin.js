@@ -6,6 +6,7 @@ import { EVENT_KINDS, record } from '../lib/audit.js';
 import { IMPERSONATION_MINUTES, rateLimit, requireAdmin } from '../lib/auth.js';
 import { backupStatus } from '../lib/backup.js';
 import { HttpError, idParam, wrap } from '../lib/http.js';
+import { legalConfig } from '../lib/legal.js';
 import { appUrl, mailMode } from '../lib/mailer.js';
 import { notify } from '../lib/notifications.js';
 import { signupsOpen } from '../lib/signups.js';
@@ -104,6 +105,7 @@ router.get(
       { id: 'cookie', ok: process.env.COOKIE_SECURE === 'true', text: 'Secure cookies are on', hint: 'Set COOKIE_SECURE=true in .env once the site is served over HTTPS.' },
       { id: 'url', ok: !/localhost|127\.0\.0\.1/.test(appUrl()), text: 'The public address is set', hint: 'Set APP_URL to the real address, or the links in e-mails point at your own computer.' },
       { id: 'mail', ok: mailMode() === 'smtp', text: 'A real mail server is set', hint: 'Set SMTP_HOST (and the other SMTP_ settings). Without it e-mails are only saved in a folder, so nobody receives them, and "Forgot password" stays switched off.' },
+      { id: 'legal', ok: !!(legalConfig().operatorName && legalConfig().contactEmail), text: 'The terms and privacy pages say who runs the site', hint: 'Set OPERATOR_NAME and CONTACT_EMAIL in .env, so the two pages name you and say how people can reach you (they are asked to accept them when they sign up).' },
       { id: 'backups', ok: !!b.enabled && !b.problem && !!b.last_at, text: 'Backups are on and recent', hint: b.problem || 'Backups are off or none has been made yet.' },
       { id: 'proxy', ok: !!process.env.TRUST_PROXY, text: 'The proxy setting is present', hint: 'Set TRUST_PROXY=1 when a web server sits in front of Penny, or every visitor looks like one address to the rate limits and the activity log.' },
     ];

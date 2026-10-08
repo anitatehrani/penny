@@ -1974,8 +1974,8 @@ async function sessionFor(db, email) {
     truthy(['People', 'Active this week', 'Sign-ins', 'Failed sign-ins', 'Payments', 'Receipts'].every((n) => info.stats.includes(n)), 'the stat cards: ' + info.stats.join());
     eq(info.bars, 30, 'thirty days of bars');
     truthy(/last 30 days/.test(info.chart), 'the chart is described for a screen reader');
-    eq(info.checks, 5, 'five checks');
-    truthy(/\d of 5 ready/.test(info.badge), 'it says how many are ready: ' + info.badge);
+    eq(info.checks, 6, 'six checks');
+    truthy(/\d of 6 ready/.test(info.badge), 'it says how many are ready: ' + info.badge);
     truthy(info.todos >= 1, 'a check that is not done says what to do');
     truthy(!/€|\$|£/.test(await text(page, '[role=tabpanel]')) || /Payments/.test(await text(page, '[role=tabpanel]')), 'no money on the page');
   });
@@ -1996,7 +1996,7 @@ async function sessionFor(db, email) {
     truthy(/Cannot be deleted/.test(await text(page, '.admin-actions')), 'and it says why');
   });
   await check('a throwaway account can be suspended (with a reason), cannot sign in, is reinstated, signed out and deleted', async () => {
-    const make = await fetch(BASE + '/api/auth/signup', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'E2E Spam Person', email: SPAM + '@example.com', username: SPAM, password: 'Tr1cky-Horse!Battery' }) });
+    const make = await fetch(BASE + '/api/auth/signup', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ accept_terms: true, name: 'E2E Spam Person', email: SPAM + '@example.com', username: SPAM, password: 'Tr1cky-Horse!Battery' }) });
     eq(make.status, 201, 'the throwaway account');
     await adminTab('people');
     await page.type('.admin-search input', SPAM);
@@ -2196,7 +2196,7 @@ async function sessionFor(db, email) {
     const probe = await browser.newPage();
     await probe.goto(BASE + '/login');
     const res = await probe.evaluate(async (email) => {
-      const r = await fetch('/api/auth/signup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'New Person', email, username: 'np' + Date.now().toString(36).slice(-7), password: 'Tr1cky-Horse!Battery' }) });
+      const r = await fetch('/api/auth/signup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accept_terms: true, name: 'New Person', email, username: 'np' + Date.now().toString(36).slice(-7), password: 'Tr1cky-Horse!Battery' }) });
       return r.status;
     }, email);
     eq(res, 201, 'sign-up');
@@ -2303,7 +2303,7 @@ async function sessionFor(db, email) {
   // A throw-away person (never the demo account), in a browser that is signed out. Where the server has no mail server and runs in production
   // (the real Docker stack) the feature is switched off on purpose, so these checks are skipped there.
   const MAIL_DIR = process.env.MAIL_PREVIEW_DIR || require('node:path').join(__dirname, '..', 'server', 'mail-preview');
-  const resetPerson = { name: 'E2E Reset', email: `e2e-reset-${Date.now().toString(36)}@example.com`, username: `e2ereset${Date.now().toString(36)}`.slice(0, 24), password: 'Tr1cky-Horse!Battery' };
+  const resetPerson = { name: 'E2E Reset', email: `e2e-reset-${Date.now().toString(36)}@example.com`, username: `e2ereset${Date.now().toString(36)}`.slice(0, 24), password: 'Tr1cky-Horse!Battery', accept_terms: true };
   const newPassword = 'Fresh-Start#2026-ok';
   const resetOn = (await (await fetch(BASE + '/api/auth/config')).json()).passwordResetAvailable === true;
   if (!resetOn) console.log('  skip password reset checks: switched off on this server (production without a mail server)');
@@ -2399,6 +2399,114 @@ async function sessionFor(db, email) {
           if (n.endsWith('.txt') && fs.readFileSync(p, 'utf8').startsWith(`To: ${resetPerson.email}\n`)) {
             fs.rmSync(p, { force: true });
             fs.rmSync(p.replace(/\.txt$/, '.html'), { force: true });
+          }
+        }
+      }
+    }
+  }
+
+  console.log('\nTerms, your data and deleting the account');
+  {
+    const stamp = Date.now().toString(36);
+    const person = { name: 'E2E Legal', email: `e2e-legal-${stamp}@example.com`, username: `e2elegal${stamp}`.slice(0, 24), password: 'Tr1cky-Horse!Battery' };
+    const ctx = await browser.createBrowserContext();
+    const out = await ctx.newPage();
+    await out.setViewport({ width: 1100, height: 800 });
+    out.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+    const bodyText = (p = out) => p.evaluate(() => document.body.innerText);
+    const clickText = (p, re, sel = 'button') => p.evaluate((src, selector) => [...document.querySelectorAll(selector)].find((b) => new RegExp(src).test(b.textContent))?.click(), re.source, sel);
+    try {
+      await check('the terms and the privacy policy open without signing in, and link to each other', async () => {
+        await out.goto(BASE + '/terms', { waitUntil: 'networkidle0' });
+        truthy(/Terms of use/.test(await bodyText()) && /Last updated/.test(await bodyText()), 'the terms page');
+        truthy(/not financial, tax or legal advice/.test(await bodyText()), 'says it is not advice');
+        await clickText(out, /Privacy policy/, 'nav a');
+        await out.waitForFunction(() => /What Penny keeps/.test(document.body.innerText));
+        truthy(/We do not sell your data/.test(await bodyText()), 'the privacy promise');
+        truthy(/download everything and delete your account yourself/.test(await bodyText()), 'says what you can do');
+      });
+      await check('the sign-in page links to both documents', async () => {
+        await out.goto(BASE + '/login', { waitUntil: 'networkidle0' });
+        const links = await out.$$eval('.auth-legal a', (a) => a.map((x) => x.getAttribute('href')));
+        eq(links.join(','), '/terms,/privacy', 'the two links');
+      });
+      await check('sign-up cannot be sent until the terms are accepted, and the documents open in a new tab', async () => {
+        await out.goto(BASE + '/signup', { waitUntil: 'networkidle0' });
+        const targets = await out.$$eval('label.consent a', (a) => a.map((x) => x.target));
+        eq(targets.join(','), '_blank,_blank', 'new tabs, so a half-filled form is not lost');
+        await out.type('input[autocomplete=name]', person.name);
+        await out.type('input[type=email]', person.email);
+        await out.$eval('input[type=email]', (e) => e.blur());
+        await sleep(400);
+        await out.click('.prefixed input', { clickCount: 3 });
+        await out.type('.prefixed input', person.username);
+        const [a, b] = await out.$$('input[autocomplete=new-password]');
+        await a.type(person.password);
+        await b.type(person.password);
+        await sleep(700); // the username check
+        const disabled = () => out.$eval('form button.btn.primary', (x) => x.disabled);
+        eq(await disabled(), true, 'everything filled in but the box is not ticked');
+        await out.click('label.consent input');
+        eq(await disabled(), false, 'the box is ticked');
+      });
+      await check('signing up creates the account (the acceptance is kept) and opens the app, without the one-time notice', async () => {
+        await out.evaluate(() => document.querySelector('form button.btn.primary').click());
+        await out.waitForFunction(() => !document.querySelector('input[autocomplete=new-password]'), { timeout: 15000 });
+        await out.waitForSelector('.shell', { timeout: 15000 });
+        const row = (await db.query('SELECT terms_version, terms_accepted_at FROM users WHERE email = $1', [person.email])).rows[0];
+        truthy(row?.terms_version && row.terms_accepted_at, 'the acceptance was recorded');
+        eq(await out.$('.terms-notice'), null, 'no notice for somebody who just accepted');
+      });
+      await check('somebody from before the terms existed sees a one-time notice, and it goes away once accepted', async () => {
+        await db.query('UPDATE users SET terms_version = NULL, terms_accepted_at = NULL WHERE email = $1', [person.email]);
+        await out.goto(BASE + '/', { waitUntil: 'networkidle0' });
+        await out.waitForSelector('.terms-notice');
+        truthy(/Terms of use/.test(await text(out, '.terms-notice')) && /Privacy policy/.test(await text(out, '.terms-notice')), 'the notice names both');
+        await clickText(out, /I accept/);
+        await out.waitForSelector('.terms-notice', { hidden: true });
+        truthy((await db.query('SELECT terms_version FROM users WHERE email = $1', [person.email])).rows[0].terms_version, 'remembered');
+      });
+      await check('Settings, Account has "Download my data": the file holds the person and no secrets', async () => {
+        await out.goto(BASE + '/settings?tab=account', { waitUntil: 'networkidle0' });
+        truthy(/Download my data/.test(await bodyText()) && /Delete my account/.test(await bodyText()), 'both are there');
+        const r = await out.evaluate(async () => {
+          const res = await fetch('/api/auth/account/export', { credentials: 'same-origin' });
+          return { status: res.status, disposition: res.headers.get('content-disposition'), text: await res.text() };
+        });
+        eq(r.status, 200, 'status');
+        truthy(/^attachment; filename="penny-data-/.test(r.disposition), 'a download');
+        truthy(r.text.includes(person.email) && !/password_hash|token_hash/.test(r.text), 'the person is in it, secrets are not');
+      });
+      await check('deleting the account: the button waits for the password and the word DELETE, then everything is gone', async () => {
+        await clickText(out, /Delete my account…/);
+        await out.waitForSelector('.modal');
+        const disabled = () => out.$eval('.modal button.btn.danger', (x) => x.disabled);
+        eq(await disabled(), true, 'nothing filled in');
+        await out.type('.modal input[autocomplete=current-password]', 'wrong-Password-1!');
+        await out.type('.modal input[autocomplete=off]', 'DELETE');
+        eq(await disabled(), false, 'password and DELETE typed');
+        await out.evaluate(() => document.querySelector('.modal button.btn.danger').click());
+        await out.waitForFunction(() => /not correct/.test(document.body.innerText), { timeout: 10000 });
+        eq((await db.query('SELECT 1 FROM users WHERE email = $1', [person.email])).rowCount, 1, 'a wrong password deletes nothing');
+        await out.click('.modal input[autocomplete=current-password]', { clickCount: 3 });
+        await out.type('.modal input[autocomplete=current-password]', person.password);
+        await out.evaluate(() => document.querySelector('.modal button.btn.danger').click());
+        await out.waitForSelector('input[autocomplete=username]', { timeout: 15000 });
+        eq((await db.query('SELECT 1 FROM users WHERE email = $1', [person.email])).rowCount, 0, 'the account is gone');
+        eq((await db.query('SELECT 1 FROM workspaces w WHERE NOT EXISTS (SELECT 1 FROM users u WHERE u.id = w.owner_id)')).rowCount, 0, 'no budget was left behind');
+      });
+    } finally {
+      await ctx.close();
+      await db.query('DELETE FROM users WHERE email = $1', [person.email]);
+      if (process.env.MAIL_PREVIEW_DIR || true) {
+        const dir = process.env.MAIL_PREVIEW_DIR || require('node:path').join(__dirname, '..', 'server', 'mail-preview');
+        if (fs.existsSync(dir)) {
+          for (const n of fs.readdirSync(dir)) {
+            const p = require('node:path').join(dir, n);
+            if (n.endsWith('.txt') && fs.readFileSync(p, 'utf8').startsWith(`To: ${person.email}\n`)) {
+              fs.rmSync(p, { force: true });
+              fs.rmSync(p.replace(/\.txt$/, '.html'), { force: true });
+            }
           }
         }
       }

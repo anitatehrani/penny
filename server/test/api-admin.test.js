@@ -62,7 +62,7 @@ describe('only admins get in', () => {
 
   it('nobody can make themselves an admin through the website', async () => {
     const p = await fresh();
-    const r = await new Client(srv.base).post('/auth/signup', { name: 'Sneaky', email: 'sneaky@example.com', username: 'sneaky', password: PW, is_admin: true });
+    const r = await new Client(srv.base).post('/auth/signup', { accept_terms: true, name: 'Sneaky', email: 'sneaky@example.com', username: 'sneaky', password: PW, is_admin: true });
     ok(r, 201);
     assert.equal(r.json.user.is_admin, false, 'not from signing up');
     const me = ok(await p.client.get('/auth/me')).user;
@@ -148,11 +148,12 @@ describe('the overview', () => {
   it('has a going-public checklist read from the real settings', async () => {
     const a = await admin();
     const o = ok(await a.client.get('/admin/overview'));
-    assert.deepEqual(o.checks.map((c) => c.id), ['cookie', 'url', 'mail', 'backups', 'proxy']);
+    assert.deepEqual(o.checks.map((c) => c.id), ['cookie', 'url', 'mail', 'legal', 'backups', 'proxy']);
     const by = Object.fromEntries(o.checks.map((c) => [c.id, c]));
     assert.equal(by.cookie.ok, false, 'tests run without COOKIE_SECURE');
     assert.equal(by.url.ok, false, 'the address is localhost');
     assert.equal(by.mail.ok, false, 'preview mode');
+    assert.equal(by.legal.ok, false, 'nobody has said who runs the site');
     assert.equal(by.backups.ok, false, 'backups are off in tests');
     assert.equal(by.proxy.ok, false);
     assert.ok(o.checks.every((c) => typeof c.text === 'string' && typeof c.hint === 'string'));

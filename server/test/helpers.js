@@ -207,6 +207,7 @@ export async function signup(srv, over = {}) {
     email: over.email ?? `t${n}@example.com`,
     username: over.username ?? `u${n}`,
     password: over.password ?? PW,
+    accept_terms: true,
     ...(over.phone !== undefined ? { phone: over.phone } : {}),
   };
   const client = new Client(srv.base);

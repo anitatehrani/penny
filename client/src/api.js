@@ -24,6 +24,7 @@ async function send(method, url, { body, rawBody, headers = {}, workspace } = {}
     const err = new Error(data.error || `Request failed (${res.status})`);
     err.status = res.status;
     err.problems = data.problems;
+    err.code = data.code;
     throw err;
   }
   return data;

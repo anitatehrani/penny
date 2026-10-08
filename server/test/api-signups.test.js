@@ -21,7 +21,7 @@ after(async () => {
 
 const body = (over = {}) => {
   const n = uid();
-  return { name: `Test ${n}`, email: `t${n}@example.com`, username: `u${n}`, password: PW, ...over };
+  return { name: `Test ${n}`, email: `t${n}@example.com`, username: `u${n}`, password: PW, accept_terms: true, ...over };
 };
 
 describe('the setting', () => {
@@ -58,7 +58,7 @@ describe('with sign-ups closed', () => {
   it('refuses before checking anything else, so it also tells a guesser nothing about who has an account', async () => {
     const c = new Client(closed.base);
     const first = fails(await c.post('/auth/signup', body()), 403);
-    const dup = fails(await c.post('/auth/signup', { name: '', email: 'not an email', username: 'x', password: 'short' }), 403);
+    const dup = fails(await c.post('/auth/signup', { accept_terms: true, name: '', email: 'not an email', username: 'x', password: 'short' }), 403);
     assert.equal(first.error, dup.error);
   });
 
@@ -82,7 +82,7 @@ describe('with sign-ups closed', () => {
 });
 
 describe('Google when sign-ups are closed', () => {
-  const q = { query: (...a) => closed.db.query(...a) };
+  const q = { query: (...a) => closed.db.query(...a), acceptTerms: true };
   const profile = (over = {}) => ({ sub: `g-${uid()}`, email: `g${uid()}@example.com`, email_verified: true, name: 'Gina Green', picture: null, ...over });
 
   it('a new Google account is refused, one that exists still signs in', async () => {

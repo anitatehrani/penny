@@ -854,7 +854,7 @@ the people you trust before strangers can sign up, since some things (password r
 - **Tested** by reading the files (the database and app have no published ports, only 80 and 443 are open, the firewall list, Unix line endings, the backup comes before the update,
   every setting in the template is read) and by starting the real thing on a computer in an isolated project: HTTPS answers, http redirects, the security headers are there, the
   session cookie is `Secure`, nothing but the web server is published, and `SIGNUPS=closed` refuses a sign-up while an existing person can still sign in.
-- **Not done, on purpose:** the server itself was not created (that needs the owner's account); password reset by e-mail (built afterwards, section 35), 2FA, terms and privacy pages and self-service account deletion
+- **Not done, on purpose:** the server itself was not created (that needs the owner's account); password reset by e-mail (built afterwards, section 35), 2FA, terms and privacy pages and account deletion (built afterwards, section 36), terms and privacy pages and self-service account deletion
   are still to build before sign-ups are opened to strangers.
 
 ## 35. Forgot my password (defined before implementation)
@@ -880,3 +880,26 @@ the people you trust before strangers can sign up, since some things (password r
   reset a password; weak password keeps the link; person-specific rules; expired; two at once; all sessions gone and no new one; verified, notified, mailed, logged; Google-only; production with and without
   a mail server; a failing mail server), seven deliberate breakages (each caught), six browser checks (the whole path through the real pages, with a throw-away account) and screenshots in light,
   dark and phone width.
+
+## 36. Terms, privacy, your data, and deleting your own account (defined before implementation)
+
+**What was missing.** A public site that keeps people's finances needs the rules and the privacy policy written down and accepted, and people need to be able to take their data and leave on their own.
+
+- **Two public pages**, `/terms` and `/privacy` (`client/src/pages/Legal.jsx`), readable signed in or out, linked from the sign-in and sign-up pages, Settings, and the one-time notice.
+  They describe what Penny actually does (what is kept, who can see it: members of a shared budget, the operator's support "view as" with a reason and a notice, Azure for hosting, Brevo for e-mail, Google only if used;
+  one session cookie; no analytics or advertising; backups kept 14 days plus one a month for about six months; the activity log kept 90 days with a short code instead of the IP address; deleting is immediate). Who runs the
+  site and how to reach them come from `OPERATOR_NAME` and `CONTACT_EMAIL` (`/api/auth/config` carries them as `legal`); until set the page says so, and the Admin "Going public" card has a check for it.
+  The text is a plain-language description, not legal advice.
+- **Acceptance is kept and enforced on the server.** `POST /auth/signup` needs `accept_terms: true`; `users.terms_accepted_at` and `terms_version` record when and which. Creating an account with Google needs it too: without
+  it the server answers 400 with `code: 'terms_required'`, creates nothing, and the sign-in page asks (checkbox) and tries again with the same Google answer; signing in to an existing account needs nothing.
+  `TERMS_VERSION` (`server/src/lib/legal.js`) is bumped together with the text. A person whose version is not current (everyone who signed up before this) sees a one-time notice with "I accept"
+  (`POST /auth/terms/accept`); it never locks anything and is never shown to an admin who is only viewing an account.
+- **Download my data** (`GET /auth/account/export`, `lib/accountData.js`): a JSON file with the profile, settings, every budget the person is a member of and what is in it (categories, payments, recurring, installments,
+  debts, receipts listed but not their bytes), shared-payment shares, connections, notifications, the e-mails sent and the activity log about them. Never the password hash, a session or token, a photo's or receipt's bytes,
+  or another member's e-mail address (members appear as name and username only). Limited to 6 an hour, `no-store`, and refused while an admin is only viewing the account.
+- **Delete my account** (`POST /auth/account/delete`): asks for the password again (or a fresh Google sign-in for an account that has no password), and the word DELETE. It is refused for an admin (the site is never left without one)
+  and while the person is in a budget with other people (their payments there would be taken away; leave first), with a message that says so. Otherwise the cookie goes first, then `deleteUserAccount` removes the person and
+  everything that only they own in one step (photos, receipts, notifications, the e-mail log and sessions go with them by cascade), the activity log keeps an event without their name (`account_deleted`), and a goodbye e-mail is
+  sent (best effort). Limited to 6 tries in 15 minutes and refused while an admin is viewing the account (the view-as guard already refuses it; the check in the route is a second layer).
+- **Tested** by 16 API tests (acceptance needed, kept, asked once, Google, config, the export holds only what it should, only the person's own, limits, deletion step by step, admin, shared budget, view-as, Google-only) and
+  11 deliberate breakages (10 caught; the eleventh is the second layer behind the view-as guard), plus 7 browser checks (the pages open signed out, the box must be ticked, the one-time notice, the download, deleting) and screenshots in light, dark and phone width.

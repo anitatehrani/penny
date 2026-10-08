@@ -206,10 +206,10 @@ describe('hostile text is stored and returned literally', () => {
   it('names and usernames with markup are accepted as names but never as usernames', async () => {
     const n = uid();
     const c = new Client(srv.base.replace(/\/api$/, ''));
-    ok(await c.post('/auth/signup', { name: '<b>Bold</b> "Q"', email: `${n}@example.com`, username: `x${n}`, password: 'Tr1cky-Horse!Battery' }), 201);
+    ok(await c.post('/auth/signup', { accept_terms: true, name: '<b>Bold</b> "Q"', email: `${n}@example.com`, username: `x${n}`, password: 'Tr1cky-Horse!Battery' }), 201);
     const bad = new Client(srv.base.replace(/\/api$/, ''));
-    fails(await bad.post('/auth/signup', { name: 'x', email: `y${n}@example.com`, username: '<script>', password: 'Tr1cky-Horse!Battery' }), 400);
-    fails(await bad.post('/auth/signup', { name: 'x', email: `z${n}@example.com`, username: "bob'--", password: 'Tr1cky-Horse!Battery' }), 400);
+    fails(await bad.post('/auth/signup', { accept_terms: true, name: 'x', email: `y${n}@example.com`, username: '<script>', password: 'Tr1cky-Horse!Battery' }), 400);
+    fails(await bad.post('/auth/signup', { accept_terms: true, name: 'x', email: `z${n}@example.com`, username: "bob'--", password: 'Tr1cky-Horse!Battery' }), 400);
   });
 });
 
@@ -284,7 +284,7 @@ describe('sessions cannot be fixed or shared', () => {
     const c = new Client(root);
     c.jar.sid = 'attacker-chosen-token';
     const n = uid();
-    ok(await c.post('/auth/signup', { name: 'F', email: `${n}@example.com`, username: `f${n}`, password: 'Tr1cky-Horse!Battery' }), 201);
+    ok(await c.post('/auth/signup', { accept_terms: true, name: 'F', email: `${n}@example.com`, username: `f${n}`, password: 'Tr1cky-Horse!Battery' }), 201);
     assert.notEqual(c.jar.sid, 'attacker-chosen-token');
     const attacker = new Client(root);
     attacker.jar.sid = 'attacker-chosen-token';
@@ -298,7 +298,7 @@ describe('races', () => {
 
   it('8 simultaneous sign-ups with one email create exactly one account', async () => {
     const n = uid();
-    const rs = await race(8, (i) => new Client(root()).post('/auth/signup', { name: 'R', email: `race${n}@example.com`, username: `race${n}${i}`, password: 'Tr1cky-Horse!Battery' }));
+    const rs = await race(8, (i) => new Client(root()).post('/auth/signup', { accept_terms: true, name: 'R', email: `race${n}@example.com`, username: `race${n}${i}`, password: 'Tr1cky-Horse!Battery' }));
     assert.equal(rs.filter((r) => r.status === 201).length, 1, rs.map((r) => r.status).join());
     assert.ok(rs.every((r) => [201, 409].includes(r.status)));
     assert.equal((await srv.db.query('SELECT count(*)::int n FROM users WHERE email = $1', [`race${n}@example.com`])).rows[0].n, 1);
@@ -306,10 +306,10 @@ describe('races', () => {
 
   it('8 simultaneous sign-ups for one username (and one phone) create exactly one account each', async () => {
     const n = uid();
-    const rs = await race(8, (i) => new Client(root()).post('/auth/signup', { name: 'R', email: `u${i}${n}@example.com`, username: `same${n}`, password: 'Tr1cky-Horse!Battery' }));
+    const rs = await race(8, (i) => new Client(root()).post('/auth/signup', { accept_terms: true, name: 'R', email: `u${i}${n}@example.com`, username: `same${n}`, password: 'Tr1cky-Horse!Battery' }));
     assert.equal(rs.filter((r) => r.status === 201).length, 1);
     assert.ok(rs.every((r) => [201, 409].includes(r.status)));
-    const ps = await race(6, (i) => new Client(root()).post('/auth/signup', { name: 'P', email: `p${i}${n}@example.com`, username: `ph${i}${n}`, phone: '+49 170 9990000', password: 'Tr1cky-Horse!Battery' }));
+    const ps = await race(6, (i) => new Client(root()).post('/auth/signup', { accept_terms: true, name: 'P', email: `p${i}${n}@example.com`, username: `ph${i}${n}`, phone: '+49 170 9990000', password: 'Tr1cky-Horse!Battery' }));
     assert.equal(ps.filter((r) => r.status === 201).length, 1);
     assert.ok(ps.every((r) => [201, 409].includes(r.status)));
   });

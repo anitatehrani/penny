@@ -1,5 +1,6 @@
 import { withTransaction } from '../db.js';
 import { HttpError } from './http.js';
+import { TERMS_VERSION } from './legal.js';
 import { generateUsername } from './profile.js';
 import { SIGNUPS_CLOSED, signupsOpen } from './signups.js';
 
@@ -73,13 +74,13 @@ export async function provisionAccount(client, userId, name = 'Personal') {
 }
 
 /** Insert a user and provision their personal workspace atomically. Serialised so "first account" is well defined. */
-export function createUser({ email, name, username, phone = null, passwordHash = null, googleId = null, avatarUrl = null, emailVerified = false }) {
+export function createUser({ email, name, username, phone = null, passwordHash = null, googleId = null, avatarUrl = null, emailVerified = false, termsAccepted = false }) {
   return withTransaction(async (client) => {
     await client.query('SELECT pg_advisory_xact_lock(7001)');
     const { rows } = await client.query(
-      `INSERT INTO users (email, name, username, phone, password_hash, google_id, avatar_url, google_picture, email_verified_at, last_login_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $7, CASE WHEN $8 THEN now() END, now()) RETURNING *`,
-      [email, name, username, phone, passwordHash, googleId, avatarUrl, emailVerified],
+      `INSERT INTO users (email, name, username, phone, password_hash, google_id, avatar_url, google_picture, email_verified_at, last_login_at, terms_accepted_at, terms_version)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $7, CASE WHEN $8 THEN now() END, now(), CASE WHEN $9 THEN now() END, CASE WHEN $9 THEN $10::text END) RETURNING *`,
+      [email, name, username, phone, passwordHash, googleId, avatarUrl, emailVerified, termsAccepted, TERMS_VERSION],
     );
     await provisionAccount(client, rows[0].id);
     return rows[0];
@@ -90,7 +91,7 @@ export function createUser({ email, name, username, phone = null, passwordHash =
  * Sign in (or sign up) with a verified Google profile: { sub, email, email_verified, name, picture }.
  * An existing password account is never silently taken over by a Google login.
  */
-export async function signInWithGoogleProfile(profile, { query }) {
+export async function signInWithGoogleProfile(profile, { query, acceptTerms = false }) {
   if (!profile?.sub || !profile.email) throw new HttpError(400, 'Google did not return an email address.');
   if (!profile.email_verified) throw new HttpError(400, 'Your Google email address is not verified.');
   const email = profile.email.trim().toLowerCase();
@@ -110,7 +111,10 @@ export async function signInWithGoogleProfile(profile, { query }) {
   }
 
   if (!signupsOpen()) throw new HttpError(403, SIGNUPS_CLOSED); // signing in is fine, a new account is not
+  // A new account needs the terms accepted first. The page asks and tries again with the same Google answer.
+  if (!acceptTerms) throw new HttpError(400, 'Please accept the terms and the privacy policy to create your account.', 'terms_required');
   const user = await createUser({
+    termsAccepted: true,
     email,
     name: (profile.name || email.split('@')[0]).slice(0, 80),
     username: await generateUsername(query, email.split('@')[0]),

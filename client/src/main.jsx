@@ -11,6 +11,7 @@ import { NotificationsProvider } from './notifications.jsx';
 import { installNumberWheelGuard } from './numberInputs.js';
 import AuthPages from './pages/Auth.jsx';
 import { ResetPassword, Unsubscribe, VerifyEmail } from './pages/EmailLinks.jsx';
+import { Privacy, Terms } from './pages/Legal.jsx';
 import { PreferencesProvider } from './prefs.jsx';
 import { PresenceProvider } from './presence.jsx';
 import { QuickProvider } from './quick.jsx';
@@ -30,6 +31,7 @@ import './design/shell.css';
 import './design/dashboard.css';
 import './design/assistant.css';
 import './design/admin.css';
+import './design/legal.css';
 
 /** Re-mounts the data layer whenever the open budget changes, so every page reloads its own data. */
 function Scoped() {
@@ -56,6 +58,9 @@ function Root() {
   if (!loading && !error && pathname === '/verify-email') return <VerifyEmail />;
   if (!loading && !error && pathname === '/unsubscribe') return <Unsubscribe />;
   if (!loading && !error && pathname === '/reset-password') return <ResetPassword />;
+  // the terms and the privacy policy are public: they must be readable before signing up
+  if (!loading && !error && pathname === '/terms') return <Terms />;
+  if (!loading && !error && pathname === '/privacy') return <Privacy />;
   if (loading) return <div className="loading">Loading…</div>;
   if (error) return <div className="loading">Cannot reach the server: {error.message}</div>;
   if (!user) return <AuthPages />;

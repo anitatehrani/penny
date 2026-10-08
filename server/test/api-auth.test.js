@@ -56,7 +56,7 @@ describe('signup', () => {
   it('sets a hardened session cookie', async () => {
     const c = new Client(srv.base.replace(/\/api$/, ''));
     const n = uid();
-    const r = await c.post('/auth/signup', { name: 'C', email: `${n}@example.com`, username: `c${n}`, password: PW });
+    const r = await c.post('/auth/signup', { accept_terms: true, name: 'C', email: `${n}@example.com`, username: `c${n}`, password: PW });
     assert.equal(r.status, 201);
     const cookie = c.lastSetCookie.find((x) => x.startsWith('sid='));
     assert.match(cookie, /HttpOnly/);
@@ -70,14 +70,14 @@ describe('signup', () => {
   it('marks the cookie Secure when COOKIE_SECURE=true', async () => {
     const c = new Client(secureSrv.base.replace(/\/api$/, ''));
     const n = uid();
-    ok(await c.post('/auth/signup', { name: 'S', email: `${n}@example.com`, username: `s${n}`, password: PW }), 201);
+    ok(await c.post('/auth/signup', { accept_terms: true, name: 'S', email: `${n}@example.com`, username: `s${n}`, password: PW }), 201);
     assert.match(c.lastSetCookie.find((x) => x.startsWith('sid=')), /; Secure/);
   });
 
   it('rejects duplicates by email (any case), username (any case) and phone', async () => {
     const a = await signup(srv, { phone: '+44 7700 900123' });
     const n = uid();
-    const other = (o) => new Client(srv.base.replace(/\/api$/, '')).post('/auth/signup', { name: 'D', email: `${n}@example.com`, username: `d${n}`, password: PW, ...o });
+    const other = (o) => new Client(srv.base.replace(/\/api$/, '')).post('/auth/signup', { accept_terms: true, name: 'D', email: `${n}@example.com`, username: `d${n}`, password: PW, ...o });
     fails(await other({ email: a.body.email.toUpperCase() }), 409);
     fails(await other({ username: a.body.username.toUpperCase() }), 409);
     fails(await other({ phone: '0044 7700-900-123' }), 409);
@@ -109,7 +109,7 @@ describe('signup', () => {
       { password: 12345678901 },
     ];
     for (const b of bad) {
-      const r = await new Client(root).post('/auth/signup', { ...base, ...b });
+      const r = await new Client(root).post('/auth/signup', { accept_terms: true, ...base, ...b });
       assert.equal(r.status, 400, `${JSON.stringify(b).slice(0, 60)} → ${r.status} ${JSON.stringify(r.json).slice(0, 120)}`);
     }
     assert.equal((await srv.db.query('SELECT 1 FROM users WHERE lower(email) = $1', [base.email])).rowCount, 0, 'nothing was created');
@@ -135,7 +135,7 @@ describe('signup', () => {
 describe('password rules (server)', () => {
   const tryPw = async (password, extra = {}) => {
     const n = uid();
-    return new Client(srv.base.replace(/\/api$/, '')).post('/auth/signup', { name: 'Pat', email: `${n}@example.com`, username: `p${n}`, password, ...extra });
+    return new Client(srv.base.replace(/\/api$/, '')).post('/auth/signup', { accept_terms: true, name: 'Pat', email: `${n}@example.com`, username: `p${n}`, password, ...extra });
   };
 
   it('accepts a strong password with spaces and unicode', async () => {
@@ -192,7 +192,7 @@ describe('login and logout', () => {
   });
 
   it('a Google-only account cannot sign in with a password', async () => {
-    const g = await accounts.signInWithGoogleProfile({ sub: `g-${uid()}`, email: `g${uid()}@example.com`, email_verified: true, name: 'Gina' }, { query: (...a) => srv.db.query(...a) });
+    const g = await accounts.signInWithGoogleProfile({ sub: `g-${uid()}`, email: `g${uid()}@example.com`, email_verified: true, name: 'Gina' }, { query: (...a) => srv.db.query(...a), acceptTerms: true });
     const r = await new Client(srv.base.replace(/\/api$/, '')).post('/auth/login', { email: g.user.email, password: PW });
     assert.equal(r.status, 401);
     assert.equal(r.json.error, 'Invalid email, username or password.');
@@ -273,7 +273,7 @@ describe('sessions', () => {
   it('public endpoints stay public', async () => {
     const c = new Client(srv.base.replace(/\/api$/, ''));
     assert.equal((await c.get('/health')).status, 200);
-    assert.deepEqual(ok(await c.get('/auth/config')), { googleClientId: null, signupsOpen: true, passwordResetAvailable: true });
+    assert.deepEqual(ok(await c.get('/auth/config')), { googleClientId: null, signupsOpen: true, passwordResetAvailable: true, legal: { operatorName: null, contactEmail: null, termsVersion: '2026-10-09' } });
     assert.equal((await c.get('/auth/username-available?u=freeone')).json.available, true);
     assert.equal((await c.get('/auth/me')).status, 401);
     // asking for a password reset has to work without being signed in (the person has forgotten how to be)
@@ -302,12 +302,12 @@ describe('changing the password', () => {
 });
 
 describe('Google sign-in', () => {
-  const q = { query: (...a) => srv.db.query(...a) };
+  const q = { query: (...a) => srv.db.query(...a), acceptTerms: true };
   const profile = (over = {}) => ({ sub: `g-${uid()}`, email: `g${uid()}@example.com`, email_verified: true, name: 'Gina Green', picture: 'https://lh3.googleusercontent.com/a/x', ...over });
 
   it('is hidden/unavailable when not configured', async () => {
     const c = new Client(srv.base.replace(/\/api$/, ''));
-    assert.deepEqual(ok(await c.get('/auth/config')), { googleClientId: null, signupsOpen: true, passwordResetAvailable: true });
+    assert.deepEqual(ok(await c.get('/auth/config')), { googleClientId: null, signupsOpen: true, passwordResetAvailable: true, legal: { operatorName: null, contactEmail: null, termsVersion: '2026-10-09' } });
     fails(await c.post('/auth/google', { credential: 'x'.repeat(40) }), 503);
   });
 
@@ -474,7 +474,7 @@ describe('rate limiting', () => {
     const root = srv.base.replace(/\/api$/, '');
     const email = `flood${uid()}@example.com`;
     let last;
-    for (let i = 0; i < 17; i++) last = await new Client(root).post('/auth/signup', { name: 'F', email, username: 'ab', password: 'x' });
+    for (let i = 0; i < 17; i++) last = await new Client(root).post('/auth/signup', { accept_terms: true, name: 'F', email, username: 'ab', password: 'x' });
     assert.equal(last.status, 429);
   });
 });

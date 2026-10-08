@@ -287,7 +287,8 @@ function Deploy-Host {
 
 Command deploy 'Update the live site: push to GitHub first, then this makes the server take the new code, back up, rebuild and restart' {
   $h = Deploy-Host
-  & ssh $h 'cd penny && ./deploy/update.sh'
+  # through bash, so it does not depend on the file having its "run" permission (files committed from Windows do not carry it)
+  & ssh $h 'cd penny && bash deploy/update.sh'
   if ($LASTEXITCODE -ne 0) { throw 'The update failed. Read the message above, or look at the log:  .\penny remote docker compose logs --tail 50 app' }
   Say 'The live site is updated.' 'Green'
 }

@@ -1,19 +1,22 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { Router } from 'express';
 import { OAuth2Client } from 'google-auth-library';
-import { passwordChangedEmail, passwordResetEmail, verificationEmail } from '../lib/emailTemplates.js';
+import { accountDeletedEmail, passwordChangedEmail, passwordResetEmail, verificationEmail } from '../lib/emailTemplates.js';
 import { appUrl, mailMode, sendMail } from '../lib/mailer.js';
 import { notify } from '../lib/notifications.js';
 import { z } from 'zod';
 import { query } from '../db.js';
+import { buildExport } from '../lib/accountData.js';
 import { createUser, signInWithGoogleProfile } from '../lib/accounts.js';
 import { record } from '../lib/audit.js';
 import { clearActing, createSession, destroySession, IMPERSONATION_MINUTES, publicUser, rateLimit, requireAuth } from '../lib/auth.js';
 import { HttpError, wrap } from '../lib/http.js';
 import { hashPassword, validatePassword, verifyAgainstDummy, verifyPassword } from '../lib/password.js';
 import { RESET_MINUTES, RESET_UNAVAILABLE, resetAvailable } from '../lib/passwordReset.js';
+import { legalConfig, TERMS_VERSION } from '../lib/legal.js';
 import { phoneField, usernameField } from '../lib/profile.js';
 import { SIGNUPS_CLOSED, signupsOpen } from '../lib/signups.js';
+import { deleteUserAccount, sharedBudgetCount } from '../lib/userAdmin.js';
 
 const router = Router();
 
@@ -66,7 +69,7 @@ async function verifyGoogleCredential(credential) {
   }
 }
 
-router.get('/config', (_req, res) => res.json({ googleClientId: GOOGLE_CLIENT_ID, signupsOpen: signupsOpen(), passwordResetAvailable: resetAvailable() }));
+router.get('/config', (_req, res) => res.json({ googleClientId: GOOGLE_CLIENT_ID, signupsOpen: signupsOpen(), passwordResetAvailable: resetAvailable(), legal: legalConfig() }));
 
 router.get('/me', (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Not signed in.' });
@@ -111,7 +114,14 @@ router.post(
   wrap(async (req, res) => {
     if (!signupsOpen()) throw new HttpError(403, SIGNUPS_CLOSED);
     const body = z
-      .object({ name: nameField, email, username: usernameField, phone: phoneField, password: z.string().max(1000) })
+      .object({
+        name: nameField,
+        email,
+        username: usernameField,
+        phone: phoneField,
+        password: z.string().max(1000),
+        accept_terms: z.literal(true, { errorMap: () => ({ message: 'You need to accept the terms and the privacy policy to create an account.' }) }),
+      })
       .parse(req.body);
     const problems = validatePassword(body.password, body);
     if (problems.length) return passwordProblems(res, problems);
@@ -124,6 +134,7 @@ router.post(
         username: body.username,
         phone: body.phone,
         passwordHash: await hashPassword(body.password),
+        termsAccepted: true,
       });
     } catch (err) {
       if (err.code === '23505') {
@@ -195,9 +206,9 @@ router.post(
   '/google',
   ipLimiter,
   wrap(async (req, res) => {
-    const { credential } = z.object({ credential: z.string().min(20).max(5000) }).parse(req.body);
+    const { credential, accept_terms: acceptTerms } = z.object({ credential: z.string().min(20).max(5000), accept_terms: z.boolean().optional() }).parse(req.body);
     const profile = await verifyGoogleCredential(credential);
-    const { user, created } = await signInWithGoogleProfile(profile, { query });
+    const { user, created } = await signInWithGoogleProfile(profile, { query, acceptTerms: acceptTerms === true });
     if (user.suspended_at) {
       await record('login_blocked', { req, userId: user.id, detail: 'with Google' });
       throw new HttpError(403, SUSPENDED);
@@ -302,6 +313,78 @@ router.post(
     await query('UPDATE users SET email_verified_at = COALESCE(email_verified_at, now()) WHERE id = $1 AND lower(email) = lower($2)', [rows[0].user_id, rows[0].email]);
     await record('email_verified', { req, userId: rows[0].user_id });
     await notify(rows[0].user_id, { kind: 'system', title: 'E-mail address confirmed', body: 'You can now turn on e-mail alerts for upcoming payments.', link: '/notifications?tab=settings', dedupeKey: `verified:${Date.now()}` });
+    res.json({ ok: true });
+  }),
+);
+
+// ---- terms, privacy, your data, deleting your account (docs/DESIGN.md section 36) ----
+// A person who signed up before the terms existed, or when an older version was in force, is asked once.
+router.post(
+  '/terms/accept',
+  requireAuth,
+  wrap(async (req, res) => {
+    const { rows } = await query('UPDATE users SET terms_accepted_at = now(), terms_version = $2 WHERE id = $1 RETURNING *', [req.user.id, TERMS_VERSION]);
+    await record('terms_accepted', { req, userId: req.user.id });
+    res.json({ user: publicUser(rows[0]) });
+  }),
+);
+
+const dataLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 6, keyFn: (req) => `export:${req.user?.id ?? req.ip}`, message: 'Too many downloads. Try again in an hour.' });
+const deleteLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 6,
+  keyFn: (req) => `delete-account:${req.user?.id ?? req.ip}`,
+  onLimit: (req) => record('rate_limited', { req, userId: req.user?.id, detail: 'too many tries to delete an account' }),
+});
+
+// Everything Penny holds about the person, as a file. Not while an admin is only looking at the account: that is not the person asking.
+router.get(
+  '/account/export',
+  requireAuth,
+  dataLimiter,
+  wrap(async (req, res) => {
+    if (req.impersonation) throw new HttpError(403, 'That cannot be done while viewing as someone else.');
+    const data = await buildExport(req.user.id);
+    await record('data_exported', { req, userId: req.user.id });
+    res.set('Content-Disposition', `attachment; filename="penny-data-${new Date().toISOString().slice(0, 10)}.json"`);
+    res.set('Cache-Control', 'no-store');
+    res.type('application/json').send(JSON.stringify(data, null, 2));
+  }),
+);
+
+// Deleting your own account: it asks for the password again (or, for an account that only uses Google, a fresh Google sign-in), refuses
+// where it would take something away from other people, and then deletes everything at once.
+router.post(
+  '/account/delete',
+  requireAuth,
+  deleteLimiter,
+  wrap(async (req, res) => {
+    if (req.impersonation) throw new HttpError(403, 'That cannot be done while viewing as someone else.');
+    const body = z
+      .object({ confirm: z.literal('DELETE', { errorMap: () => ({ message: 'Type DELETE to confirm.' }) }), password: z.string().max(1000).optional(), credential: z.string().min(20).max(5000).optional() })
+      .parse(req.body);
+    const user = req.user;
+    if (user.is_admin) throw new HttpError(409, 'You are an admin. Remove your admin rights first (the person who runs the server does that from the command line), so the site is never left without one.');
+    const shared = await sharedBudgetCount(user.id);
+    if (shared > 0) {
+      throw new HttpError(409, `You share ${shared} budget${shared === 1 ? '' : 's'} with other people, and deleting your account would take their payments away. Leave ${shared === 1 ? 'it' : 'them'} first (Budgets, then Leave), or ask the others to remove you.`);
+    }
+    if (user.password_hash) {
+      if (!body.password || !(await verifyPassword(body.password, user.password_hash))) throw new HttpError(401, 'Your password is not correct.');
+    } else {
+      if (!body.credential) throw new HttpError(401, 'Sign in with Google again to confirm.', 'google_required');
+      const profile = await verifyGoogleCredential(body.credential);
+      if (!user.google_id || profile.sub !== user.google_id) throw new HttpError(401, 'That is not the Google account connected to this account.');
+    }
+    const { name, email: address } = user;
+    await destroySession(req, res); // the cookie goes first
+    await deleteUserAccount(user.id);
+    await record('account_deleted', { req, detail: 'by the person themselves' });
+    try {
+      await sendMail({ to: address, ...accountDeletedEmail({ name }) });
+    } catch {
+      /* the account is gone either way */
+    }
     res.json({ ok: true });
   }),
 );
