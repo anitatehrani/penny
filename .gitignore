@@ -11,3 +11,6 @@ e2e/node_modules
 
 # database backups hold real financial data: never commit them
 backups/
+
+# backups downloaded from the live server (they hold real financial data)
+backups-live/

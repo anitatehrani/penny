@@ -832,3 +832,27 @@ a log, and telling the person), and it is limited so that it can never turn into
   changed. If you do not expect this, contact support."* Being viewed does not mark the person as active.
 - **Before real strangers use Penny:** the privacy policy must say that an admin can view an account to give support, under these rules, and the
   person must be able to find that out. That is a legal text, not code; have it read by someone who knows the rules where your users live.
+
+## 34. Putting Penny on a rented server, and opening it step by step (defined before implementation)
+
+**What was missing.** Penny ran on one computer. Going public means a server that is always on, a web address with HTTPS, and a way to start with only
+the people you trust before strangers can sign up, since some things (password reset by e-mail, terms and privacy pages) are not built yet.
+
+- **The same Docker setup, plus a web server.** `docker-compose.prod.yml` is added on top of `docker-compose.yml` (`COMPOSE_FILE` in the server's `.env`, so plain
+  `docker compose` commands use both). It adds **Caddy**, which gets and renews the HTTPS certificate by itself, redirects http to https, adds
+  `Strict-Transport-Security` and passes everything to Penny. **Only Caddy has public ports (80 and 443)**: the database and Penny are reachable only inside Docker.
+  It sets `COOKIE_SECURE`, `TRUST_PROXY=1` and `APP_URL=https://DOMAIN`, and refuses to start without `DOMAIN`. Penny runs as the server's user
+  (`APP_UID`, `APP_GID`) so the backups it writes belong to that user.
+- **`SIGNUPS=closed`.** Nobody new can sign up (a form, or a first Google sign-in): the answer is 403 "Sign-ups are closed for now.", given before anything else is checked so it
+  tells nobody who has an account. People who already have an account sign in as usual. `/api/auth/config` says whether sign-ups are open, so the sign-in page
+  hides the link and the sign-up page explains; the Admin page's System tab shows it. The server template starts closed.
+- **`deploy/bootstrap.sh`**, run once as root on a fresh Ubuntu 24.04 server: updates it, installs Docker, a swap file (a small server runs out of memory while building),
+  a normal user `penny`, a firewall that lets in only SSH, HTTP and HTTPS, SSH by key only (switched on **only if a key is in place**, or it would lock the owner out),
+  automatic security updates and fail2ban. **`deploy/update.sh`**: a backup, `git pull --ff-only`, rebuild and restart.
+- **From the owner's computer** (`DEPLOY_HOST=penny@address` in `.env`): `.\penny deploy` (update the live site), `.\penny remote <command>` (run something on the server),
+  `.\penny prod-backup` (back up now and download every backup to `backups-live`, which is git-ignored and kept out of the app image).
+- **Tested** by reading the files (the database and app have no published ports, only 80 and 443 are open, the firewall list, Unix line endings, the backup comes before the update,
+  every setting in the template is read) and by starting the real thing on a computer in an isolated project: HTTPS answers, http redirects, the security headers are there, the
+  session cookie is `Secure`, nothing but the web server is published, and `SIGNUPS=closed` refuses a sign-up while an existing person can still sign in.
+- **Not done, on purpose:** the server itself was not created (that needs the owner's account); password reset by e-mail, 2FA, terms and privacy pages and self-service account deletion
+  are still to build before sign-ups are opened to strangers.

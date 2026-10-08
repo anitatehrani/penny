@@ -1,0 +1,37 @@
+# Penny on a real server, with its own web address and HTTPS (README, "Putting Penny online").
+# It is added on top of docker-compose.yml. On the server, .env has  COMPOSE_FILE=docker-compose.yml:docker-compose.prod.yml  so a plain
+# `docker compose up -d --build` uses both; or by hand:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+services:
+  db:
+    ports: !reset [] # Postgres is reachable only by Penny inside Docker, never from the internet
+
+  app:
+    ports: !reset [] # only the web server below talks to Penny
+    # Run as the server user, so the backups written to ./backups belong to it (deploy/update.sh sets these two).
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
+    environment:
+      COOKIE_SECURE: "true"
+      TRUST_PROXY: "1" # one proxy in front: the real visitor address is used (rate limits, activity log)
+      APP_URL: https://${DOMAIN:?Set DOMAIN in .env, for example DOMAIN=budget.example.com}
+
+  # The web server: gets and renews the HTTPS certificate by itself, and passes everything to Penny.
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN in .env, for example DOMAIN=budget.example.com}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  caddy-data:
+  caddy-config:

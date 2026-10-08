@@ -1,0 +1,2 @@
+# Shell scripts must keep Unix line endings, or Linux cannot run them (the scripts in deploy/ run on the server).
+*.sh text eol=lf

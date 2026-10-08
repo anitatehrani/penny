@@ -273,7 +273,7 @@ describe('sessions', () => {
   it('public endpoints stay public', async () => {
     const c = new Client(srv.base.replace(/\/api$/, ''));
     assert.equal((await c.get('/health')).status, 200);
-    assert.deepEqual(ok(await c.get('/auth/config')), { googleClientId: null });
+    assert.deepEqual(ok(await c.get('/auth/config')), { googleClientId: null, signupsOpen: true });
     assert.equal((await c.get('/auth/username-available?u=freeone')).json.available, true);
     assert.equal((await c.get('/auth/me')).status, 401);
   });
@@ -304,7 +304,7 @@ describe('Google sign-in', () => {
 
   it('is hidden/unavailable when not configured', async () => {
     const c = new Client(srv.base.replace(/\/api$/, ''));
-    assert.deepEqual(ok(await c.get('/auth/config')), { googleClientId: null });
+    assert.deepEqual(ok(await c.get('/auth/config')), { googleClientId: null, signupsOpen: true });
     fails(await c.post('/auth/google', { credential: 'x'.repeat(40) }), 503);
   });
 

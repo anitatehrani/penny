@@ -8,6 +8,7 @@ import { backupStatus } from '../lib/backup.js';
 import { HttpError, idParam, wrap } from '../lib/http.js';
 import { appUrl, mailMode } from '../lib/mailer.js';
 import { notify } from '../lib/notifications.js';
+import { signupsOpen } from '../lib/signups.js';
 import { verifyPassword } from '../lib/password.js';
 import { deleteUserAccount, sharedBudgetCount } from '../lib/userAdmin.js';
 
@@ -328,7 +329,7 @@ router.get(
     ]);
     const mem = process.memoryUsage();
     res.json({
-      app: { version, node: process.version, uptime_seconds: Math.round(process.uptime()), memory_bytes: mem.rss },
+      app: { version, node: process.version, uptime_seconds: Math.round(process.uptime()), memory_bytes: mem.rss, signups_open: signupsOpen() },
       database: { ok: true, bytes: db.rows[0].bytes, connections: db.rows[0].connections, tables: tables.rows },
       backups: backupStatus(),
       mail: { mode: mailMode(), sent_24h: mail.rows[0].sent, failed_24h: mail.rows[0].failed, recent_failures: failures.rows },

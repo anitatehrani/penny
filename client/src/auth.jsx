@@ -5,12 +5,12 @@ const Ctx = createContext(null);
 export const useAuth = () => useContext(Ctx);
 
 export function AuthProvider({ children }) {
-  const [state, setState] = useState({ loading: true, user: null, impersonating: null, googleClientId: null, error: null });
+  const [state, setState] = useState({ loading: true, user: null, impersonating: null, googleClientId: null, signupsOpen: true, error: null });
 
   useEffect(() => {
     let alive = true;
     Promise.all([api.get('/auth/config'), api.get('/auth/me').catch(() => null)])
-      .then(([config, me]) => alive && setState({ loading: false, user: me?.user ?? null, impersonating: me?.impersonating ?? null, googleClientId: config.googleClientId, error: null }))
+      .then(([config, me]) => alive && setState({ loading: false, user: me?.user ?? null, impersonating: me?.impersonating ?? null, googleClientId: config.googleClientId, signupsOpen: config.signupsOpen !== false, error: null }))
       .catch((error) => alive && setState((s) => ({ ...s, loading: false, error })));
     const expired = () => setState((s) => ({ ...s, user: null }));
     window.addEventListener('auth:expired', expired);

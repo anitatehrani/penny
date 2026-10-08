@@ -63,7 +63,7 @@ function ErrorList({ error }) {
 }
 
 function Login() {
-  const { login, googleClientId } = useAuth();
+  const { login, googleClientId, signupsOpen } = useAuth();
   const [identifier, setIdentifier] = useState(''); // an email address or a username
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
@@ -82,7 +82,7 @@ function Login() {
   }
 
   return (
-    <Shell title="Welcome back" subtitle="Sign in to see your budget." footer={<>New here? <Link to="/signup">Create an account</Link></>}>
+    <Shell title="Welcome back" subtitle="Sign in to see your budget." footer={signupsOpen ? <>New here? <Link to="/signup">Create an account</Link></> : <>Sign-ups are closed for now.</>}>
       <GoogleSection text="signin_with" onError={(m) => setError(new Error(m))} />
       <form onSubmit={submit} className="form" noValidate={false}>
         <ErrorList error={error} />
@@ -99,7 +99,7 @@ function Login() {
 }
 
 function Signup() {
-  const { signup, googleClientId } = useAuth();
+  const { signup, googleClientId, signupsOpen } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
@@ -134,6 +134,13 @@ function Signup() {
     }
   }
 
+  if (!signupsOpen) {
+    return (
+      <Shell title="Sign-ups are closed" subtitle="New accounts cannot be made right now." footer={<>Already have an account? <Link to="/login">Sign in</Link></>}>
+        <p className="muted">Penny is not taking new people yet. If you were invited, ask the person who invited you.</p>
+      </Shell>
+    );
+  }
   return (
     <Shell title="Create your account" subtitle="Keep your payments, plans and forecast in one private place." footer={<>Already have an account? <Link to="/login">Sign in</Link></>}>
       <GoogleSection text="signup_with" onError={(m) => setError(new Error(m))} />

@@ -277,6 +277,36 @@ Command remove-admin 'Take the admin role away from a person: .\penny remove-adm
   App-Script 'make-admin.mjs' @($email, '--remove')
 }
 
+# ---- the live server (README, "Putting Penny online"): put  DEPLOY_HOST=penny@your.server.address  in .env on this computer
+function Deploy-Host {
+  $h = Setting 'DEPLOY_HOST'
+  if (-not $h) { throw 'Say where the live server is: put DEPLOY_HOST=penny@your.server.address in .env (see the README, "Putting Penny online").' }
+  if (-not (Get-Command ssh -ErrorAction SilentlyContinue)) { throw 'ssh is not installed. In Windows: Settings, Apps, Optional features, add "OpenSSH Client".' }
+  return $h
+}
+
+Command deploy 'Update the live site: push to GitHub first, then this makes the server take the new code, back up, rebuild and restart' {
+  $h = Deploy-Host
+  & ssh $h 'cd penny && ./deploy/update.sh'
+  if ($LASTEXITCODE -ne 0) { throw 'The update failed. Read the message above, or look at the log:  .\penny remote docker compose logs --tail 50 app' }
+  Say 'The live site is updated.' 'Green'
+}
+Command remote 'Run a command on the live server, for example:  .\penny remote docker compose ps' {
+  $h = Deploy-Host
+  if (-not $Rest.Count) { throw 'Say what to run, for example:  .\penny remote docker compose ps' }
+  & ssh $h ("cd penny && " + ($Rest -join ' '))
+  if ($LASTEXITCODE -ne 0) { throw 'That command failed on the server.' }
+}
+Command prod-backup 'Make a backup on the live server now and download all its backups here (folder backups-live)' {
+  $h = Deploy-Host
+  & ssh $h 'cd penny && docker compose exec -T app node scripts/backup.mjs'
+  if ($LASTEXITCODE -ne 0) { throw 'The backup could not be made on the server.' }
+  New-Item -ItemType Directory -Force (Join-Path $PSScriptRoot 'backups-live') | Out-Null
+  & scp -r "${h}:penny/backups/*" (Join-Path $PSScriptRoot 'backups-live')
+  if ($LASTEXITCODE -ne 0) { throw 'The download failed.' }
+  Say 'The live backups are in the folder backups-live. Keep a copy somewhere safe: they hold real financial data.' 'Green'
+}
+
 Command test 'Run the server and client tests (against the Docker database)' {
   Need-Docker; Ensure-Env
   Compose up -d --wait db

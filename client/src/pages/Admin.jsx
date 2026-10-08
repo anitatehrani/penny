@@ -593,6 +593,7 @@ function System() {
         <dl className="admin-facts">
           <div><dt>Version</dt><dd>{data.app.version ?? 'unknown'}</dd></div>
           <div><dt>Running for</dt><dd>{uptimeText(data.app.uptime_seconds)}</dd></div>
+          <div><dt>Sign-ups</dt><dd>{data.app.signups_open ? <span className="badge ok">open</span> : <span className="badge tone-warn">closed</span>}</dd></div>
           <div><dt>Memory</dt><dd>{formatBytes(data.app.memory_bytes)}</dd></div>
           <div><dt>Node</dt><dd>{data.app.node}</dd></div>
         </dl>

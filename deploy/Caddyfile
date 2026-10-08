@@ -1,0 +1,13 @@
+# The web server in front of Penny. {$DOMAIN} comes from .env. Caddy gets the HTTPS certificate for it by itself (the address must already
+# point at this server) and sends plain http:// visitors to https://.
+{$DOMAIN} {
+	encode zstd gzip
+
+	header {
+		# once someone has opened the site over HTTPS, their browser refuses to use it any other way
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+
+	reverse_proxy app:3001
+}

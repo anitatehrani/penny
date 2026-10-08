@@ -12,6 +12,7 @@ import { clearActing, createSession, destroySession, IMPERSONATION_MINUTES, publ
 import { HttpError, wrap } from '../lib/http.js';
 import { hashPassword, validatePassword, verifyAgainstDummy, verifyPassword } from '../lib/password.js';
 import { phoneField, usernameField } from '../lib/profile.js';
+import { SIGNUPS_CLOSED, signupsOpen } from '../lib/signups.js';
 
 const router = Router();
 
@@ -64,7 +65,7 @@ async function verifyGoogleCredential(credential) {
   }
 }
 
-router.get('/config', (_req, res) => res.json({ googleClientId: GOOGLE_CLIENT_ID }));
+router.get('/config', (_req, res) => res.json({ googleClientId: GOOGLE_CLIENT_ID, signupsOpen: signupsOpen() }));
 
 router.get('/me', (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Not signed in.' });
@@ -107,6 +108,7 @@ router.post(
   '/signup',
   attemptLimiter,
   wrap(async (req, res) => {
+    if (!signupsOpen()) throw new HttpError(403, SIGNUPS_CLOSED);
     const body = z
       .object({ name: nameField, email, username: usernameField, phone: phoneField, password: z.string().max(1000) })
       .parse(req.body);

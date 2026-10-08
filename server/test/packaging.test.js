@@ -189,7 +189,7 @@ describe('the penny command file', () => {
 
   it('has the everyday commands, each with a help line', () => {
     const defined = [...script.matchAll(/^Command (\S+) '([^']+)'/gm)].map((m) => m[1]);
-    for (const c of ['help', 'install', 'up', 'down', 'stop', 'restart', 'build', 'rebuild', 'dev', 'status', 'logs', 'shell', 'psql', 'backup', 'restore', 'import-local', 'seed', 'make-admin', 'remove-admin', 'test', 'e2e', 'stop-local', 'wipe']) {
+    for (const c of ['help', 'install', 'up', 'down', 'stop', 'restart', 'build', 'rebuild', 'dev', 'status', 'logs', 'shell', 'psql', 'backup', 'restore', 'import-local', 'seed', 'make-admin', 'remove-admin', 'deploy', 'remote', 'prod-backup', 'test', 'e2e', 'stop-local', 'wipe']) {
       assert.ok(defined.includes(c), `${c} is a command`);
     }
     assert.equal(new Set(defined).size, defined.length, 'no command is defined twice');
@@ -217,5 +217,99 @@ describe('the penny command file', () => {
   it('keeps every setting the compose file reads in one place (.env), and creates it with a made-up password', () => {
     assert.match(script, /Copy-Item \.env\.docker\.example \.env/);
     assert.match(script, /DB_PASSWORD=\$password/);
+  });
+});
+
+describe('Production on a server', () => {
+  const prod = read('docker-compose.prod.yml');
+  const base = read('docker-compose.yml');
+  const caddy = read('deploy/Caddyfile');
+  const bootstrap = read('deploy/bootstrap.sh');
+  const update = read('deploy/update.sh');
+  const example = read('deploy/env.production.example');
+  const bytes = (f) => fs.readFileSync(path.join(root, f));
+  const ignore = read('.dockerignore').split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith('#'));
+
+  it('keeps the database and Penny itself off the internet: only the web server has public ports', () => {
+    assert.match(prod, /db:\s+ports: !reset \[\]/);
+    assert.match(prod, /app:\s+ports: !reset \[\]/);
+    const caddyBlock = prod.split(/^  caddy:/m)[1];
+    assert.deepEqual([...caddyBlock.matchAll(/- "(\d+:\d+(?:\/udp)?)"/g)].map((m) => m[1]), ['80:80', '443:443', '443:443/udp']);
+    assert.doesNotMatch(prod.split(/^  caddy:/m)[0].replace(/!reset \[\]/g, ''), /- "\d+:\d+"/, 'no other published port');
+  });
+
+  it('turns on what a public site needs: secure cookies, the proxy setting, and an https address that must be set', () => {
+    assert.match(prod, /COOKIE_SECURE: "true"/);
+    assert.match(prod, /TRUST_PROXY: "1"/);
+    assert.match(prod, /APP_URL: https:\/\/\$\{DOMAIN:\?/);
+    assert.match(prod, /DOMAIN: \$\{DOMAIN:\?/, 'it refuses to start without a domain');
+  });
+
+  it('runs Penny as the server user, so the backups it writes belong to that user', () => {
+    assert.match(prod, /user: "\$\{APP_UID:-1000\}:\$\{APP_GID:-1000\}"/);
+    assert.match(update, /export APP_UID="\$\(id -u\)" APP_GID="\$\(id -g\)"/);
+  });
+
+  it('has a web server that gets its own certificate and sends everything to Penny', () => {
+    assert.match(caddy, /^\{\$DOMAIN\} \{/m);
+    assert.match(caddy, /reverse_proxy app:3001/);
+    assert.match(caddy, /Strict-Transport-Security "max-age=31536000/);
+    assert.match(prod, /image: caddy:2-alpine/);
+    assert.match(prod, /caddy-data:\/data/, 'the certificate is kept between restarts');
+  });
+
+  it('has server scripts with Unix line endings that Linux can run', () => {
+    for (const f of ['deploy/bootstrap.sh', 'deploy/update.sh']) {
+      assert.match(read(f), /^#!\/usr\/bin\/env bash\n/, f);
+      assert.match(read(f), /^set -euo pipefail$/m, f);
+      assert.ok(!bytes(f).includes(13), `${f} must not have Windows line endings`);
+    }
+    assert.match(read('.gitattributes'), /^\*\.sh text eol=lf$/m);
+  });
+
+  it('sets a new server up safely: a normal user, a firewall for 22, 80 and 443 only, and keys-only SSH, but only when a key is in place', () => {
+    assert.match(bootstrap, /adduser --disabled-password/);
+    const allowed = [...bootstrap.matchAll(/^ufw allow (\S+)/gm)].map((m) => m[1]);
+    assert.deepEqual(allowed.sort(), ['443/tcp', '443/udp', '80/tcp', 'OpenSSH']);
+    assert.match(bootstrap, /ufw default deny incoming/);
+    assert.match(bootstrap, /PasswordAuthentication no/);
+    assert.match(bootstrap, /if \[ -s "\/home\/\$USER_NAME\/\.ssh\/authorized_keys" \]; then[\s\S]*PasswordAuthentication no/, 'password logins are only switched off when a key exists, or you would lock yourself out');
+    assert.match(bootstrap, /unattended-upgrades/);
+    assert.match(bootstrap, /fail2ban/);
+  });
+
+  it('updates the live site with a backup first, and only by fast-forward, so it never rewrites anything', () => {
+    assert.ok(update.indexOf('scripts/backup.mjs') < update.indexOf('git pull'), 'the backup comes before the new code');
+    assert.match(update, /git pull --ff-only/);
+    assert.match(update, /docker compose up -d --build/);
+  });
+
+  it('has a settings template that closes sign-ups to begin with and uses both compose files', () => {
+    assert.match(example, /^COMPOSE_FILE=docker-compose\.yml:docker-compose\.prod\.yml$/m);
+    assert.match(example, /^SIGNUPS=closed$/m);
+    assert.match(example, /^DB_PASSWORD=$/m, 'the password is made up on the server, never shipped');
+    const names = [...example.matchAll(/^([A-Z_]+)=/gm)].map((m) => m[1]).filter((n) => n !== 'COMPOSE_FILE');
+    const unwired = names.filter((n) => n !== 'DOMAIN' && !new RegExp(`\\$\\{${n}[:}-]`).test(base) && !new RegExp(`\\$\\{${n}[:}-?]`).test(prod));
+    assert.deepEqual(unwired, [], 'every setting in the template is read by the compose files');
+    assert.ok(names.includes('DOMAIN'));
+  });
+
+  it('wires the sign-ups switch into Docker and says what it does', () => {
+    assert.match(base, /SIGNUPS: \$\{SIGNUPS:-open\}/);
+    assert.match(read('.env.docker.example'), /^SIGNUPS=open$/m);
+  });
+
+  it('keeps the server scripts and downloaded live backups out of the app image and out of git', () => {
+    assert.ok(ignoredBy(ignore, 'deploy/bootstrap.sh'));
+    assert.ok(ignoredBy(ignore, 'backups-live/penny.dump'));
+    assert.ok(read('.gitignore').split(/\r?\n/).includes('backups-live/'));
+  });
+
+  it('has the commands for the live server, and they ask where it is instead of guessing', () => {
+    const script = read('penny.ps1');
+    for (const c of ['deploy', 'remote', 'prod-backup']) assert.match(script, new RegExp(`^Command ${c} '`, 'm'));
+    assert.match(script, /DEPLOY_HOST=penny@your\.server\.address/);
+    assert.match(script, /\.\/deploy\/update\.sh/);
+    assert.doesNotMatch(script, /StrictHostKeyChecking=no/, 'never turns off the check that it is the right server');
   });
 });

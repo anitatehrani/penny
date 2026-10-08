@@ -1,6 +1,7 @@
 import { withTransaction } from '../db.js';
 import { HttpError } from './http.js';
 import { generateUsername } from './profile.js';
+import { SIGNUPS_CLOSED, signupsOpen } from './signups.js';
 
 const DEFAULT_CATEGORIES = [
   ['Salary', 'income', '#1baf7a'],
@@ -108,6 +109,7 @@ export async function signInWithGoogleProfile(profile, { query }) {
     );
   }
 
+  if (!signupsOpen()) throw new HttpError(403, SIGNUPS_CLOSED); // signing in is fine, a new account is not
   const user = await createUser({
     email,
     name: (profile.name || email.split('@')[0]).slice(0, 80),

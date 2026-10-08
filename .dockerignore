@@ -17,3 +17,5 @@ docker-compose*.yml
 .dockerignore
 penny.ps1
 penny.cmd
+deploy
+backups-live

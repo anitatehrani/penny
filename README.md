@@ -211,6 +211,88 @@ All of the data is in one database on one computer, so Penny copies it for you.
 
 Not built yet, and worth having before real strangers use it: "forgot my password" by e-mail, two-step sign-in, a terms and privacy page, and letting people delete their own account.
 
+### Putting Penny online (DigitalOcean)
+
+A small server rented by the month runs the same Docker setup as your computer, with a web server in front that gets the HTTPS certificate by itself.
+Plan on about **$12 a month** for the server and **$2.40** for weekly server backups (check DigitalOcean's current prices); the GitHub Student Pack credit
+(if it is still offered when you look) covers about a year.
+
+**Start with sign-ups closed** (`SIGNUPS=closed`, the template does this): Penny is then online for you and the people who already have an account, and
+nobody new can join. Open it (`SIGNUPS=open`) only when you are ready for strangers (see the list at the end).
+
+**On your computer**
+
+1. **The credit.** [education.github.com/pack](https://education.github.com/pack): find DigitalOcean, follow the link and make the account. Check that the credit shows under Billing.
+2. **An SSH key** (how the server knows it is you). In PowerShell:
+   ```powershell
+   ssh-keygen -t ed25519 -C "penny-server"
+   Get-Content $env:USERPROFILE\.ssh\id_ed25519.pub
+   ```
+   Press Enter at the questions (a passphrase is a good idea). Copy the line that starts with `ssh-ed25519`.
+   In DigitalOcean: Settings, Security, **Add SSH Key**, paste it.
+3. **The server ("droplet").** Create, Droplets: **Ubuntu 24.04 (LTS)**, Basic, **Regular, 2 GB RAM / 1 CPU (about $12 a month)**, a region near your users (Frankfurt for Europe),
+   authentication **SSH Key** (the one you added), name it `penny`, and turn on **Backups** (weekly). Note the server's **IP address**.
+4. **The web address.** Claim the free domain from the pack (Name.com or Namecheap, see the pack page). In its DNS settings add an **A record**: host `@` (or a name such as
+   `budget`) pointing to the server's IP address. It can take minutes to hours; check with `nslookup your.domain` that it shows the IP.
+5. **Set the server up once.** Copy the setup script to it and run it (as root, once):
+   ```powershell
+   scp deploy/bootstrap.sh root@SERVER_IP:/root/
+   ssh root@SERVER_IP "bash /root/bootstrap.sh"
+   ```
+   It installs Docker, makes a normal user `penny`, turns on a firewall (only SSH, HTTP and HTTPS), keys-only SSH, automatic security updates.
+
+**On the server** (`ssh penny@SERVER_IP`)
+
+6. **Let the server read your private GitHub repository** with a read-only key:
+   ```bash
+   ssh-keygen -t ed25519 -f ~/.ssh/penny_deploy -N ""
+   printf 'Host github.com\n  IdentityFile ~/.ssh/penny_deploy\n  IdentitiesOnly yes\n' >> ~/.ssh/config
+   cat ~/.ssh/penny_deploy.pub
+   ```
+   On GitHub: the penny repository, Settings, **Deploy keys**, Add deploy key, paste it, leave "Allow write access" **off**. Then:
+   ```bash
+   git clone git@github.com:anitatehrani/penny.git
+   cd penny
+   ```
+7. **Your settings.** Copy the template and fill it in:
+   ```bash
+   mkdir -p backups   # made by you, so the server user owns it and Penny can write its backups there
+   cp deploy/env.production.example .env
+   echo "APP_UID=$(id -u)" >> .env
+   echo "APP_GID=$(id -g)" >> .env
+   nano .env        # DOMAIN=your.domain  DB_PASSWORD=(the output of: openssl rand -hex 16)  and the SMTP_ lines when you have a mail service
+   ```
+8. **Start it.** The first time takes a few minutes (it builds Penny). Then open **https://your.domain**:
+   ```bash
+   docker compose up -d --build
+   ```
+
+**Moving your budget to the server** (you can do this any time; it replaces what is on the server)
+
+```powershell
+.\penny backup                                     # on your computer: makes a backup, in the backups folder
+scp backups\penny-2026-10-10-1200.dump penny@SERVER_IP:penny/backups/    # use the real file name
+.\penny remote docker compose stop app
+.\penny remote docker compose run --rm app node scripts/restore.mjs penny-2026-10-10-1200.dump --yes
+.\penny remote docker compose up -d
+.\penny remote docker compose exec app node scripts/make-admin.mjs you@example.com --force
+```
+
+**Every day after that.** In your `.env` on your computer add `DEPLOY_HOST=penny@SERVER_IP`. Then:
+
+| Command | What it does |
+| --- | --- |
+| `git push`, then `.\penny deploy` | the server takes the new code, makes a backup, rebuilds and restarts (the data stays) |
+| `.\penny remote docker compose ps` | run any command on the server (here: what is running) |
+| `.\penny remote docker compose logs --tail 50 app` | read Penny's log on the server |
+| `.\penny prod-backup` | back up now on the server and **download all its backups** to the folder `backups-live` on your computer |
+
+**Keep copies of the backups somewhere other than the server** (run `.\penny prod-backup` every week or so, and keep the files on another drive or a synced folder): the weekly server backups
+and Penny's own daily ones live on the same machine, which does not help if the machine is lost or someone deletes the server.
+
+**Before you open sign-ups to strangers:** a "forgot my password" e-mail, a terms and privacy page (that says an admin can view an account to give support), letting people delete their own account,
+and a real mail server (the **Going public** card on the Admin page shows what is still missing). Without a password reset, a person who forgets their password is locked out.
+
 ## The interface
 
 The look is documented in [docs/DESIGN.md](docs/DESIGN.md): the problems it solves, the "Ink & Signal" direction, the design tokens
@@ -393,6 +475,7 @@ client/src   pages/ (older screens) · layout/ (sidebar, top bar, bottom bar) ·
              design/ (tokens, base, components, shell, dashboard, assistant CSS) · prefs.jsx · quick.jsx
 e2e          browser checks (puppeteer-core)
 Dockerfile · docker-compose.yml · .env.docker.example   run the whole app (and its Postgres) in containers
+deploy/ · docker-compose.prod.yml                        the live server: HTTPS web server, one-time server setup, update script, settings template
 penny.ps1 · penny.cmd                                   the command file: `.\penny up`, `down`, `dev`, `backup`, ... (add your own)
 docs         DESIGN.md · brand/ (the original wordmark artwork)
 client/public favicon, app icons, manifest, standalone wordmark SVGs (generated by scripts/make-brand-assets.cjs)
