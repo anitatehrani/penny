@@ -11,6 +11,7 @@ import { NotificationsProvider } from './notifications.jsx';
 import { installNumberWheelGuard } from './numberInputs.js';
 import AuthPages from './pages/Auth.jsx';
 import { ResetPassword, Unsubscribe, VerifyEmail } from './pages/EmailLinks.jsx';
+import Landing from './pages/Landing.jsx';
 import { Privacy, Terms } from './pages/Legal.jsx';
 import { PreferencesProvider } from './prefs.jsx';
 import { PresenceProvider } from './presence.jsx';
@@ -32,6 +33,7 @@ import './design/dashboard.css';
 import './design/assistant.css';
 import './design/admin.css';
 import './design/legal.css';
+import './design/landing.css';
 
 /** Re-mounts the data layer whenever the open budget changes, so every page reloads its own data. */
 function Scoped() {
@@ -63,7 +65,8 @@ function Root() {
   if (!loading && !error && pathname === '/privacy') return <Privacy />;
   if (loading) return <div className="loading">Loading…</div>;
   if (error) return <div className="loading">Cannot reach the server: {error.message}</div>;
-  if (!user) return <AuthPages />;
+  // somebody who is not signed in sees the home page first; every other address goes to the sign-in pages
+  if (!user) return pathname === '/' ? <Landing /> : <AuthPages />;
   // key = user id, so switching accounts always starts from clean state.
   return (
     <PreferencesProvider key={user.id}>

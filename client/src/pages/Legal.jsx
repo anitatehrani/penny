@@ -40,7 +40,7 @@ function LegalShell({ which, title, children }) {
           {children}
         </article>
         <p className="legal-back">
-          <Link to="/">{user ? 'Back to Penny' : 'Back to sign in'}</Link>
+          <Link to="/">{user ? 'Back to Penny' : 'Back to the home page'}</Link>
         </p>
       </main>
     </div>

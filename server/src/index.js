@@ -5,6 +5,7 @@ import express from 'express';
 import { initDb, pool } from './db.js';
 import { pruneAuditEvents } from './lib/audit.js';
 import { authenticate, impersonationGuard, purgeExpiredSessions, requireAuth, sameOriginOnly } from './lib/auth.js';
+import { appUrl } from './lib/mailer.js';
 import { startBackupSchedule } from './lib/backup.js';
 import { errorHandler, wrap } from './lib/http.js';
 import { materializeAll } from './lib/materialize.js';
@@ -76,8 +77,13 @@ app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found' }));
 // Serve the built React app when present (npm run build).
 const dist = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../client/dist');
 if (fs.existsSync(dist)) {
-  app.use(express.static(dist));
-  app.get('*', (_req, res) => res.sendFile(path.join(dist, 'index.html')));
+  // The page itself goes through here (not through express.static) so the link-preview tags carry this site's real address.
+  const indexHtml = fs.readFileSync(path.join(dist, 'index.html'), 'utf8');
+  app.use(express.static(dist, { index: false }));
+  app.get('*', (_req, res) => {
+    res.set('Cache-Control', 'no-cache');
+    res.type('html').send(indexHtml.replaceAll('__APP_URL__', appUrl()));
+  });
 }
 
 app.use(errorHandler);

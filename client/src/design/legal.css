@@ -231,3 +231,8 @@
   text-underline-offset: 3px;
   cursor: pointer;
 }
+
+.auth-brand {
+  text-decoration: none;
+  align-self: flex-start;
+}

@@ -16,10 +16,10 @@ export function Shell({ title, subtitle, children, footer }) {
         <ThemeToggle compact />
       </div>
       <div className="auth-card">
-        <div className="auth-brand">
+        <Link to="/" className="auth-brand">
           <Wordmark height={30} />
           <span className="sr-only">Penny</span>
-        </div>
+        </Link>
         <h1>{title}</h1>
         <p className="muted">{subtitle}</p>
         {children}

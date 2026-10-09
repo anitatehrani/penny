@@ -294,6 +294,13 @@ and Penny's own daily ones live on the same machine, which does not help if the 
 (your name, or the name you run it under) and `CONTACT_EMAIL` (an address people can write to about their data) in `.env`. The **Going public** card on the Admin page shows what is still missing.
 The two pages (`/terms` and `/privacy`) are written in plain language to describe what Penny really does; have a lawyer read them if the site grows.
 
+## The home page
+
+A visitor who is not signed in sees a home page at `/` (what Penny is, a forecast to play with, what it does with real pictures, privacy, questions, and Log in / Sign up buttons); signed-in people go straight to their dashboard. The text is in
+`client/src/pages/Landing.jsx`; read it once and edit anything that is not true for you (for example "free" and "hosted in the EU"). With `SIGNUPS=closed` the sign-up buttons disappear and the page says that sign-ups are closed.
+The pictures are real pages of the demo in `client/public/landing/`. When the screens change, make them again: start the app on a **scratch** database, `npm run seed:demo`, then `cd e2e && npm run landing` and rebuild the client.
+Link previews (WhatsApp, social networks) use the picture `landing/og.png` and the address in `APP_URL`.
+
 ## The interface
 
 The look is documented in [docs/DESIGN.md](docs/DESIGN.md): the problems it solves, the "Ink & Signal" direction, the design tokens

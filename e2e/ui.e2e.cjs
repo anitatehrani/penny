@@ -96,7 +96,7 @@ async function sessionFor(db, email) {
     const fresh = await browser.createBrowserContext(); // its own cookie jar, so nobody is signed in
     const out = await fresh.newPage();
     try {
-      await out.goto(BASE + '/', { waitUntil: 'networkidle0' });
+      await out.goto(BASE + '/login', { waitUntil: 'networkidle0' });
       eq(await out.title(), 'Penny', 'signed-out tab title');
       truthy(/^Penny\b/.test(await text(out, '.auth-brand')), 'brand on the sign-in screen');
       truthy(!/Budget Planner/.test(await out.evaluate(() => document.body.innerText)), 'no old name on the page');
@@ -136,7 +136,7 @@ async function sessionFor(db, email) {
     const fresh = await browser.createBrowserContext();
     const out = await fresh.newPage();
     try {
-      await out.goto(BASE + '/', { waitUntil: 'networkidle0' });
+      await out.goto(BASE + '/login', { waitUntil: 'networkidle0' });
       eq(await count(out, '.auth-brand svg.wordmark'), 1, 'wordmark on the sign-in screen');
     } finally {
       await fresh.close();
@@ -1025,7 +1025,7 @@ async function sessionFor(db, email) {
     const fresh = await browser.createBrowserContext(); // its own cookie jar: nobody is signed in
     const p = await fresh.newPage();
     await p.setViewport({ width: 1280, height: 900 });
-    await p.goto(BASE + '/', { waitUntil: 'networkidle0' });
+    await p.goto(BASE + '/login', { waitUntil: 'networkidle0' });
     await p.type('input[autocomplete=username]', typed);
     await p.type('input[autocomplete=current-password]', password);
     await p.click('.auth-card .btn.primary.wide');
@@ -1035,7 +1035,7 @@ async function sessionFor(db, email) {
     const fresh = await browser.createBrowserContext();
     const p = await fresh.newPage();
     try {
-      await p.goto(BASE + '/', { waitUntil: 'networkidle0' });
+      await p.goto(BASE + '/login', { waitUntil: 'networkidle0' });
       eq(await p.$eval('input[autocomplete=username]', (e) => e.closest('label').querySelector('.field-label').textContent.trim()), 'Email or username', 'the label');
       eq(await p.$eval('input[autocomplete=username]', (e) => e.type), 'text', 'a plain text box, so a username is not rejected as "not an email"');
       truthy(/@username/.test(await p.$eval('input[autocomplete=username]', (e) => e.placeholder)), 'the placeholder shows both');
@@ -2286,7 +2286,7 @@ async function sessionFor(db, email) {
     const out = await fresh.newPage();
     try {
       await out.setViewport({ width: 390, height: 844 });
-      await out.goto(BASE + '/', { waitUntil: 'networkidle0' });
+      await out.goto(BASE + '/login', { waitUntil: 'networkidle0' });
       eq(await out.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true, 'the sign-in page: nothing scrolls sideways');
       const input = await out.$eval('input[autocomplete=username]', (e) => e.getBoundingClientRect().height);
       truthy(input >= 34, 'the sign-in field is big enough to tap: ' + input);
@@ -2298,6 +2298,147 @@ async function sessionFor(db, email) {
     page = await open('/debts', { width: 390, height: 844 });
     eq((await api(page, 'GET', '/debts')).json.debts.filter((d) => d.name.startsWith('E2E ')).length, 0, 'none left');
   });
+
+  console.log('\nThe home page');
+  {
+    const ctx = await browser.createBrowserContext();
+    const home = await ctx.newPage();
+    home.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+    const clickText = (p, re, sel = 'button') => p.evaluate((src, selector) => [...document.querySelectorAll(selector)].find((b) => new RegExp(src).test(b.textContent))?.click(), re.source, sel);
+    const scrollThrough = () => home.evaluate(async () => { for (let y = 0; y < document.body.scrollHeight; y += 400) { window.scrollTo(0, y); await new Promise((r) => setTimeout(r, 90)); } window.scrollTo(0, 0); });
+    // move a range slider the way a person would (React listens for the input event, so the value is set through the native setter)
+    const slide = (label, value) => home.evaluate((text, v) => {
+      const row = [...document.querySelectorAll('.lp-slider')].find((l) => l.textContent.includes(text));
+      const input = row.querySelector('input');
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, String(v));
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    }, label, value);
+    try {
+      await check('somebody who is not signed in sees the home page at "/", with ways to log in and sign up', async () => {
+        await home.setViewport({ width: 1280, height: 800 });
+        await home.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'light' }, { name: 'prefers-reduced-motion', value: 'no-preference' }]);
+        await home.goto(BASE + '/', { waitUntil: 'networkidle0' });
+        truthy(/See your money\s+months ahead/.test(await text(home, 'h1')), 'the headline');
+        const links = await home.$$eval('.lp-hero a.btn', (a) => a.map((x) => x.getAttribute('href')));
+        truthy(links.includes('/login') && links.includes('/signup'), 'hero buttons: ' + links.join());
+        const nav = await home.$$eval('.lp-nav a.btn', (a) => a.map((x) => x.getAttribute('href')));
+        eq(nav.join(','), '/login,/signup', 'the top bar buttons');
+        eq(await home.title(), 'Penny: see your money months ahead', 'its own tab title');
+      });
+      await check('it explains the features: a strip, a forecast to play with, seven feature cards, a tour, three steps, privacy, questions', async () => {
+        truthy((await count(home, '.lp-marquee-track span')) >= 12, 'the strip of what Penny covers');
+        eq(await count(home, '.lp-demo'), 1, 'the forecast to play with');
+        eq(await count(home, '.lp-card'), 7, 'seven feature cards');
+        eq(await count(home, '.lp-tabs button'), 5, 'five pages in the tour');
+        eq(await count(home, '.lp-steps li'), 3, 'three steps');
+        eq(await count(home, '.lp-privacy-grid li'), 4, 'four privacy promises');
+        eq(await count(home, '.lp-faq details'), 6, 'six questions');
+        const cards = await home.$$eval('.lp-card h3', (h) => h.map((x) => x.textContent));
+        truthy(cards.some((h) => /forecast/i.test(h)) && cards.some((h) => /Debts/.test(h)) && cards.some((h) => /together/i.test(h)) && cards.some((h) => /Ask Penny/.test(h)), 'forecast, debts, shared, assistant: ' + cards.join(' | '));
+        await home.evaluate(() => document.querySelector('.lp-faq summary').click());
+        truthy(await home.$eval('.lp-faq details', (d) => d.open), 'a question opens');
+      });
+      await check('the forecast to play with answers the sliders: a squeezed budget goes below zero, a roomy one does not', async () => {
+        const verdict = () => home.$eval('.lp-verdict', (e) => ({ bad: e.classList.contains('bad'), text: e.textContent }));
+        const start = await verdict();
+        eq(start.bad, false, 'the starting numbers are fine: ' + start.text);
+        await slide('Bills each month', 4500);
+        const squeezed = await verdict();
+        eq(squeezed.bad, true, 'bills of 4500 against 2600 coming in: ' + squeezed.text);
+        truthy(/below zero in/.test(squeezed.text), 'it says when');
+        eq(await home.$eval('.lp-chart', (s) => !!s.getAttribute('aria-label')), true, 'the chart is described for a screen reader');
+        const label = await home.$eval('.lp-chart', (s) => s.getAttribute('aria-label'));
+        truthy(/lowest point is -/.test(label.replace('−', '-')) || /lowest point is/.test(label), 'it says where the lowest point is: ' + label);
+        await slide('Bills each month', 300);
+        await slide('One big purchase', 0);
+        eq((await verdict()).bad, false, 'roomy again');
+        eq(await count(home, '.lp-chart .lp-xl'), 13, 'a label for now and for each of twelve months');
+      });
+      await check('the tour shows one real page at a time, and the tabs work by mouse and by arrow keys', async () => {
+        eq(await home.$eval('.lp-tabs button[aria-selected=true]', (b) => b.textContent.trim()), 'Forecast', 'it starts on the forecast');
+        await clickText(home, /^Debts$/, '.lp-tabs button');
+        await home.waitForFunction(() => /owe/.test(document.querySelector('.lp-tour-text h3')?.textContent ?? ''));
+        eq(await home.$eval('.lp-tabs button[aria-selected=true]', (b) => b.textContent.trim()), 'Debts', 'the debts tab is the chosen one');
+        truthy(await home.$eval('.lp-tour-panel .lp-shot-light', (i) => /debts-light\.webp$/.test(i.getAttribute('src'))), 'with the debts picture');
+        await home.focus('.lp-tabs button[aria-selected=true]');
+        await home.keyboard.press('ArrowRight');
+        await home.waitForFunction(() => /together/.test(document.querySelector('.lp-tour-text h3')?.textContent ?? ''));
+        eq(await home.$eval('.lp-tabs button[aria-selected=true]', (b) => b.textContent.trim()), 'Shared', 'the arrow key moves on');
+        await home.keyboard.press('ArrowRight');
+        eq(await home.$eval('.lp-tabs button[aria-selected=true]', (b) => b.textContent.trim()), 'Forecast', 'and wraps around');
+      });
+      await check('things fade in as they scroll into view, and everything has appeared by the end', async () => {
+        await scrollThrough();
+        await sleep(900);
+        eq(await count(home, '.lp-reveal:not(.in)'), 0, 'nothing is left hidden');
+      });
+      await check('the pictures load, and the ones that match the theme are the ones shown', async () => {
+        await home.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'light' }]); // not whatever this computer happens to use
+        await sleep(300);
+        const shown = await home.$$eval('.lp-shot', (imgs) => imgs.filter((i) => getComputedStyle(i).display !== 'none').map((i) => ({ src: i.getAttribute('src'), ok: i.complete && i.naturalWidth > 0 })));
+        eq(shown.length, 2, 'the hero and the tour: one picture each');
+        truthy(shown.every((i) => i.ok), 'all shown pictures loaded: ' + JSON.stringify(shown.filter((i) => !i.ok)));
+        truthy(shown.every((i) => /-light\.webp$/.test(i.src)), 'light theme shows the light pictures');
+        await home.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'dark' }]);
+        await sleep(300);
+        const dark = await home.$$eval('.lp-shot', (imgs) => imgs.filter((i) => getComputedStyle(i).display !== 'none').map((i) => i.getAttribute('src')));
+        truthy(dark.length === 2 && dark.every((src) => /-dark\.webp$/.test(src)), 'dark theme shows the dark ones: ' + dark.join());
+        await home.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: 'light' }]);
+      });
+      await check('a person who chose a theme by hand gets that theme\'s pictures, whatever the system says', async () => {
+        await home.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+        const src = await home.$$eval('.lp-shot', (imgs) => imgs.filter((i) => getComputedStyle(i).display !== 'none').map((i) => i.getAttribute('src')));
+        truthy(src.length === 2 && src.every((x) => /-dark\.webp$/.test(x)), 'forced dark: ' + src.join());
+        await home.evaluate(() => document.documentElement.removeAttribute('data-theme'));
+      });
+      await check('the links lead on: the buttons, the terms, the privacy policy, and the logo from the sign-in page leads back', async () => {
+        await home.click('.lp-nav a[href="/login"]');
+        await home.waitForSelector('input[autocomplete=username]');
+        eq(new URL(home.url()).pathname, '/login', 'log in');
+        await home.click('.auth-brand');
+        await home.waitForSelector('.landing');
+        eq(new URL(home.url()).pathname, '/', 'the logo goes home');
+        await home.click('.lp-nav a[href="/signup"]');
+        await home.waitForSelector('.consent-card');
+        await home.goto(BASE + '/', { waitUntil: 'networkidle0' });
+        const foot = await home.$$eval('.lp-footer a', (a) => a.map((x) => x.getAttribute('href')));
+        truthy(foot.includes('/terms') && foot.includes('/privacy'), 'footer: ' + foot.join());
+      });
+      await check('with reduced motion the page is complete and still: nothing hidden, the strip stands still', async () => {
+        await home.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }]);
+        await home.goto(BASE + '/', { waitUntil: 'networkidle0' });
+        eq(await home.$$eval('.lp-reveal', (els) => els.filter((e) => getComputedStyle(e).opacity !== '1').length), 0, 'every block is visible at once');
+        eq(await home.$eval('.lp-marquee-track', (e) => getComputedStyle(e).animationName), 'none', 'the strip does not scroll');
+        eq(await home.$$eval('.lp-marquee-track span', (s) => s.filter((x) => getComputedStyle(x).display === 'none').length), 12, 'the repeated half is not shown');
+        await home.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'no-preference' }]);
+      });
+      await check('on a phone nothing scrolls sideways and the top bar keeps its two buttons on one line each', async () => {
+        await home.setViewport({ width: 390, height: 844 });
+        await home.goto(BASE + '/', { waitUntil: 'networkidle0' });
+        await scrollThrough();
+        eq(await home.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true, 'no sideways scroll');
+        const heights = await home.$$eval('.lp-nav-actions .btn', (b) => b.map((x) => Math.round(x.getBoundingClientRect().height)));
+        truthy(heights.length === 2 && heights.every((h) => h <= 46), 'one line each: ' + heights.join());
+        eq(await home.$eval('.lp-theme-nav', (e) => getComputedStyle(e).display), 'none', 'the theme switch leaves the top bar');
+        truthy(await home.$eval('.lp-theme-foot', (e) => getComputedStyle(e).display !== 'none'), 'and is in the footer');
+        const big = await home.$$eval('.lp-cta .btn', (b) => b.map((x) => Math.round(x.getBoundingClientRect().height)));
+        truthy(big.every((h) => h >= 44), 'big buttons are easy to tap: ' + big.join());
+        eq(await home.$$eval('.lp-float', (f) => f.filter((x) => getComputedStyle(x).display !== 'none').length), 0, 'the floating cards give way on a phone');
+        eq(await home.$$eval('.lp-card', (c) => new Set(c.map((x) => Math.round(x.getBoundingClientRect().left))).size), 1, 'the feature cards stack in one column');
+      });
+      await check('the page tells link previews and search engines what it is, with this site\'s own address', async () => {
+        const html = await (await fetch(BASE + '/')).text();
+        truthy(html.includes('og:image" content="http') && html.includes('/landing/og.png"'), 'an absolute share image address');
+        truthy(!html.includes('__APP_URL__'), 'no placeholder left');
+        truthy(/name="description" content="Penny is a calm personal budget/.test(html), 'a description');
+        const robots = await (await fetch(BASE + '/robots.txt')).text();
+        truthy(/Disallow: \/api\//.test(robots), 'robots.txt keeps crawlers out of the API');
+      });
+    } finally {
+      await ctx.close();
+    }
+  }
+
 
   console.log('\nForgot password');
   // A throw-away person (never the demo account), in a browser that is signed out. Where the server has no mail server and runs in production
