@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { effectiveTheme } from '../theme.js';
 
-const SRC = 'https://accounts.google.com/gsi/client';
+// hl=en: the rest of Penny is in English, so the button should be too (otherwise it follows the browser's language)
+const SRC = 'https://accounts.google.com/gsi/client?hl=en';
 let loading;
 
 function loadGoogle() {

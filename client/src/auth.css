@@ -63,7 +63,8 @@
   justify-content: center;
   min-height: 44px;
   width: 100%;
-  color-scheme: normal;
+  /* Google draws the button in its own frame. Declared light, the frame stays transparent in dark mode; left to follow the page it gets a white box behind the button. */
+  color-scheme: light;
 }
 .divider {
   display: flex;
