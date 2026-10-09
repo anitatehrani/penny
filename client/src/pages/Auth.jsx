@@ -32,18 +32,27 @@ export function Shell({ title, subtitle, children, footer }) {
   );
 }
 
-/** The two documents, opened in a new tab so a half-filled form is not lost. */
-function TermsLinks() {
+/** The tick box for the two documents: a card with a proper checkbox, so it is easy to see and to hit, also on a phone. */
+function ConsentCheck({ checked, onChange }) {
   return (
-    <>
-      <a href="/terms" target="_blank" rel="noopener noreferrer">
-        Terms of use
-      </a>{' '}
-      and the{' '}
-      <a href="/privacy" target="_blank" rel="noopener noreferrer">
-        Privacy policy
-      </a>
-    </>
+    <label className={`consent-card${checked ? ' on' : ''}`}>
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <span className="consent-box" aria-hidden="true">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M5 12.5l4.5 4.5L19 7.5" />
+        </svg>
+      </span>
+      <span className="consent-text">
+        I agree to the{' '}
+        <a href="/terms" target="_blank" rel="noopener noreferrer">
+          Terms of use
+        </a>{' '}
+        and the{' '}
+        <a href="/privacy" target="_blank" rel="noopener noreferrer">
+          Privacy policy
+        </a>
+      </span>
+    </label>
   );
 }
 
@@ -54,11 +63,8 @@ function GoogleTermsPrompt({ onAccept, onCancel, busy }) {
     <div className="banner" role="group" aria-label="Accept the terms to create your account">
       <Icon name="shield" />
       <div>
-        <p>There is no Penny account for this Google account yet. To create one, please read and accept the <TermsLinks />.</p>
-        <label className="consent">
-          <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} />
-          <span>I have read and accept them.</span>
-        </label>
+        <p>There is no Penny account for this Google account yet. To create one, please accept the terms.</p>
+        <ConsentCheck checked={agree} onChange={setAgree} />
         <div className="form-actions left">
           <button type="button" className="btn primary" disabled={!agree || busy} onClick={onAccept}>
             {busy ? 'Creating…' : 'Create my account'}
@@ -221,7 +227,8 @@ function ForgotPassword() {
 }
 
 function Signup() {
-  const { signup, googleClientId, signupsOpen } = useAuth();
+  const { signup, loginWithGoogle, googleClientId, signupsOpen } = useAuth();
+  const [pendingGoogle, setPendingGoogle] = useState(null); // a Google answer waiting for the terms to be accepted
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
@@ -266,18 +273,23 @@ function Signup() {
   }
   return (
     <Shell title="Create your account" subtitle="Keep your payments, plans and forecast in one private place." footer={<>Already have an account? <Link to="/login">Sign in</Link></>}>
-      <label className="consent">
-        <input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)} />
-        <span>
-          I have read and accept the <TermsLinks />.
-        </span>
-      </label>
-      <GoogleSection
-        text="signup_with"
-        acceptTerms={accepted}
-        onError={(m) => setError(new Error(m))}
-        onNeedTerms={() => setError(new Error('Tick the box to accept the terms and the privacy policy first, then use Google again.'))}
-      />
+      <GoogleSection text="signup_with" acceptTerms={accepted} onError={(m) => setError(new Error(m))} onNeedTerms={setPendingGoogle} />
+      {pendingGoogle && (
+        <GoogleTermsPrompt
+          busy={busy}
+          onCancel={() => setPendingGoogle(null)}
+          onAccept={async () => {
+            setBusy(true);
+            try {
+              await loginWithGoogle(pendingGoogle, true);
+            } catch (err) {
+              setPendingGoogle(null);
+              setError(err);
+              setBusy(false);
+            }
+          }}
+        />
+      )}
       <form onSubmit={submit} className="form">
         <ErrorList error={error} />
         <Field label="Your name">
@@ -314,6 +326,7 @@ function Signup() {
           autoComplete="new-password"
           hint={mismatch ? 'The passwords do not match yet.' : undefined}
         />
+        <ConsentCheck checked={accepted} onChange={setAccepted} />
         <button className="btn primary wide" disabled={busy || !accepted || !valid || confirm !== password || !username || !check.available || check.checking}>
           {busy ? 'Creating account…' : 'Create account'}
         </button>

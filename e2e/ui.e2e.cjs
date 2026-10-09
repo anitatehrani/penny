@@ -2432,7 +2432,7 @@ async function sessionFor(db, email) {
       });
       await check('sign-up cannot be sent until the terms are accepted, and the documents open in a new tab', async () => {
         await out.goto(BASE + '/signup', { waitUntil: 'networkidle0' });
-        const targets = await out.$$eval('label.consent a', (a) => a.map((x) => x.target));
+        const targets = await out.$$eval('.consent-card a', (a) => a.map((x) => x.target));
         eq(targets.join(','), '_blank,_blank', 'new tabs, so a half-filled form is not lost');
         await out.type('input[autocomplete=name]', person.name);
         await out.type('input[type=email]', person.email);
@@ -2446,7 +2446,7 @@ async function sessionFor(db, email) {
         await sleep(700); // the username check
         const disabled = () => out.$eval('form button.btn.primary', (x) => x.disabled);
         eq(await disabled(), true, 'everything filled in but the box is not ticked');
-        await out.click('label.consent input');
+        await out.click('.consent-card .consent-box');
         eq(await disabled(), false, 'the box is ticked');
       });
       await check('signing up creates the account (the acceptance is kept) and opens the app, without the one-time notice', async () => {

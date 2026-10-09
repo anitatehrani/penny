@@ -124,22 +124,59 @@
   text-decoration: underline;
   text-underline-offset: 3px;
 }
-.consent {
+/* The tick box for the terms: a card with a proper checkbox (the real input stays, hidden but focusable). */
+.consent-card {
+  position: relative;
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  font-size: 0.9375rem;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
   color: var(--ink-2);
-  line-height: 1.45;
+  font-size: 0.9375rem;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: border-color 0.15s, background-color 0.15s;
 }
-.consent input {
-  margin-top: 3px;
-  width: 18px;
-  height: 18px;
+.consent-card:hover {
+  border-color: var(--line-strong);
+}
+.consent-card.on {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+  background: var(--accent-soft);
+}
+.consent-card input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+.consent-box {
   flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  border: 2px solid var(--line-strong);
+  background: var(--surface);
+  color: transparent;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
 }
-.consent a {
+.consent-card.on .consent-box {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.consent-card input:focus-visible + .consent-box {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.consent-text a {
   color: var(--accent-text);
+  font-weight: 600;
   text-decoration: underline;
   text-underline-offset: 3px;
 }
