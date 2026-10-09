@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import { initDb, pool } from './db.js';
 import { pruneAuditEvents } from './lib/audit.js';
+import { pruneContactMessages } from './lib/contact.js';
 import { authenticate, impersonationGuard, purgeExpiredSessions, requireAuth, sameOriginOnly } from './lib/auth.js';
 import { appUrl } from './lib/mailer.js';
 import { startBackupSchedule } from './lib/backup.js';
@@ -12,6 +13,7 @@ import { materializeAll } from './lib/materialize.js';
 import { runAlertScan } from './lib/notifications.js';
 import { resolveWorkspace } from './lib/workspace.js';
 import admin from './routes/admin.js';
+import contact from './routes/contact.js';
 import auth from './routes/auth.js';
 import avatars from './routes/avatars.js';
 import backups from './routes/backups.js';
@@ -68,6 +70,7 @@ app.get(
 app.use('/api', sameOriginOnly, authenticate, impersonationGuard);
 app.use('/api/auth', auth);
 app.use('/api', publicNotifications); // one-click unsubscribe from an e-mail (signed link, no login)
+app.use('/api', contact); // the contact form (anybody may write)
 app.use('/api', requireAuth);
 for (const r of [profile, avatars, people, workspaces, notifications, receiptFiles, preferences, backups, admin]) app.use('/api', r);
 app.use('/api', resolveWorkspace);
@@ -95,13 +98,14 @@ try {
   await materializeAll();
   await purgeExpiredSessions();
   await pruneAuditEvents();
+  await pruneContactMessages();
 } catch (err) {
   console.error('Could not initialise the database. Is Postgres running and DATABASE_URL correct?\n', err.message);
   process.exit(1);
 }
 // Housekeeping: keep the 24-month horizon of recurring payments rolling and drop expired sessions.
 setInterval(
-  () => Promise.all([materializeAll(), purgeExpiredSessions(), pruneAuditEvents()]).catch((e) => console.error(e)),
+  () => Promise.all([materializeAll(), purgeExpiredSessions(), pruneAuditEvents(), pruneContactMessages()]).catch((e) => console.error(e)),
   6 * 60 * 60 * 1000,
 ).unref();
 

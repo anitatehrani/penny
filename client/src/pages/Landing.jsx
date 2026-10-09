@@ -448,7 +448,7 @@ const FAQ = [
 ];
 
 export default function Landing() {
-  const { signupsOpen, legal } = useAuth();
+  const { signupsOpen } = useAuth();
 
   useEffect(() => {
     const before = document.title;
@@ -690,7 +690,7 @@ export default function Landing() {
             <Link to="/privacy">Privacy policy</Link>
             <Link to="/login">Log in</Link>
             {signupsOpen && <Link to="/signup">Sign up</Link>}
-            {legal.contactEmail && <a href={`mailto:${legal.contactEmail}`}>Contact</a>}
+            <Link to="/contact">Contact</Link>
           </nav>
           <span className="lp-theme-foot">
             <ThemeToggle compact />

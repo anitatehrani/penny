@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { agoText, checkSummary, minutesLeft, viewAsProblem, deleteConfirmed, eventWho, formatBytes, percent, personBadges, rangeText, signInMethods, signupBars, uptimeText } from '../src/adminLogic.js';
+import { agoText, checkSummary, messagePreview, replyHref, minutesLeft, viewAsProblem, deleteConfirmed, eventWho, formatBytes, percent, personBadges, rangeText, signInMethods, signupBars, uptimeText } from '../src/adminLogic.js';
 
 describe('sizes and times', () => {
   it('writes sizes in units a person reads', () => {
@@ -136,5 +136,23 @@ describe('viewing as someone', () => {
     assert.equal(viewAsProblem({ reason: 'missing payment', password: '' }, true), 'Type your password to confirm it is you.');
     assert.equal(viewAsProblem({ reason: 'missing payment', password: 'x' }, true), null);
     assert.equal(viewAsProblem({ reason: 'missing payment', password: '' }, false), null, 'an admin who signs in with Google has no password to type');
+  });
+});
+
+describe('messages from the contact form', () => {
+  it('the closed row shows the first line, cut short with an ellipsis, on one line', () => {
+    assert.equal(messagePreview('Hello there\nsecond line'), 'Hello there');
+    assert.equal(messagePreview('\n\n  spaced   out \t words  \nmore'), 'spaced out words');
+    assert.equal(messagePreview('x'.repeat(200), 20), `${'x'.repeat(19)}…`);
+    assert.equal(messagePreview('exactly ten', 11), 'exactly ten');
+    assert.equal(messagePreview(''), '');
+    assert.equal(messagePreview(null), '');
+  });
+
+  it('the reply link is addressed to the writer, with a subject naming the topic, and nothing in it can break out', () => {
+    assert.equal(replyHref({ email: 'sam@example.com', topic_label: 'Something is wrong' }), 'mailto:sam@example.com?subject=Re%3A%20your%20message%20to%20Penny%20(Something%20is%20wrong)');
+    const h = replyHref({ email: 'a+b@example.com', topic_label: 'Q&A?' });
+    assert.ok(h.startsWith('mailto:a%2Bb@example.com?subject='), h);
+    assert.ok(!h.slice(h.indexOf('?') + 1).includes('&'), 'a topic cannot add a header such as bcc');
   });
 });

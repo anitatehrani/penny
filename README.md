@@ -291,7 +291,7 @@ scp backups\penny-2026-10-10-1200.dump penny@SERVER_IP:penny/backups/    # use t
 and Penny's own daily ones live on the same machine, which does not help if the machine is lost or someone deletes the server.
 
 **Before you open sign-ups to strangers:** a real mail server (it also switches "Forgot your password?" on, see below), and **who runs the site** on the terms and privacy pages: set `OPERATOR_NAME`
-(your name, or the name you run it under) and `CONTACT_EMAIL` (an address people can write to about their data) in `.env`. The **Going public** card on the Admin page shows what is still missing.
+(your name, or the name you run it under) in `.env`. People reach you through the **contact form** (`/contact`); what they write appears in **Admin, Messages** (kept a year), and you answer by e-mail. `CONTACT_EMAIL` is optional: set it only if you also want an address shown on the two pages. The **Going public** card on the Admin page shows what is still missing.
 The two pages (`/terms` and `/privacy`) are written in plain language to describe what Penny really does; have a lawyer read them if the site grows.
 
 ## The home page

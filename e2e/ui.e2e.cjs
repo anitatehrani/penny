@@ -1954,12 +1954,12 @@ async function sessionFor(db, email) {
     eq(await count(page, '.sidebar a[href="/admin"]'), 0, 'no Admin link in the sidebar');
     eq((await api(page, 'GET', '/admin/overview')).status, 404, 'the admin API answers not found');
   });
-  await check('an admin gets the Admin link, a privacy note, and four tabs', async () => {
+  await check('an admin gets the Admin link, a privacy note, and five tabs', async () => {
     await setAdmin(true);
     await adminTab();
     eq(await count(page, '.sidebar a[href="/admin"]'), 1, 'an Admin link in the sidebar');
     truthy(/never payments, amounts, debts or notes/.test(await text(page, '.admin-privacy')) && /View as/.test(await text(page, '.admin-privacy')), 'it says money is not shown, and that View as is the way: ' + (await text(page, '.admin-privacy')));
-    eq((await page.$$eval('[role=tab]', (t) => t.map((x) => x.textContent.trim()))).join(), 'Overview,People,Activity,System', 'the four tabs');
+    eq((await page.$$eval('[role=tab]', (t) => t.map((x) => x.textContent.trim()))).join(), 'Overview,People,Messages,Activity,System', 'the five tabs');
   });
   await check('the overview has counts, a 30-day sign-up chart and a going-public checklist read from the settings', async () => {
     await adminTab();
@@ -2569,7 +2569,7 @@ async function sessionFor(db, email) {
       await check('the sign-in page links to both documents', async () => {
         await out.goto(BASE + '/login', { waitUntil: 'networkidle0' });
         const links = await out.$$eval('.auth-legal a', (a) => a.map((x) => x.getAttribute('href')));
-        eq(links.join(','), '/terms,/privacy', 'the two links');
+        eq(links.join(','), '/terms,/privacy,/contact', 'the two documents and the contact form');
       });
       await check('sign-up cannot be sent until the terms are accepted, and the documents open in a new tab', async () => {
         await out.goto(BASE + '/signup', { waitUntil: 'networkidle0' });
@@ -2652,6 +2652,132 @@ async function sessionFor(db, email) {
         }
       }
     }
+  }
+
+  console.log('\nContact form and messages');
+  {
+    const WHO = 'E2E Visitor ' + Date.now().toString(36).slice(-4);
+    const TEXT = 'E2E: how do I move a payment to next month? ' + Date.now();
+    const mine = () => db.query("SELECT * FROM contact_messages WHERE message LIKE 'E2E:%' ORDER BY id");
+    const clickBtn = (p, re, sel = 'button') => p.evaluate((src, selector) => [...document.querySelectorAll(selector)].find((b) => new RegExp(src).test(b.textContent))?.click(), re.source, sel);
+    const ctx = await browser.createBrowserContext();
+    const visitor = await ctx.newPage();
+    visitor.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
+    try {
+      await check('a visitor who is not signed in can open /contact, and the form cannot be sent until it is filled in', async () => {
+        await visitor.setViewport({ width: 1280, height: 900 });
+        await visitor.goto(BASE + '/contact', { waitUntil: 'networkidle0' });
+        eq(await text(visitor, 'h1'), 'Contact us', 'the heading');
+        eq(await visitor.$eval('.contact-form input[autocomplete=name]', (i) => i.value), '', 'the name starts empty');
+        eq(await visitor.$eval('.contact-form button.btn.primary', (b) => b.disabled), true, 'nothing to send yet');
+        await visitor.type('.contact-form input[autocomplete=name]', WHO);
+        await visitor.type('.contact-form input[type=email]', 'visitor@example.com');
+        await visitor.type('.contact-form textarea', 'too short');
+        eq(await visitor.$eval('.contact-form button.btn.primary', (b) => b.disabled), true, 'still too short');
+      });
+      await check('the trap field is out of sight and out of reach: hidden from people and from screen readers, and not in the tab order', async () => {
+        const trap = await visitor.$eval('.contact-trap', (e) => ({ left: e.getBoundingClientRect().right, hidden: e.getAttribute('aria-hidden'), tab: e.querySelector('input').tabIndex }));
+        truthy(trap.left < 0, 'it sits off the page: ' + trap.left);
+        eq(trap.hidden, 'true', 'hidden from screen readers');
+        eq(trap.tab, -1, 'not reachable with the Tab key');
+      });
+      await check('sending says thank you, with the address the answer goes to, and the message is kept (not tied to an account)', async () => {
+        await visitor.click('.contact-form textarea', { clickCount: 3 });
+        await visitor.type('.contact-form textarea', TEXT);
+        await clickBtn(visitor, /^Send message$/, '.contact-form button');
+        await visitor.waitForSelector('.banner.ok');
+        truthy(/visitor@example\.com/.test(await text(visitor, '.banner.ok')), 'it names the address: ' + (await text(visitor, '.banner.ok')));
+        const rows = (await mine()).rows;
+        eq(rows.length, 1, 'one message');
+        eq(rows[0].name, WHO, 'the name');
+        eq(rows[0].user_id, null, 'not tied to an account');
+        eq(rows[0].topic, 'question', 'the default topic');
+      });
+      await check('a signed-in person gets their name and address filled in, and the message is tied to their account', async () => {
+        page = await open('/contact');
+        await page.waitForSelector('.contact-form');
+        const me = (await db.query('SELECT name, email FROM users WHERE id = $1', [userId])).rows[0];
+        eq(await page.$eval('.contact-form input[autocomplete=name]', (i) => i.value), me.name, 'the name');
+        eq((await page.$eval('.contact-form input[type=email]', (i) => i.value)).toLowerCase(), me.email.toLowerCase(), 'the address');
+        await page.type('.contact-form textarea', 'E2E: a note from a signed-in person, about an idea');
+        await clickBtn(page, /^Send message$/, '.contact-form button');
+        await page.waitForSelector('.banner.ok');
+        const row = (await db.query("SELECT user_id FROM contact_messages WHERE message LIKE 'E2E: a note from a signed-in%'")).rows[0];
+        eq(row?.user_id, userId, 'tied to the account');
+      });
+      await check('the contact form is one click away from the places people look: the home page, sign-in, the terms and the privacy policy', async () => {
+        await visitor.goto(BASE + '/', { waitUntil: 'networkidle0' });
+        truthy((await visitor.$$eval('.lp-footer a', (a) => a.map((x) => x.getAttribute('href')))).includes('/contact'), 'home page footer');
+        await visitor.goto(BASE + '/login', { waitUntil: 'networkidle0' });
+        truthy((await visitor.$$eval('.auth-legal a', (a) => a.map((x) => x.getAttribute('href')))).includes('/contact'), 'sign-in page');
+        for (const p of ['/terms', '/privacy']) {
+          await visitor.goto(BASE + p, { waitUntil: 'networkidle0' });
+          truthy(await visitor.$('.legal-nav a[href="/contact"]'), p + ': Contact in the top links');
+          truthy(await visitor.$('.legal-article a[href="/contact"]'), p + ': the form is named in the text');
+          truthy(!/has not been added/.test(await text(visitor, 'main')), p + ': no "not added yet" line');
+        }
+      });
+    } finally {
+      await ctx.close();
+    }
+
+    await check('Admin has a Messages tab with the unread count on it; the list shows both messages, newest first, unread in bold', async () => {
+      await setAdmin(true);
+      await adminTab();
+      const tab = await page.$$eval('[role=tab]', (t) => t.map((x) => x.textContent.trim().replace(/\s+/g, ' ')));
+      truthy(tab.some((t) => /^Messages ?2$/.test(t)), 'the tab says 2 are waiting: ' + tab.join(' | '));
+      await adminTab('messages');
+      eq(await count(page, '.msg'), 2, 'two messages');
+      eq(await count(page, '.msg.unread'), 2, 'both unread');
+      truthy(/signed-in person/.test(await text(page, '.msg:first-child .msg-preview')), 'the newest first: ' + (await text(page, '.msg:first-child .msg-preview')));
+    });
+    await check('opening a message shows all of it, marks it read (the count goes down), and offers a reply that opens the mail program', async () => {
+      await page.click('.msg:last-child .msg-head');
+      await page.waitForSelector('.msg.open .msg-text');
+      eq(await text(page, '.msg.open .msg-text'), TEXT, 'the whole text');
+      await page.waitForFunction(() => /^Messages ?1$/.test([...document.querySelectorAll('[role=tab]')].find((t) => /Messages/.test(t.textContent)).textContent.trim().replace(/\s+/g, ' ')));
+      const href = await page.$eval('.msg.open a.btn', (a) => a.getAttribute('href'));
+      truthy(href.startsWith('mailto:visitor@example.com?subject='), 'a reply to the writer: ' + href);
+      eq((await db.query('SELECT read_at IS NOT NULL AS r FROM contact_messages WHERE message = $1', [TEXT])).rows[0].r, true, 'marked read in the database');
+    });
+    await check('mark unread, archive and restore work from the open message, and the filter shows archived ones', async () => {
+      await clickBtn(page, /^\s*Mark unread/, '.msg.open button');
+      await page.waitForFunction(() => document.querySelectorAll('.msg.unread').length === 2);
+      await clickBtn(page, /^\s*Archive/, '.msg.open button');
+      await page.waitForFunction(() => document.querySelectorAll('.msg').length === 1);
+      eq((await db.query('SELECT archived_at IS NOT NULL AS a FROM contact_messages WHERE message = $1', [TEXT])).rows[0].a, true, 'archived in the database');
+      await page.click('.admin-filters .filter-btn');
+      await page.waitForSelector('.filter-opt');
+      await clickBtn(page, /Archived/, '.filter-opt');
+      await page.waitForFunction(() => document.querySelectorAll('.msg').length === 1 && /Visitor|visitor/.test(document.querySelector('.msg').textContent));
+      await page.click('.msg-head');
+      await page.waitForSelector('.msg.open');
+      await clickBtn(page, /^\s*Restore/, '.msg.open button');
+      await page.waitForFunction(() => document.querySelectorAll('.msg').length === 0);
+    });
+    await check('delete asks first, then removes the message for good', async () => {
+      await adminTab('messages');
+      await page.click('.msg-head');
+      await page.waitForSelector('.msg.open');
+      await page.confirm();
+      await clickBtn(page, /^\s*Delete/, '.msg.open button');
+      await page.waitForFunction(() => document.querySelectorAll('.msg').length === 0 || document.querySelectorAll('.msg').length === 1);
+      await sleep(400);
+      eq((await mine()).rowCount, 1, 'one message is left, the other is gone');
+    });
+    await check('on a phone the contact form is one column and Messages does not scroll sideways', async () => {
+      page = await open('/admin?tab=messages', { width: 390, height: 844 });
+      await page.waitForSelector('[role=tabpanel]');
+      await sleep(500);
+      eq(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true, 'Messages: no sideways scroll');
+      page = await open('/contact', { width: 390, height: 844 });
+      await page.waitForSelector('.contact-form');
+      eq(await page.$$eval('.contact-row > *', (c) => new Set(c.map((x) => Math.round(x.getBoundingClientRect().left))).size), 1, 'name and e-mail stacked');
+      eq(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true, 'the form: no sideways scroll');
+    });
+    await db.query("DELETE FROM contact_messages WHERE message LIKE 'E2E:%'");
+    await db.query("DELETE FROM notifications WHERE user_id = $1 AND title = 'New message'", [userId]);
+    await setAdmin(false);
   }
 
   console.log('\nHealth');

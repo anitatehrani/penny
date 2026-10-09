@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api.js';
-import { agoText, checkSummary, deleteConfirmed, eventWho, formatBytes, percent, personBadges, rangeText, signInMethods, signupBars, uptimeText, viewAsProblem } from '../adminLogic.js';
+import { agoText, checkSummary, deleteConfirmed, eventWho, formatBytes, messagePreview, percent, personBadges, rangeText, replyHref, signInMethods, signupBars, uptimeText, viewAsProblem } from '../adminLogic.js';
 import { backupLine } from '../backupLogic.js';
 import Select from '../components/ds/Select.jsx';
 import { Field, Icon, Loading, Modal, ErrorBox, Empty } from '../components/ui.jsx';
@@ -13,6 +13,7 @@ import { useFetch } from '../hooks.js';
 const TABS = [
   ['overview', 'Overview', 'home'],
   ['people', 'People', 'users'],
+  ['messages', 'Messages', 'mail'],
   ['activity', 'Activity', 'list'],
   ['system', 'System', 'gear'],
 ];
@@ -548,6 +549,131 @@ function Activity() {
 }
 
 // ------------------------------------------------------------------------------------------------------------------------
+// Messages from the contact form (docs/DESIGN.md section 38)
+// ------------------------------------------------------------------------------------------------------------------------
+const MESSAGE_FILTERS = [
+  { value: 'unread', label: 'Unread' },
+  { value: 'all', label: 'All' },
+  { value: 'archived', label: 'Archived' },
+];
+
+function MessageItem({ m, open, onToggle, onChange, onCount }) {
+  const { notify } = useApp();
+  // reading a message in the Unread list must not make it vanish from under the reader, so what was just read is remembered here
+  const [local, setLocal] = useState(null);
+  const read = local ?? m.read;
+  async function act(path, value, message) {
+    try {
+      const r = await api.post(`/admin/messages/${m.id}/${path}`, { value });
+      if (message) notify(message);
+      if (path === 'read') setLocal(value);
+      onChange(r.unread);
+    } catch (err) {
+      notify(err.message, 'error');
+    }
+  }
+  async function remove() {
+    if (!window.confirm(`Delete the message from ${m.name} for good?`)) return;
+    try {
+      const r = await api.del(`/admin/messages/${m.id}`);
+      notify('Message deleted');
+      onChange(r.unread);
+    } catch (err) {
+      notify(err.message, 'error');
+    }
+  }
+  function toggle() {
+    if (!open && !read) {
+      // opening it is reading it
+      setLocal(true);
+      api.post(`/admin/messages/${m.id}/read`, { value: true }).then((r) => onCount(r.unread)).catch((err) => notify(err.message, 'error'));
+    }
+    onToggle();
+  }
+  return (
+    <li className={`msg${read ? '' : ' unread'}${open ? ' open' : ''}`}>
+      <button className="msg-head" onClick={toggle} aria-expanded={open}>
+        <span className="msg-dot" aria-hidden="true">{!read && <i className="unread-dot" />}</span>
+        <span className="msg-from">
+          <strong>{m.name}</strong>
+          <span className="muted small">{m.email}</span>
+        </span>
+        <span className="badge">{m.topic_label}</span>
+        <time className="muted small" dateTime={m.created_at} title={whenText(m.created_at)}>{agoText(m.created_at)}</time>
+        <Icon name={open ? 'up' : 'down'} size={14} />
+      </button>
+      {!open && <p className="msg-preview muted">{messagePreview(m.message)}</p>}
+      {open && (
+        <div className="msg-body">
+          <p className="msg-text">{m.message}</p>
+          <p className="muted small">
+            Sent {whenText(m.created_at)}{m.signed_in ? ', while signed in to an account' : ', without signing in'}.
+          </p>
+          <div className="admin-actions">
+            <a className="btn sm primary-soft" href={replyHref(m)}>
+              <Icon name="send" size={14} /> Reply by e-mail
+            </a>
+            <button className="btn sm" onClick={() => act('read', !read)}>
+              <Icon name={read ? 'undo' : 'check'} size={14} /> {read ? 'Mark unread' : 'Mark read'}
+            </button>
+            <button className="btn sm" onClick={() => act('archive', !m.archived, m.archived ? 'Restored' : 'Archived')}>
+              <Icon name={m.archived ? 'undo' : 'download'} size={14} /> {m.archived ? 'Restore' : 'Archive'}
+            </button>
+            <button className="btn sm danger" onClick={remove}>
+              <Icon name="trash" size={14} /> Delete
+            </button>
+          </div>
+        </div>
+      )}
+    </li>
+  );
+}
+
+function Messages({ onUnread }) {
+  const [filter, setFilter] = useState('unread');
+  const [page, setPage] = useState(1);
+  const [openId, setOpenId] = useState(null);
+  const { data, error, reload } = useFetch(() => api.get(`/admin/messages?filter=${filter}&page=${page}`), [filter, page]);
+  useEffect(() => {
+    if (data) onUnread(data.unread);
+  }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
+  const changed = (unread) => {
+    if (typeof unread === 'number') onUnread(unread);
+    reload();
+  };
+  return (
+    <>
+      <div className="admin-filters">
+        <Select label="Show" value={filter} onChange={(v) => { setFilter(v); setPage(1); setOpenId(null); }} options={MESSAGE_FILTERS} variant="filter" />
+        <p className="muted small admin-note">What people wrote through the contact form. Kept for a year, then deleted. Answer by e-mail: the writer is not told anything automatically.</p>
+      </div>
+      {error ? (
+        <ErrorBox error={error} />
+      ) : !data ? (
+        <Loading />
+      ) : data.messages.length === 0 ? (
+        <section className="card">
+          <Empty title={filter === 'unread' ? 'Nothing waiting' : filter === 'archived' ? 'Nothing archived' : 'No messages'} icon="mail">
+            {filter === 'unread' ? 'Every message has been read.' : filter === 'archived' ? 'Archived messages are kept here until they are a year old.' : 'Nobody has written through the contact form yet.'}
+          </Empty>
+        </section>
+      ) : (
+        <>
+          <section className="card">
+            <ul className="msg-list">
+              {data.messages.map((m) => (
+                <MessageItem key={m.id} m={m} open={openId === m.id} onToggle={() => setOpenId(openId === m.id ? null : m.id)} onChange={changed} onCount={onUnread} />
+              ))}
+            </ul>
+          </section>
+          <Pager page={data.page} pages={data.pages} total={data.total} size={data.page_size} onPage={setPage} />
+        </>
+      )}
+    </>
+  );
+}
+
+// ------------------------------------------------------------------------------------------------------------------------
 // System
 // ------------------------------------------------------------------------------------------------------------------------
 function System() {
@@ -638,6 +764,10 @@ export default function Admin() {
   const { user } = useAuth();
   const [params, setParams] = useSearchParams();
   const tab = TABS.some(([id]) => id === params.get('tab')) ? params.get('tab') : 'overview';
+  const [unread, setUnread] = useState(0);
+  useEffect(() => {
+    if (user?.is_admin) api.get('/admin/messages/unread').then((r) => setUnread(r.unread)).catch(() => {});
+  }, [user?.is_admin]);
   if (!user?.is_admin) return <Navigate to="/" replace />;
   return (
     <>
@@ -658,12 +788,14 @@ export default function Admin() {
         {TABS.map(([id, label, icon]) => (
           <button key={id} role="tab" id={`adm-${id}`} aria-selected={tab === id} aria-controls="adm-panel" className={tab === id ? 'active' : ''} onClick={() => setParams(id === 'overview' ? {} : { tab: id }, { replace: true })}>
             <Icon name={icon} size={16} /> {label}
+            {id === 'messages' && unread > 0 && <span className="tab-count" aria-label={`${unread} unread`}>{unread}</span>}
           </button>
         ))}
       </div>
       <div id="adm-panel" role="tabpanel" aria-labelledby={`adm-${tab}`} className="tab-panel">
         {tab === 'overview' && <Overview />}
         {tab === 'people' && <People />}
+        {tab === 'messages' && <Messages onUnread={setUnread} />}
         {tab === 'activity' && <Activity />}
         {tab === 'system' && <System />}
       </div>

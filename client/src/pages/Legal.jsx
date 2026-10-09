@@ -13,7 +13,7 @@ const longDate = (version) => {
   return Number.isNaN(d.getTime()) ? version : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
 };
 
-function LegalShell({ which, title, children }) {
+export function LegalShell({ which, title, children }) {
   const { user, legal } = useAuth();
   return (
     <div className="legal-page">
@@ -28,6 +28,9 @@ function LegalShell({ which, title, children }) {
           <Link to="/privacy" aria-current={which === 'privacy' ? 'page' : undefined}>
             Privacy policy
           </Link>
+          <Link to="/contact" aria-current={which === 'contact' ? 'page' : undefined}>
+            Contact
+          </Link>
         </nav>
         <div className="legal-theme">
           <ThemeToggle compact />
@@ -36,7 +39,7 @@ function LegalShell({ which, title, children }) {
       <main className="legal-main" id="main">
         <article className="legal-article">
           <h1>{title}</h1>
-          <p className="legal-updated">Last updated {longDate(legal.termsVersion)}</p>
+          {which !== 'contact' && <p className="legal-updated">Last updated {longDate(legal.termsVersion)}</p>}
           {children}
         </article>
         <p className="legal-back">
@@ -47,18 +50,20 @@ function LegalShell({ which, title, children }) {
   );
 }
 
-/** Who runs the site and how to reach them. Says plainly when that has not been filled in yet. */
+/** Who runs the site and how to reach them: always the contact form, and the address too when one has been set. */
 function Operator() {
   const { legal } = useAuth();
   return (
     <p>
-      <strong>{legal.operatorName ?? 'The person who runs this site'}</strong> runs Penny.{' '}
+      <strong>{legal.operatorName ?? 'The person who runs this site'}</strong> runs Penny. You can write about anything on this page, your data or your account
+      through the <Link to="/contact">contact form</Link>
       {legal.contactEmail ? (
         <>
-          You can write to <a href={`mailto:${legal.contactEmail}`}>{legal.contactEmail}</a> about anything on this page, your data or your account.
+          {' '}
+          or by e-mail to <a href={`mailto:${legal.contactEmail}`}>{legal.contactEmail}</a>.
         </>
       ) : (
-        <>Their contact address has not been added to the site&apos;s settings yet, so until it is, ask them directly.</>
+        '.'
       )}
     </p>
   );
@@ -179,6 +184,12 @@ export function Privacy() {
         Payments, recurring items, installments, debts, categories, notes, receipts you upload, your budgets and who is in them, and your
         connections with other people.
       </p>
+      <h3>Messages you send us</h3>
+      <p>
+        If you use the <Link to="/contact">contact form</Link>: your name, e-mail address, the topic and your message. The person who runs the site reads it and
+        answers by e-mail. It is kept for a year and then deleted, or earlier if they delete it. A message sent while you are signed in is part of
+        &ldquo;Download my data&rdquo; and is deleted with your account.
+      </p>
       <h3>Technical and security records</h3>
       <ul>
         <li>When you last signed in and were last active, and the browser name of each signed-in device.</li>
@@ -221,6 +232,7 @@ export function Privacy() {
         <li>Your account and everything in it: until you delete your account. Deleting is immediate and complete.</li>
         <li>Backups: daily copies are kept 14 days and one copy a month for about six months, so a deleted account can remain in a backup for up to about six months, then it is overwritten. Nobody looks inside backups except to recover from a failure.</li>
         <li>Activity log: 90 days, and after you delete your account it no longer points to you.</li>
+        <li>Messages sent through the contact form: one year (a message sent while signed in is deleted with your account).</li>
       </ul>
 
       <h2>Cookies and what your browser stores</h2>
@@ -237,7 +249,7 @@ export function Privacy() {
         <li><strong>See and take your data:</strong> Settings, Account, &ldquo;Download my data&rdquo; gives you a file with everything.</li>
         <li><strong>Correct it:</strong> change your details and entries in Penny.</li>
         <li><strong>Delete it:</strong> Settings, Account, &ldquo;Delete my account&rdquo;. If you share a budget with others you leave it first.</li>
-        <li><strong>Object or ask us to limit what we do:</strong> write to the address above.</li>
+        <li><strong>Object or ask us to limit what we do:</strong> write to us through the <Link to="/contact">contact form</Link>.</li>
         <li><strong>Take back a consent</strong>, for example by switching e-mail alerts off.</li>
         <li><strong>Complain</strong> to your country&apos;s data protection authority. We would like the chance to put things right first.</li>
       </ul>

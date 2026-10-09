@@ -117,7 +117,7 @@ export default function YourDataCard() {
           <h2 id="your-data-h">Your data</h2>
         </div>
         <p className="muted">
-          What Penny keeps about you and why is in the <Link to="/privacy">privacy policy</Link>; the rules for using it are the <Link to="/terms">terms of use</Link>.
+          What Penny keeps about you and why is in the <Link to="/privacy">privacy policy</Link>; the rules for using it are the <Link to="/terms">terms of use</Link>. Questions? Use the <Link to="/contact">contact form</Link>.
         </p>
         <div className="row-actions">
           <button className="btn" onClick={download} disabled={busy}>

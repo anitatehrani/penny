@@ -520,3 +520,19 @@ ALTER TABLE sessions ADD COLUMN IF NOT EXISTS acting_reason text;
 -- terms existed have neither, and are asked once.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS terms_accepted_at timestamptz;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS terms_version text;
+
+-- Contact form (docs/DESIGN.md section 38): what people write to the person who runs the site. `user_id` is set when the writer was signed in
+-- (the message is then deleted with the account). Kept a year. Never copied into the activity log.
+CREATE TABLE IF NOT EXISTS contact_messages (
+  id          serial PRIMARY KEY,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  user_id     integer REFERENCES users(id) ON DELETE CASCADE,
+  name        text NOT NULL,
+  email       text NOT NULL,
+  topic       text NOT NULL,
+  message     text NOT NULL,
+  read_at     timestamptz,
+  archived_at timestamptz
+);
+CREATE INDEX IF NOT EXISTS contact_messages_created_idx ON contact_messages (created_at DESC);
+CREATE INDEX IF NOT EXISTS contact_messages_user_idx ON contact_messages (user_id);

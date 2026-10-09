@@ -888,7 +888,7 @@ the people you trust before strangers can sign up, since some things (password r
 - **Two public pages**, `/terms` and `/privacy` (`client/src/pages/Legal.jsx`), readable signed in or out, linked from the sign-in and sign-up pages, Settings, and the one-time notice.
   They describe what Penny actually does (what is kept, who can see it: members of a shared budget, the operator's support "view as" with a reason and a notice, Azure for hosting, Brevo for e-mail, Google only if used;
   one session cookie; no analytics or advertising; backups kept 14 days plus one a month for about six months; the activity log kept 90 days with a short code instead of the IP address; deleting is immediate). Who runs the
-  site and how to reach them come from `OPERATOR_NAME` and `CONTACT_EMAIL` (`/api/auth/config` carries them as `legal`); until set the page says so, and the Admin "Going public" card has a check for it.
+  site and how to reach them come from `OPERATOR_NAME` and `CONTACT_EMAIL` (`/api/auth/config` carries them as `legal`); until set the page says so, and the Admin "Going public" card has a check for it (since section 38 the check needs only the name; the contact form is how people reach the operator).
   The text is a plain-language description, not legal advice.
 - **Acceptance is kept and enforced on the server.** `POST /auth/signup` needs `accept_terms: true`; `users.terms_accepted_at` and `terms_version` record when and which. Creating an account with Google needs it too: without
   it the server answers 400 with `code: 'terms_required'`, creates nothing, and the sign-in page asks (checkbox) and tries again with the same Google answer; signing in to an existing account needs nothing.
@@ -920,3 +920,20 @@ the people you trust before strangers can sign up, since some things (password r
 - **Phone.** Nothing scrolls sideways; the top bar keeps the brand and the two buttons (the light/dark switch moves to the footer); the buttons are large.
 - **Tested** by 3 API tests (the tags carry the site's address for any address, the pictures and files are served, the API is not swallowed, the share image is 1200x630) and 11 browser checks (the page at `/` with its buttons and title,
   the sections, the sliders, the tour tabs, the reveal on scroll, the pictures load and match the theme (system and by hand), the links lead on and back, reduced motion, the phone layout, the preview tags and robots.txt); older checks that expected the sign-in form at `/` now open `/login`.
+
+## 38. Contact form and messages for the admin (defined before implementation)
+
+**What was missing.** The legal pages need a way to reach whoever runs the site, and the owner does not want to publish an e-mail address. A form gives people a way to write, and the admin a place to read.
+
+- **The form.** A public page at `/contact` (works signed in or out, linked from the home page footer, the sign-in and sign-up pages, the terms, the privacy policy and Settings). Fields: name, e-mail (so there is somebody to answer), a topic
+  (Question, Something is wrong, Idea, My data or my account, Other) and the message (10 to 4000 characters, plain text). Signed-in people get name and e-mail filled in and the message is tied to their account. After sending it says plainly that it was
+  received and that the answer comes by e-mail. Nothing is sent to the writer automatically (a form that mails whatever address it is given can be used to bother other people).
+- **Where it goes.** The table `contact_messages` (name, e-mail, topic, message, when, who if signed in, read and archived marks). It is not an e-mail: nothing leaves the server. Every admin gets a notification ("New message from ...") with a link to the Messages tab.
+- **Admin, Messages tab.** The list of messages, newest first, filtered to Unread, All or Archived, with a count of unread ones on the tab. Opening a message marks it read. For each: **Reply** (opens the admin's own mail program addressed to the writer, with the subject
+  filled in), **mark unread/read**, **archive/restore**, **delete**. Only admins can see or change any of it (everyone else gets "not found", like the other admin routes).
+- **Spam and abuse.** A hidden extra field that people do not see: if it is filled the message is dropped silently (and the sender is told it was sent). At most 5 messages an hour from one address and at most 200 a day in total (then "try again later"); the turned-away ones
+  show in the Activity log as "Turned away". Text is stored and shown as text, never as markup. The message text never goes into the Activity log or a notification.
+- **Privacy.** A message is personal data. It is kept for a year and then deleted by the daily clean-up (archived or not); an admin can delete one earlier. A message sent while signed in is part of "Download my data" and is deleted with the account.
+  The privacy policy says so in a paragraph of its own (a clarification: the version date is not changed, so nobody is asked to accept again).
+- **Terms and privacy pages.** Where they used to say that the contact address has not been added, they now point to the form; if `CONTACT_EMAIL` is set, that address is shown as well.
+- **Tested** by 18 API tests (validation, the hidden field, the limits, signed-in messages, who may read, read/archive/delete, the clean-up, the export and account deletion) 2 client tests (the preview line and the reply link) and 8 browser checks (sending from the form, the hidden field, signed in and out, the links to the form, the admin tab with its count, reading, unread, archive, restore, delete, a phone). Ten deliberate breakages of the server code (hidden field, limits, who the message belongs to, cleaning, cascade, clean-up, export, filters, read time) were each caught.

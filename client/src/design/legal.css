@@ -236,3 +236,39 @@
   text-decoration: none;
   align-self: flex-start;
 }
+
+/* The contact form (docs/DESIGN.md section 38). */
+.contact-form {
+  display: grid;
+  gap: 16px;
+  margin-top: 20px;
+}
+.contact-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.contact-form textarea {
+  resize: vertical;
+  min-height: 140px;
+  font: inherit;
+}
+.contact-form .btn.primary {
+  justify-self: start;
+}
+/* hidden from people and from screen readers; only a program that fills in every field will touch it */
+.contact-trap {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+@media (max-width: 600px) {
+  .contact-row {
+    grid-template-columns: 1fr;
+  }
+  .contact-form .btn.primary {
+    justify-self: stretch;
+  }
+}

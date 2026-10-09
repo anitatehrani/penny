@@ -6,6 +6,7 @@ import { EVENT_KINDS, record } from '../lib/audit.js';
 import { IMPERSONATION_MINUTES, rateLimit, requireAdmin } from '../lib/auth.js';
 import { backupStatus } from '../lib/backup.js';
 import { HttpError, idParam, wrap } from '../lib/http.js';
+import { shapeMessage } from '../lib/contact.js';
 import { legalConfig } from '../lib/legal.js';
 import { appUrl, mailMode } from '../lib/mailer.js';
 import { notify } from '../lib/notifications.js';
@@ -105,7 +106,7 @@ router.get(
       { id: 'cookie', ok: process.env.COOKIE_SECURE === 'true', text: 'Secure cookies are on', hint: 'Set COOKIE_SECURE=true in .env once the site is served over HTTPS.' },
       { id: 'url', ok: !/localhost|127\.0\.0\.1/.test(appUrl()), text: 'The public address is set', hint: 'Set APP_URL to the real address, or the links in e-mails point at your own computer.' },
       { id: 'mail', ok: mailMode() === 'smtp', text: 'A real mail server is set', hint: 'Set SMTP_HOST (and the other SMTP_ settings). Without it e-mails are only saved in a folder, so nobody receives them, and "Forgot password" stays switched off.' },
-      { id: 'legal', ok: !!(legalConfig().operatorName && legalConfig().contactEmail), text: 'The terms and privacy pages say who runs the site', hint: 'Set OPERATOR_NAME and CONTACT_EMAIL in .env, so the two pages name you and say how people can reach you (they are asked to accept them when they sign up).' },
+      { id: 'legal', ok: !!legalConfig().operatorName, text: 'The terms and privacy pages say who runs the site', hint: 'Set OPERATOR_NAME in .env, so the two pages name you (people are asked to accept them when they sign up). They already point to the contact form; CONTACT_EMAIL is optional and adds an address.' },
       { id: 'backups', ok: !!b.enabled && !b.problem && !!b.last_at, text: 'Backups are on and recent', hint: b.problem || 'Backups are off or none has been made yet.' },
       { id: 'proxy', ok: !!process.env.TRUST_PROXY, text: 'The proxy setting is present', hint: 'Set TRUST_PROXY=1 when a web server sits in front of Penny, or every visitor looks like one address to the rate limits and the activity log.' },
     ];
@@ -117,6 +118,7 @@ router.get(
       last_24h: events.rows[0],
       recent: recent.rows.map(withKind),
       checks,
+      unread_messages: await unreadCount(),
     });
   }),
 );
@@ -313,6 +315,55 @@ router.get(
       pages: Math.max(1, Math.ceil(total / EVENT_PAGE)),
       kinds: Object.entries(EVENT_KINDS).map(([kind, v]) => ({ kind, label: v.label })),
     });
+  }),
+);
+
+// ---------------------------------------------------------------------------------------------------------------------------------
+// Messages from the contact form (docs/DESIGN.md section 38)
+// ---------------------------------------------------------------------------------------------------------------------------------
+const MESSAGE_PAGE = 25;
+const messageQuery = z.object({
+  filter: z.enum(['unread', 'all', 'archived']).default('unread'),
+  page: z.coerce.number().int().min(1).max(100000).default(1),
+});
+const MESSAGE_FILTER = { unread: 'archived_at IS NULL AND read_at IS NULL', all: 'archived_at IS NULL', archived: 'archived_at IS NOT NULL' };
+const unreadCount = async () => (await query('SELECT count(*)::int AS n FROM contact_messages WHERE archived_at IS NULL AND read_at IS NULL')).rows[0].n;
+
+router.get(
+  '/admin/messages',
+  wrap(async (req, res) => {
+    const q = messageQuery.parse(req.query);
+    const clause = MESSAGE_FILTER[q.filter];
+    const total = (await query(`SELECT count(*)::int AS n FROM contact_messages WHERE ${clause}`)).rows[0].n;
+    const { rows } = await query(`SELECT * FROM contact_messages WHERE ${clause} ORDER BY created_at DESC, id DESC LIMIT ${MESSAGE_PAGE} OFFSET ${(q.page - 1) * MESSAGE_PAGE}`);
+    res.json({ messages: rows.map(shapeMessage), total, page: q.page, pages: Math.max(1, Math.ceil(total / MESSAGE_PAGE)), page_size: MESSAGE_PAGE, unread: await unreadCount() });
+  }),
+);
+
+router.get(
+  '/admin/messages/unread',
+  wrap(async (_req, res) => res.json({ unread: await unreadCount() })),
+);
+
+const flag = z.object({ value: z.boolean().default(true) });
+const setMark = (column) =>
+  wrap(async (req, res) => {
+    const id = idParam(req);
+    const { value } = flag.parse(req.body ?? {});
+    // the mark keeps its first time when set again; clearing it makes the message unread / restored
+    const { rows } = await query(`UPDATE contact_messages SET ${column} = ${value ? `COALESCE(${column}, now())` : 'NULL'} WHERE id = $1 RETURNING *`, [id]);
+    if (!rows[0]) throw new HttpError(404, 'Not found');
+    res.json({ message: shapeMessage(rows[0]), unread: await unreadCount() });
+  });
+router.post('/admin/messages/:id/read', setMark('read_at'));
+router.post('/admin/messages/:id/archive', setMark('archived_at'));
+
+router.delete(
+  '/admin/messages/:id',
+  wrap(async (req, res) => {
+    const { rowCount } = await query('DELETE FROM contact_messages WHERE id = $1', [idParam(req)]);
+    if (!rowCount) throw new HttpError(404, 'Not found');
+    res.json({ ok: true, unread: await unreadCount() });
   }),
 );
 

@@ -11,6 +11,7 @@ import { NotificationsProvider } from './notifications.jsx';
 import { installNumberWheelGuard } from './numberInputs.js';
 import AuthPages from './pages/Auth.jsx';
 import { ResetPassword, Unsubscribe, VerifyEmail } from './pages/EmailLinks.jsx';
+import Contact from './pages/Contact.jsx';
 import Landing from './pages/Landing.jsx';
 import { Privacy, Terms } from './pages/Legal.jsx';
 import { PreferencesProvider } from './prefs.jsx';
@@ -63,6 +64,7 @@ function Root() {
   // the terms and the privacy policy are public: they must be readable before signing up
   if (!loading && !error && pathname === '/terms') return <Terms />;
   if (!loading && !error && pathname === '/privacy') return <Privacy />;
+  if (!loading && !error && pathname === '/contact') return <Contact />;
   if (loading) return <div className="loading">Loading…</div>;
   if (error) return <div className="loading">Cannot reach the server: {error.message}</div>;
   // somebody who is not signed in sees the home page first; every other address goes to the sign-in pages

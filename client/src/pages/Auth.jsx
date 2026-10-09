@@ -25,7 +25,7 @@ export function Shell({ title, subtitle, children, footer }) {
         {children}
         <p className="auth-footer">{footer}</p>
         <p className="auth-legal">
-          <Link to="/terms">Terms</Link> · <Link to="/privacy">Privacy</Link>
+          <Link to="/terms">Terms</Link> · <Link to="/privacy">Privacy</Link> · <Link to="/contact">Contact</Link>
         </p>
       </div>
     </main>

@@ -3,7 +3,7 @@ import { query } from '../db.js';
 /**
  * Everything Penny holds about one person, as plain data they can keep (docs/DESIGN.md section 36).
  *
- * It is their profile and settings, the budgets they are a member of with what is in them, what was said to them, and what the activity log
+ * It is their profile and settings, the budgets they are a member of with what is in them, what was said to them, what they wrote through the contact form, and what the activity log
  * says about them. Never a password hash, a session, or the bytes of a photo or a receipt (receipts are listed, not included).
  * For a shared budget it holds that budget's content, which the person can already see, and the other members' names and usernames
  * only, not their e-mail addresses or anything else about them.
@@ -78,6 +78,7 @@ export async function buildExport(userId, db = { query }) {
     dismissed_insights: await q('SELECT workspace_id, insight_key FROM insight_dismissals WHERE user_id = $1'),
     notifications: await q('SELECT kind, title, body, link, created_at, read_at FROM notifications WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1000'),
     e_mails_sent_to_you: await q('SELECT to_email, subject, kind, status, created_at FROM email_log WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1000'),
+    messages_you_sent_through_the_contact_form: await q('SELECT created_at, topic, name, email, message FROM contact_messages WHERE user_id = $1 ORDER BY created_at DESC'),
     activity_log: await q(`SELECT at, kind, detail FROM audit_events WHERE user_id = $1 ORDER BY at DESC LIMIT 1000`),
   };
 }
