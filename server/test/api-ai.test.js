@@ -107,6 +107,8 @@ describe('with a key on the server', () => {
     assert.deepEqual(rest, [{ role: 'user', content: 'Did I buy anything at the corner supermarket?' }]);
     assert.ok(system.content.includes('Corner supermarket') && system.content.includes('Groceries') && system.content.includes('Electric company'), 'the budget is in the summary');
     assert.match(system.content, /whose name contains "corner"/);
+    assert.match(system.content, /Month by month, the last twelve months/);
+    assert.match(system.content, /spending EUR|spending $|spending USD/);
     // nothing that says who the person is, and no account number
     const everything = JSON.stringify(call.body);
     for (const secret of [p.user.email, 'quark_zuza', 'Zuzanna', 'Quarkmeister', '0542811101000000123456', KEY]) assert.ok(!everything.includes(secret), `leaked: ${secret}`);

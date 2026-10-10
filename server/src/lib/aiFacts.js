@@ -33,6 +33,34 @@ export async function gatherAiExtras(workspaceId, facts, question) {
     query(`SELECT description, amount::float AS amount, date::text AS date FROM transactions WHERE ${where} AND date >= $2 AND date <= $3 ORDER BY amount DESC, id LIMIT 8`, [workspaceId, from, facts.today]),
     query(`SELECT description, amount::float AS amount, date::text AS date FROM transactions WHERE ${where} AND date <= $2 ORDER BY date DESC, id DESC LIMIT 10`, [workspaceId, facts.today]),
   ]);
+  // month by month for the last twelve months (so "how much in August?" has an answer), in total and for the biggest categories
+  const first = monthStart(addMonthsYM(facts.month, -11));
+  const end = monthStart(addMonthsYM(facts.month, 1));
+  const [monthly, byCategory] = await Promise.all([
+    query(
+      `SELECT to_char(date, 'YYYY-MM') AS month, type, sum(amount)::float AS total FROM transactions
+       WHERE workspace_id = $1 AND status IN ('paid', 'pending') AND date >= $2 AND date < $3
+         AND ((type = 'expense' AND source NOT IN ('adjustment', 'loan')) OR (type = 'income' AND source NOT IN ('adjustment', 'debt')))
+       GROUP BY 1, 2`,
+      [workspaceId, first, end],
+    ),
+    query(
+      `SELECT to_char(t.date, 'YYYY-MM') AS month, COALESCE(c.name, 'Uncategorized') AS name, sum(t.amount)::float AS total FROM transactions t LEFT JOIN categories c ON c.id = t.category_id
+       WHERE t.workspace_id = $1 AND t.type = 'expense' AND t.status IN ('paid', 'pending') AND t.source NOT IN ('adjustment', 'loan') AND t.date >= $2 AND t.date < $3
+       GROUP BY 1, 2`,
+      [workspaceId, first, end],
+    ),
+  ]);
+  const months = [];
+  for (let i = 11; i >= 0; i--) {
+    const m = addMonthsYM(facts.month, -i);
+    const sum = (type) => round2(monthly.rows.filter((r) => r.month === m && r.type === type).reduce((a, r) => a + r.total, 0));
+    months.push({ month: m, expenses: sum('expense'), income: sum('income') });
+  }
+  const totals = new Map();
+  for (const r of byCategory.rows) totals.set(r.name, (totals.get(r.name) ?? 0) + r.total);
+  const top = [...totals].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([name]) => name);
+  const categoryMonths = top.map((name) => ({ name, months: byCategory.rows.filter((r) => r.name === name).map((r) => ({ month: r.month, total: round2(r.total) })).sort((a, b) => (a.month < b.month ? -1 : 1)) }));
   const matches = [];
   for (const word of searchWords(question)) {
     const { rows } = await query(
@@ -42,11 +70,12 @@ export async function gatherAiExtras(workspaceId, facts, question) {
     );
     if (rows.length) matches.push({ word, months: rows });
   }
-  return { biggest: biggest.rows, latest: latest.rows, matches };
+  return { biggest: biggest.rows, latest: latest.rows, matches, months, categoryMonths };
 }
 
 /** The summary as text. Pure: the same facts always give the same text. */
 export function buildFactSheet(facts, extras = { biggest: [], latest: [], matches: [] }) {
+  const { months = [], categoryMonths = [] } = extras;
   const cur = facts.currency || 'USD';
   const money = (n) => {
     try {
@@ -74,6 +103,17 @@ export function buildFactSheet(facts, extras = { biggest: [], latest: [], matche
   lines.push(`- Spending: ${money(t.expenseCur)} in total (${money(t.expensePaidCur)} already paid, ${t.paidCount} payments). By the same day last month: ${money(t.mtdExpensePrev)}; this month so far: ${money(t.mtdExpenseCur)}.`);
   lines.push(`- Income: ${money(t.incomeCur)} expected, ${money(t.incomePaidCur)} already received.`);
   lines.push(`Last month (${monthName(facts.prevMonth, { year: true })}): spending ${money(t.expensePrev)}, income ${money(t.incomePrev)}.`);
+
+  if (months.some((m) => m.expenses || m.income)) {
+    lines.push('');
+    lines.push('Month by month, the last twelve months (spending and income, paid and planned together):');
+    for (const m of months) lines.push(`- ${monthName(m.month, { year: true })}: spending ${money(m.expenses)}, income ${money(m.income)}`);
+  }
+  if (categoryMonths.length) {
+    lines.push('');
+    lines.push('Spending in the biggest categories, by month (months with nothing are left out):');
+    for (const c of categoryMonths) lines.push(`- ${safeName(c.name, 40)}: ${c.months.map((r) => `${monthName(r.month, { year: true })} ${money(r.total)}`).join('; ')}`);
+  }
 
   const cats = facts.categories
     .filter((c) => c.cur || c.prev || c.avg3)

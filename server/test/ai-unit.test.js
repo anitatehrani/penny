@@ -173,11 +173,11 @@ describe('what the service is told', () => {
     balance: { current: 1250.4, endOfMonth: 900, firstNegative: null, lowest: { month: '2026-12', balance: 300 }, min: 200 },
     forecastMonths: [{ month: '2026-10', endBalance: 900, income: 2400, expenses: 1500 }],
   };
-  const extras = { biggest: [{ description: 'Rent', amount: 700, date: '2026-10-01' }], latest: [], matches: [{ word: 'netflix', months: [{ month: '2026-10', total: 12.99, n: 1 }] }] };
+  const extras = { months: [{ month: '2026-08', expenses: 1234.5, income: 2400 }, { month: '2026-09', expenses: 1500, income: 2400 }], categoryMonths: [{ name: 'Groceries', months: [{ month: '2026-08', total: 410 }, { month: '2026-09', total: 380 }] }], biggest: [{ description: 'Rent', amount: 700, date: '2026-10-01' }], latest: [], matches: [{ word: 'netflix', months: [{ month: '2026-10', total: 12.99, n: 1 }] }] };
   const sheet = buildFactSheet(facts, extras);
 
   it('holds the figures, with the currency and exact cents', () => {
-    for (const part of ['Today is Saturday 2026-10-10', 'EUR 1,250.40', 'EUR 900.00', 'Groceries: EUR 320.00 / EUR 410.00 / EUR 380.00', 'Netflix', 'EUR 12.99 a month', 'Overdue (pending', 'netflix', 'whose name contains "netflix"']) {
+    for (const part of ['Today is Saturday 2026-10-10', 'EUR 1,250.40', 'EUR 900.00', 'Groceries: EUR 320.00 / EUR 410.00 / EUR 380.00', 'Netflix', 'EUR 12.99 a month', 'Overdue (pending', 'August 2026: spending EUR 1,234.50, income EUR 2,400.00', 'September 2026: spending EUR 1,500.00', 'Groceries: August 2026 EUR 410.00; September 2026 EUR 380.00', 'netflix', 'whose name contains "netflix"']) {
       assert.ok(sheet.includes(part), `missing: ${part}\n${sheet}`);
     }
     assert.ok(!sheet.includes('Empty one'), 'a category with nothing in it is left out');
