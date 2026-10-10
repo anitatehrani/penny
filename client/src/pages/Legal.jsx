@@ -187,7 +187,7 @@ export function Privacy() {
       <h3>Messages you send us</h3>
       <p>
         If you use the <Link to="/contact">contact form</Link>: your name, e-mail address, the topic and your message. The person who runs the site reads it and
-        answers by e-mail. It is kept for a year and then deleted, or earlier if they delete it. A message sent while you are signed in is part of
+        answers by e-mail. It is kept for a year and then deleted, or earlier if they delete it. The same goes for the answer and for anything you write back to it by e-mail, which is kept with the message. A message sent while you are signed in is part of
         &ldquo;Download my data&rdquo; and is deleted with your account.
       </p>
       <h3>Technical and security records</h3>

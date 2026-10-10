@@ -505,3 +505,19 @@
   font-size: var(--fs-3);
   color: var(--ink-2);
 }
+
+/* what the writer sent back, under the answers */
+.msg-reply {
+  margin: 0 0 8px;
+  padding: 10px 14px;
+  border-left: 3px solid var(--line-strong);
+  border-radius: 0 12px 12px 0;
+  background: var(--surface-2);
+}
+.msg-reply p {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.55;
+  color: var(--ink);
+}

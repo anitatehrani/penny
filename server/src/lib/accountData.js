@@ -79,6 +79,7 @@ export async function buildExport(userId, db = { query }) {
     notifications: await q('SELECT kind, title, body, link, created_at, read_at FROM notifications WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1000'),
     e_mails_sent_to_you: await q('SELECT to_email, subject, kind, status, created_at FROM email_log WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1000'),
     messages_you_sent_through_the_contact_form: await q('SELECT created_at, topic, name, email, message FROM contact_messages WHERE user_id = $1 ORDER BY created_at DESC'),
+    replies_to_those_messages: await q(`SELECT r.created_at, r.direction, r.body FROM contact_replies r JOIN contact_messages m ON m.id = r.message_id WHERE m.user_id = $1 ORDER BY r.created_at, r.id`),
     activity_log: await q(`SELECT at, kind, detail FROM audit_events WHERE user_id = $1 ORDER BY at DESC LIMIT 1000`),
   };
 }

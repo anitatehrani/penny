@@ -1845,6 +1845,9 @@ async function sessionFor(db, email) {
       await page.evaluate(() => [...document.querySelectorAll('.form-actions .btn.primary')].find((b) => /^Save$/.test(b.textContent.trim())).click());
       await sleep(800);
       eq((await api(page, 'GET', '/settings')).json.min_balance, buffer, 'saved');
+      // the demo data moves with the calendar, and a balance below zero says "Below zero today" before it says anything about a buffer: make sure it is above zero
+      const now = (await api(page, 'GET', '/summary')).json.balance;
+      if (now < 50) await api(page, 'PUT', '/settings', { opening_balance: original.opening_balance + (50 - now), currency: original.currency, min_balance: buffer });
       page = await open('/');
       await page.waitForSelector('.hero-status');
       const status = await page.$eval('.hero-status', (e) => ({ cls: e.className, text: e.textContent.trim() }));
@@ -2781,6 +2784,25 @@ async function sessionFor(db, email) {
       await sleep(400);
       eq((await mine()).rowCount, 1, 'one message is left, the other is gone');
     });
+    await check('a reply that came back by e-mail shows under the answer, the message is unread again, and answering again quotes the reply', async () => {
+      const msg = (await db.query('SELECT id FROM contact_messages WHERE message = $1', [TEXT])).rows[0];
+      // what the inbound route does when Brevo delivers a reply (the route itself is covered by the API tests)
+      await db.query("INSERT INTO contact_replies (message_id, direction, body, from_email) VALUES ($1, 'in', 'E2E reply: yes, that fixed it, thank you!', 'visitor@example.com')", [msg.id]);
+      await db.query('UPDATE contact_messages SET read_at = NULL, archived_at = NULL WHERE id = $1', [msg.id]);
+      await adminTab('messages');
+      await page.waitForSelector('.msg.unread');
+      await page.click('.msg-head');
+      await page.waitForSelector('.msg.open .msg-reply');
+      truthy(/replied/.test(await text(page, '.msg-reply')) && /that fixed it/.test(await text(page, '.msg-reply')), 'the reply: ' + (await text(page, '.msg-reply')));
+      const kinds = await page.$$eval('.msg.open .msg-answer, .msg.open .msg-reply', (els) => els.map((e) => e.className));
+      eq(kinds.join(), 'msg-answer,msg-reply', 'the answer first, then the reply');
+      await clickBtn(page, /Answer again/, '.msg.open button');
+      await page.waitForSelector('.modal .msg-quote');
+      truthy(/that fixed it/.test(await text(page, '.modal .msg-quote')), 'the reply is what is quoted: ' + (await text(page, '.modal .msg-quote')));
+      truthy(/Your address|comes back here/.test(await text(page, '.modal p.muted')), 'it says where the next answer goes');
+      await page.keyboard.press('Escape');
+      await page.waitForFunction(() => !document.querySelector('.modal'));
+    });
     await check('on a phone the contact form is one column and Messages does not scroll sideways', async () => {
       page = await open('/admin?tab=messages', { width: 390, height: 844 });
       await page.waitForSelector('[role=tabpanel]');
@@ -2791,7 +2813,7 @@ async function sessionFor(db, email) {
       eq(await page.$$eval('.contact-row > *', (c) => new Set(c.map((x) => Math.round(x.getBoundingClientRect().left))).size), 1, 'name and e-mail stacked');
       eq(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true, 'the form: no sideways scroll');
     });
-    await db.query("DELETE FROM contact_messages WHERE message LIKE 'E2E:%'");
+    await db.query("DELETE FROM contact_messages WHERE message LIKE 'E2E:%'"); // the conversations go with them
     await db.query("DELETE FROM email_log WHERE kind = 'contact-reply' AND to_email = 'visitor@example.com'");
     await db.query("DELETE FROM notifications WHERE user_id = $1 AND title = 'New message'", [userId]);
     await setAdmin(false);

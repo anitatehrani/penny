@@ -558,12 +558,13 @@ const MESSAGE_FILTERS = [
 ];
 
 /** Answer a message by e-mail, from here. The writer gets it from Penny's address, and their reply goes to the admin's own address. */
-function ReplyDialog({ m, onClose, onDone }) {
+function ReplyDialog({ m, inbox, onClose, onDone }) {
   const { notify } = useApp();
   const { user } = useAuth();
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
+  const latest = [...m.thread].reverse().find((t) => t.direction === 'in')?.body ?? m.message; // what they said last
   async function submit(e) {
     e.preventDefault();
     setBusy(true);
@@ -583,9 +584,13 @@ function ReplyDialog({ m, onClose, onDone }) {
       <form onSubmit={submit} className="form">
         {error && <ErrorBox error={{ message: error }} />}
         <p className="muted small">
-          To <strong>{m.email}</strong>. It is sent from Penny with your address ({user.email}) as the reply address, so when {m.name.split(' ')[0]} answers, it reaches you directly. What they wrote is quoted underneath.
+          To <strong>{m.email}</strong>. It is sent from Penny.{' '}
+          {inbox
+            ? `When ${m.name.split(' ')[0]} answers, the reply comes back here, under this message.`
+            : `Your address (${user.email}) is the reply address, so when ${m.name.split(' ')[0]} answers, it reaches you directly.`}{' '}
+          What they wrote is quoted underneath.
         </p>
-        <p className="msg-text msg-quote">{m.message}</p>
+        <p className="msg-text msg-quote">{latest}</p>
         <Field label="Your answer">
           <textarea value={text} onChange={(e) => setText(e.target.value)} rows={7} maxLength={4000} required autoFocus />
         </Field>
@@ -602,8 +607,9 @@ function ReplyDialog({ m, onClose, onDone }) {
   );
 }
 
-function MessageItem({ m: base, open, onToggle, onChange, onCount }) {
+function MessageItem({ m: base, inbox, open, onToggle, onChange, onCount }) {
   const { notify } = useApp();
+  const { user } = useAuth();
   // reading a message in the Unread list must not make it vanish from under the reader, so what was just read is remembered here
   const [local, setLocal] = useState(null);
   const [replying, setReplying] = useState(false);
@@ -654,11 +660,23 @@ function MessageItem({ m: base, open, onToggle, onChange, onCount }) {
       {open && (
         <div className="msg-body">
           <p className="msg-text">{m.message}</p>
-          {m.replied && (
-            <div className="msg-answer">
-              <span className="muted small">You answered {agoText(m.replied_at)}:</span>
-              <p>{m.reply}</p>
-            </div>
+          {m.thread.map((t) =>
+            t.direction === 'out' ? (
+              <div key={t.id} className="msg-answer">
+                <span className="muted small">
+                  {t.admin_name && t.admin_name !== user.name ? `${t.admin_name} answered` : 'You answered'} {agoText(t.created_at)}:
+                </span>
+                <p>{t.body}</p>
+              </div>
+            ) : (
+              <div key={t.id} className="msg-reply">
+                <span className="muted small">
+                  {m.name.split(' ')[0]} replied {agoText(t.created_at)}
+                  {t.other_sender && <span className="badge" title={t.from_email}> from another address</span>}:
+                </span>
+                <p>{t.body}</p>
+              </div>
+            ),
           )}
           <p className="muted small">
             Sent {whenText(m.created_at)}{m.signed_in ? ', while signed in to an account' : ', without signing in'}.
@@ -682,6 +700,7 @@ function MessageItem({ m: base, open, onToggle, onChange, onCount }) {
       {replying && (
         <ReplyDialog
           m={m}
+          inbox={inbox}
           onClose={() => setReplying(false)}
           onDone={(message, unread) => {
             setReplying(false);
@@ -728,7 +747,7 @@ function Messages({ onUnread }) {
           <section className="card">
             <ul className="msg-list">
               {data.messages.map((m) => (
-                <MessageItem key={m.id} m={m} open={openId === m.id} onToggle={() => setOpenId(openId === m.id ? null : m.id)} onChange={changed} onCount={onUnread} />
+                <MessageItem key={m.id} m={m} inbox={data.replies_by_email} open={openId === m.id} onToggle={() => setOpenId(openId === m.id ? null : m.id)} onChange={changed} onCount={onUnread} />
               ))}
             </ul>
           </section>
@@ -807,6 +826,18 @@ function System() {
           <span className={`badge ${m.mode === 'smtp' ? 'ok' : 'tone-warn'}`}>{m.mode === 'smtp' ? 'Real mail server' : 'Preview only'}</span>
         </div>
         {m.mode !== 'smtp' && <p className="muted small">No mail server is set, so e-mails are only saved in a folder and nobody receives them.</p>}
+        <p className="small">
+          Replies by e-mail:{' '}
+          {m.replies_by_email ? (
+            <>
+              <span className="badge ok">on</span> <span className="muted">written to {m.replies_by_email} come back into Messages</span>
+            </>
+          ) : (
+            <>
+              <span className="badge">off</span> <span className="muted">answers to messages ask for the reply to go to the admin's own mailbox</span>
+            </>
+          )}
+        </p>
         <p>
           <strong className="num">{m.sent_24h}</strong> <span className="muted">sent in 24 hours</span> · <strong className="num">{m.failed_24h}</strong> <span className="muted">failed</span>
         </p>

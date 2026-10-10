@@ -14,6 +14,7 @@ import { runAlertScan } from './lib/notifications.js';
 import { resolveWorkspace } from './lib/workspace.js';
 import admin from './routes/admin.js';
 import contact from './routes/contact.js';
+import inbound from './routes/inbound.js';
 import auth from './routes/auth.js';
 import avatars from './routes/avatars.js';
 import backups from './routes/backups.js';
@@ -52,6 +53,7 @@ app.use((_req, res, next) => {
   });
   next();
 });
+app.use('/api/inbound', inbound); // parsed e-mail from Brevo: before the ordinary JSON reader, which would refuse a big mail
 app.use(express.json({ limit: '100kb' }));
 
 // API pipeline: public health check -> session lookup -> auth routes (public + account) -> must be signed in

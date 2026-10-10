@@ -149,7 +149,7 @@ describe('the admin\'s Messages tab', () => {
     const all = await list(a, '?filter=all');
     assert.deepEqual(all.messages.map((m) => m.name), ['Third', 'Second', 'First']);
     assert.equal(all.unread, 3);
-    assert.deepEqual(Object.keys(all.messages[0]).sort(), ['archived', 'created_at', 'email', 'id', 'message', 'name', 'read', 'replied', 'replied_at', 'reply', 'signed_in', 'topic', 'topic_label']);
+    assert.deepEqual(Object.keys(all.messages[0]).sort(), ['archived', 'created_at', 'email', 'id', 'message', 'name', 'read', 'replied', 'replied_at', 'reply', 'signed_in', 'thread', 'topic', 'topic_label']);
     assert.equal((await list(a)).total, 3, 'unread is the default view');
     const second = all.messages[1];
     ok(await a.client.post(`/admin/messages/${second.id}/read`, { value: true }));

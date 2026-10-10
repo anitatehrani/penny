@@ -6,7 +6,8 @@ import { EVENT_KINDS, record } from '../lib/audit.js';
 import { IMPERSONATION_MINUTES, rateLimit, requireAdmin } from '../lib/auth.js';
 import { backupStatus } from '../lib/backup.js';
 import { HttpError, idParam, wrap } from '../lib/http.js';
-import { replyBody, shapeMessage } from '../lib/contact.js';
+import { replyBody, shapeMessage, threadsFor } from '../lib/contact.js';
+import { inboundOn, replyAddress, replyDomain } from '../lib/inbound.js';
 import { contactReplyEmail } from '../lib/emailTemplates.js';
 import { legalConfig } from '../lib/legal.js';
 import { appUrl, mailMode, sendMail } from '../lib/mailer.js';
@@ -337,7 +338,8 @@ router.get(
     const clause = MESSAGE_FILTER[q.filter];
     const total = (await query(`SELECT count(*)::int AS n FROM contact_messages WHERE ${clause}`)).rows[0].n;
     const { rows } = await query(`SELECT * FROM contact_messages WHERE ${clause} ORDER BY created_at DESC, id DESC LIMIT ${MESSAGE_PAGE} OFFSET ${(q.page - 1) * MESSAGE_PAGE}`);
-    res.json({ messages: rows.map(shapeMessage), total, page: q.page, pages: Math.max(1, Math.ceil(total / MESSAGE_PAGE)), page_size: MESSAGE_PAGE, unread: await unreadCount() });
+    const threads = await threadsFor(rows.map((r) => r.id));
+    res.json({ messages: rows.map((r) => shapeMessage(r, threads.get(r.id))), total, page: q.page, pages: Math.max(1, Math.ceil(total / MESSAGE_PAGE)), page_size: MESSAGE_PAGE, unread: await unreadCount(), replies_by_email: inboundOn() });
   }),
 );
 
@@ -354,7 +356,7 @@ const setMark = (column) =>
     // the mark keeps its first time when set again; clearing it makes the message unread / restored
     const { rows } = await query(`UPDATE contact_messages SET ${column} = ${value ? `COALESCE(${column}, now())` : 'NULL'} WHERE id = $1 RETURNING *`, [id]);
     if (!rows[0]) throw new HttpError(404, 'Not found');
-    res.json({ message: shapeMessage(rows[0]), unread: await unreadCount() });
+    res.json({ message: shapeMessage(rows[0], (await threadsFor([id])).get(id)), unread: await unreadCount() });
   });
 router.post('/admin/messages/:id/read', setMark('read_at'));
 router.post('/admin/messages/:id/archive', setMark('archived_at'));
@@ -370,17 +372,21 @@ router.post(
     const { reply } = replyBody.parse(req.body ?? {});
     const m = (await query('SELECT * FROM contact_messages WHERE id = $1', [id])).rows[0];
     if (!m) throw new HttpError(404, 'Not found');
-    const mail = contactReplyEmail({ name: m.name, reply, original: m.message, topic: shapeMessage(m).topic_label });
+    const latest = (await threadsFor([id])).get(id).filter((t) => t.direction === 'in').at(-1);
+    const mail = contactReplyEmail({ name: m.name, reply, original: latest?.body ?? m.message, topic: shapeMessage(m).topic_label });
+    // with replies by e-mail set up they come back into this tab; otherwise they go to the admin's own mailbox
+    const replyTo = (await replyAddress(id)) ? `Penny <${await replyAddress(id)}>` : `${req.user.name.replace(/[\r\n"<>]/g, '')} <${req.user.email}>`;
     let sent;
     try {
-      sent = await sendMail({ to: m.email, subject: mail.subject, text: mail.text, html: mail.html, headers: { 'Reply-To': `${req.user.name.replace(/[\r\n"<>]/g, '')} <${req.user.email}>` } });
+      sent = await sendMail({ to: m.email, subject: mail.subject, text: mail.text, html: mail.html, headers: { 'Reply-To': replyTo } });
     } catch (err) {
       await query(`INSERT INTO email_log (user_id, to_email, subject, kind, status, error) VALUES ($1, $2, $3, 'contact-reply', 'failed', $4)`, [m.user_id, m.email, mail.subject, String(err.message).slice(0, 300)]);
       throw new HttpError(502, 'The e-mail could not be sent. Nothing was saved; try again in a moment.');
     }
     await query(`INSERT INTO email_log (user_id, to_email, subject, kind, status) VALUES ($1, $2, $3, 'contact-reply', $4)`, [m.user_id, m.email, mail.subject, sent.status]);
     const { rows } = await query('UPDATE contact_messages SET reply = $2, replied_at = now(), replied_by = $3, read_at = COALESCE(read_at, now()) WHERE id = $1 RETURNING *', [id, reply, req.user.id]);
-    res.json({ message: shapeMessage(rows[0]), unread: await unreadCount(), mail: sent.status });
+    await query(`INSERT INTO contact_replies (message_id, direction, body, admin_id) VALUES ($1, 'out', $2, $3)`, [id, reply, req.user.id]);
+    res.json({ message: shapeMessage(rows[0], (await threadsFor([id])).get(id)), unread: await unreadCount(), mail: sent.status });
   }),
 );
 
@@ -411,7 +417,7 @@ router.get(
       app: { version, node: process.version, uptime_seconds: Math.round(process.uptime()), memory_bytes: mem.rss, signups_open: signupsOpen() },
       database: { ok: true, bytes: db.rows[0].bytes, connections: db.rows[0].connections, tables: tables.rows },
       backups: backupStatus(),
-      mail: { mode: mailMode(), sent_24h: mail.rows[0].sent, failed_24h: mail.rows[0].failed, recent_failures: failures.rows },
+      mail: { mode: mailMode(), replies_by_email: inboundOn() ? replyDomain() : null, sent_24h: mail.rows[0].sent, failed_24h: mail.rows[0].failed, recent_failures: failures.rows },
     });
   }),
 );

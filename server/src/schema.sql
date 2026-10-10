@@ -541,3 +541,23 @@ CREATE INDEX IF NOT EXISTS contact_messages_user_idx ON contact_messages (user_i
 ALTER TABLE contact_messages ADD COLUMN IF NOT EXISTS replied_at timestamptz;
 ALTER TABLE contact_messages ADD COLUMN IF NOT EXISTS reply text;
 ALTER TABLE contact_messages ADD COLUMN IF NOT EXISTS replied_by integer REFERENCES users(id) ON DELETE SET NULL;
+
+-- The conversation under a contact message (docs/DESIGN.md section 40): each answer an admin sent ('out') and each reply the writer sent back
+-- by e-mail ('in'). `mail_id` is the e-mail's own Message-ID, so one that arrives twice is kept once. Deleted with the message.
+CREATE TABLE IF NOT EXISTS contact_replies (
+  id           serial PRIMARY KEY,
+  message_id   integer NOT NULL REFERENCES contact_messages(id) ON DELETE CASCADE,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  direction    text NOT NULL CHECK (direction IN ('out', 'in')),
+  body         text NOT NULL,
+  admin_id     integer REFERENCES users(id) ON DELETE SET NULL,
+  from_email   text,
+  other_sender boolean NOT NULL DEFAULT false,
+  mail_id      text
+);
+CREATE INDEX IF NOT EXISTS contact_replies_message_idx ON contact_replies (message_id, created_at, id);
+CREATE UNIQUE INDEX IF NOT EXISTS contact_replies_mail_idx ON contact_replies (mail_id) WHERE mail_id IS NOT NULL;
+-- answers sent before the conversation existed become its first entry (once)
+INSERT INTO contact_replies (message_id, created_at, direction, body, admin_id)
+  SELECT m.id, m.replied_at, 'out', m.reply, m.replied_by FROM contact_messages m
+  WHERE m.reply IS NOT NULL AND m.replied_at IS NOT NULL AND NOT EXISTS (SELECT 1 FROM contact_replies r WHERE r.message_id = m.id);

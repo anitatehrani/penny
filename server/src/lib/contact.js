@@ -52,8 +52,23 @@ export async function notifyAdmins(id, name, topic) {
 
 export const pruneContactMessages = (db = { query }) => db.query(`DELETE FROM contact_messages WHERE created_at < now() - make_interval(days => $1)`, [KEEP_DAYS]);
 
-/** A message as the admin sees it. */
-export const shapeMessage = (r) => ({
+/** The conversation under each of these messages (answers and replies), oldest first, keyed by message id. */
+export async function threadsFor(ids, db = { query }) {
+  const map = new Map(ids.map((id) => [id, []]));
+  if (!ids.length) return map;
+  const { rows } = await db.query(
+    `SELECT r.id, r.message_id, r.created_at, r.direction, r.body, r.other_sender, r.from_email, a.name AS admin_name
+     FROM contact_replies r LEFT JOIN users a ON a.id = r.admin_id WHERE r.message_id = ANY($1) ORDER BY r.created_at, r.id`,
+    [ids],
+  );
+  for (const r of rows) {
+    map.get(r.message_id).push({ id: r.id, direction: r.direction, body: r.body, created_at: r.created_at, admin_name: r.admin_name, other_sender: r.other_sender, from_email: r.from_email });
+  }
+  return map;
+}
+
+/** A message as the admin sees it, with its conversation. */
+export const shapeMessage = (r, thread = []) => ({
   id: r.id,
   created_at: r.created_at,
   name: r.name,
@@ -67,4 +82,5 @@ export const shapeMessage = (r) => ({
   replied: !!r.replied_at,
   replied_at: r.replied_at,
   reply: r.reply,
+  thread,
 });

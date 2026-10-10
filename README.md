@@ -294,6 +294,17 @@ and Penny's own daily ones live on the same machine, which does not help if the 
 (your name, or the name you run it under) in `.env`. People reach you through the **contact form** (`/contact`); what they write appears in **Admin, Messages** (kept a year), and you answer from there (it is sent by e-mail from Penny, and replies come to your own address; this needs the mail server that Forgot password uses). `CONTACT_EMAIL` is optional: set it only if you also want an address shown on the two pages. The **Going public** card on the Admin page shows what is still missing.
 The two pages (`/terms` and `/privacy`) are written in plain language to describe what Penny really does; have a lawyer read them if the site grows.
 
+## Replies by e-mail
+
+When you answer a message in **Admin, Messages**, the writer's reply can come back into the same message instead of landing in your own mailbox. It uses Brevo's inbound parsing (the same account that sends Penny's e-mail):
+
+1. **DNS.** For the name `reply.your-domain.app` (a sub-domain, not the main one) add two MX records: priority 10 `inbound1.sendinblue.com.` and priority 20 `inbound2.sendinblue.com.`. Changes can take a few hours.
+2. **Server settings.** In the server's `.env`: `REPLY_DOMAIN=reply.your-domain.app` and `INBOUND_SECRET=` a long random text (for example `openssl rand -hex 24`). Then `docker compose up -d`.
+3. **Tell Brevo where to deliver.** Once, with an API key from Brevo (SMTP and API keys, API keys; not the SMTP key): a `POST https://api.brevo.com/v3/webhooks` with `type` `inbound`, `events` `["inboundEmailProcessed"]`, `domain` `reply.your-domain.app` and
+   `url` `https://your-domain.app/api/inbound/mail/<INBOUND_SECRET>`. The secret is part of the address because Brevo does not sign its requests: keep it private, and if it leaks, change it in `.env` and register the webhook again.
+
+Admin, System shows whether it is on. Penny only accepts mail to the one-off addresses it made for your answers (they carry a signature), ignores automatic and spam mail, and keeps each reply with its message (a year, like the message). Without these settings nothing changes: the reply goes to the admin's own address.
+
 ## The home page
 
 A visitor who is not signed in sees a home page at `/` (what Penny is, a forecast to play with, what it does with real pictures, privacy, questions, and Log in / Sign up buttons); signed-in people go straight to their dashboard. The text is in
