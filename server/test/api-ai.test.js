@@ -115,6 +115,34 @@ describe('with a key on the server', () => {
     assert.ok(everything.includes('IT…3456'));
   });
 
+  it('tells the service about split payments, naming the other person only when the question did', async () => {
+    const p = await person(on, { name: 'Pia Panther', username: 'pia_panther' });
+    const mo = await signup(on, { name: 'Mo Moretti', username: 'mo_moretti' });
+    await connect(p, mo);
+    ok(await tx(p.client, { description: 'Dinner out', amount: 80, status: 'paid', participants: [{ username: mo.user.username, share: 30 }] }), 201);
+    await turn(p, true);
+    router.state.next = answer('Mo has 30 of it.');
+    await ask(p, 'what about the shared part with Mo?');
+    let system = router.calls.at(-1).body.messages[0].content;
+    assert.match(system, /named "Personal"|only one budget, named/);
+    assert.match(system, /Dinner out" \S+ ?80\.00 \(paid\): Mo's part \S+ ?30\.00; the person keeps \S+ ?50\.00/);
+    await ask(p, 'how much did I split this month?');
+    system = router.calls.at(-1).body.messages[0].content;
+    assert.match(system, /Person A's part/);
+    for (const call of router.calls.slice(-2)) {
+      const sent = JSON.stringify(call.body);
+      for (const secret of ['Moretti', 'mo_moretti', mo.user.email, 'Panther', 'pia_panther']) assert.ok(!sent.includes(secret), `leaked: ${secret}`);
+    }
+    // what the other person sees: a payment somebody added them to
+    ok(await tx(mo.client, { description: 'Mo coffee', amount: 3, status: 'paid' }), 201); // an empty budget never goes to the service
+    await turn(mo, true);
+    await ask(mo, 'what was shared with me?');
+    const seen = router.calls.at(-1).body.messages[0].content;
+    assert.match(seen, /added this person to/);
+    assert.match(seen, /Dinner out" \S+ ?80\.00 \(paid\), added by Person A; this person's part \S+ ?30\.00/);
+    assert.ok(!JSON.stringify(router.calls.at(-1).body).includes('Panther'));
+  });
+
   it('passes the last turns on, so a follow-up makes sense', async () => {
     const p = await person(on);
     await turn(p, true);

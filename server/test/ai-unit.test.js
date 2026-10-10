@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { beforeEach, describe, it } from 'node:test';
 import { AiError, aiConfig, askModel, cleanAnswer, DEFAULT_MODELS, isFreeModel, resetAllowance, takeAllowance } from '../src/lib/ai.js';
-import { buildFactSheet, safeName, searchWords, SYSTEM_RULES } from '../src/lib/aiFacts.js';
+import { buildFactSheet, personNamer, safeName, searchWords, SYSTEM_RULES } from '../src/lib/aiFacts.js';
 import { turnsFrom } from '../src/lib/aiAnswer.js';
 
 // A made-up key: these tests never contact any real service (fetch is replaced).
@@ -230,6 +230,37 @@ describe('what the service is told', () => {
     assert.deepEqual(searchWords('and what about spotify and amazon and zalando and ikea'), ['spotify', 'amazon', 'zalando']);
     assert.deepEqual(searchWords('How much money do I have?'), []);
     assert.deepEqual(searchWords('in 2026 compare 100'), []);
+  });
+});
+
+describe('naming other people', () => {
+  const mo = { uid: 7, name: 'Mo Moretti', username: 'mo_m' };
+  const sara = { uid: 8, name: 'Sara Neri', username: 'saran' };
+  it('uses a first name only when the question named the person, by name or by username', () => {
+    assert.equal(personNamer('what about the shared part with Mo?')(mo), 'Mo');
+    assert.equal(personNamer('and with mo_m')(mo), 'Mo');
+    const who = personNamer('what did I split with mo?');
+    assert.equal(who(sara), 'Person A');
+    assert.equal(who(mo), 'Mo');
+  });
+  it('otherwise gives the same letter to the same person and never the real name', () => {
+    const who = personNamer('how much did I share?');
+    assert.deepEqual([who(mo), who(sara), who(mo)], ['Person A', 'Person B', 'Person A']);
+    assert.notEqual(personNamer('mother')(mo), 'Mo'); // a longer word is not the name
+  });
+  it('the summary shows splits, what was added by others, debts and the budget it covers', () => {
+    const sharing = {
+      budget: { name: 'Home', shared: true, members: 2 },
+      splitOut: [{ description: 'Dinner', amount: 80, date: '2026-10-04', status: 'paid', people: [{ who: 'Mo', share: 30 }, { who: 'Person B', share: 10 }] }],
+      splitIn: [{ description: 'Trip', amount: 200, date: '2026-10-02', status: 'pending', by: 'Person A', share: 50 }],
+      debts: [{ name: 'Car loan', direction: 'owe', total: 900, paid: 300, remaining: 600 }, { name: 'Friend', direction: 'lent', total: 100, paid: 0, remaining: 100 }],
+    };
+    const facts = { today: '2026-10-10', month: '2026-10', prevMonth: '2026-09', dayOfMonth: 10, daysInMonth: 31, currency: 'EUR', totals: { expenseCur: 0, expensePaidCur: 0, expensePrev: 0, mtdExpenseCur: 0, mtdExpensePrev: 0, paidCount: 0, incomeCur: 0, incomePaidCur: 0, incomePrev: 0 }, categories: [], subscriptions: { items: [], monthlyTotal: 0 }, upcoming: [], overdue: { count: 0, total: 0, items: [] }, balance: { current: 0, endOfMonth: 0, firstNegative: null, lowest: null, min: 0 } };
+    const sheet = buildFactSheet(facts, { biggest: [], latest: [], matches: [], sharing });
+    for (const part of ['only one budget, named "Home" (a shared budget with 2 people)', "Dinner\" EUR 80.00 (paid): Mo's part EUR 30.00, Person B's part EUR 10.00; the person keeps EUR 40.00", "Trip\" EUR 200.00 (pending), added by Person A; this person's part EUR 50.00", 'The person owes "Car loan": EUR 900.00 in all, EUR 300.00 paid back so far, EUR 600.00 left', 'Owed to the person by "Friend"']) {
+      assert.ok(sheet.includes(part), `missing: ${part}
+${sheet}`);
+    }
   });
 });
 

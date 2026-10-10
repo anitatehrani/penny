@@ -44,7 +44,7 @@ export function turnsFrom(history = []) {
 /** The answer text from the AI service. Throws AiError (see ai.js) when it cannot be had. */
 export async function answerWithAi({ question, history, workspaceId, userId, facts, config = aiConfig(), fetchImpl }) {
   takeAllowance(userId, config);
-  const extras = await gatherAiExtras(workspaceId, facts, question);
+  const extras = await gatherAiExtras(workspaceId, facts, question, userId);
   const messages = [
     { role: 'system', content: `${SYSTEM_RULES}\n\n--- Budget summary ---\n${buildFactSheet(facts, extras)}` },
     ...turnsFrom(history),
