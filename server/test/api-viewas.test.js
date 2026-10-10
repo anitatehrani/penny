@@ -128,12 +128,17 @@ describe('read-only, enforced on the server', () => {
       ['post', '/connections', { username: 'someone' }],
       ['post', '/workspaces', { name: 'Mine now' }],
       ['post', '/notifications/read-all'],
+      ['put', '/budgets/1', { month: '2026-10', amount: 100 }],
+      ['post', '/budgets/fill', { month: '2026-10', source: 'typical' }],
+      ['put', '/assistant/ai', { on: true }],
+      ['put', '/notifications/settings', { budget_alerts: false }],
     ];
     for (const [method, url, body] of attempts) {
       const r = method === 'del' ? await a.client.del(url) : await a.client[method](url, body);
       assert.equal(r.status, 403, `${method} ${url} must be refused: ${r.status} ${JSON.stringify(r.json).slice(0, 80)}`);
       assert.match(r.json.error, /read-only/i);
     }
+    assert.equal((await q('SELECT count(*)::int AS n FROM category_budgets')).rows[0].n, 0, 'no budget was written');
     // and nothing of it happened
     const row = (await q('SELECT description, amount FROM transactions WHERE user_id = $1', [person.user.id])).rows;
     assert.deepEqual(row.map((r) => [r.description, Number(r.amount)]), [['Secret rent Via Roma', 1234.56]]);
@@ -142,7 +147,7 @@ describe('read-only, enforced on the server', () => {
 
   it('looking is allowed, and so is asking the assistant a question', async () => {
     const { a } = await setup();
-    for (const url of ['/summary', '/transactions', '/recurring', '/debts', '/forecast?months=3', '/insights', '/categories', '/notifications']) {
+    for (const url of ['/summary', '/transactions', '/recurring', '/debts', '/forecast?months=3', '/insights', '/categories', '/notifications', '/budgets', '/assistant/ai']) {
       assert.equal((await a.client.get(url)).status, 200, url);
     }
     assert.equal((await a.client.post('/assistant/ask', { question: 'How much did I spend?' })).status, 200);

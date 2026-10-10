@@ -9,6 +9,7 @@ export { Avatar };
 
 const PATHS = {
   plus: 'M12 5v14M5 12h14',
+  target: 'M12 21a9 9 0 100-18 9 9 0 000 18zM12 16.5a4.5 4.5 0 100-9 4.5 4.5 0 000 9zM12 12h.01',
   edit: 'M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4',
   trash: 'M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12M9 7V4h6v3',
   check: 'M5 12.5l4.5 4.5L19 7.5',

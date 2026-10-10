@@ -2,6 +2,7 @@
 export const NAV = [
   { id: 'dashboard', to: '/', label: 'Dashboard', icon: 'home', end: true },
   { id: 'payments', to: '/payments', label: 'Payments', icon: 'list' },
+  { id: 'budget', to: '/budget', label: 'Monthly budget', icon: 'target' },
   { id: 'recurring', to: '/recurring', label: 'Recurring', icon: 'repeat' },
   { id: 'installments', to: '/installments', label: 'Installments', icon: 'card' },
   { id: 'debts', to: '/debts', label: 'Debts', icon: 'debt' },

@@ -4,6 +4,7 @@
 
 import { query } from '../db.js';
 import { addMonthsYM, monthStart } from './dates.js';
+import { budgetForMonth } from './budget.js';
 import { monthName } from './insights.js';
 import { redact } from './redact.js';
 
@@ -125,7 +126,9 @@ export async function gatherAiExtras(workspaceId, facts, question, userId) {
     );
     if (rows.length) matches.push({ word, months: rows });
   }
-  return { biggest: biggest.rows, latest: latest.rows, matches, months, categoryMonths, sharing };
+  // the monthly budget, for this month and the one before (so "did I stay within budget last month?" has an answer)
+  const [budgetNow, budgetPrev] = await Promise.all([budgetForMonth(workspaceId, facts.month, { today: facts.today }), budgetForMonth(workspaceId, addMonthsYM(facts.month, -1), { today: facts.today })]);
+  return { biggest: biggest.rows, latest: latest.rows, matches, months, categoryMonths, sharing, budgets: [budgetNow, budgetPrev] };
 }
 
 /** Amounts as the summary writes them: the currency code and exact cents. */
@@ -161,9 +164,24 @@ function otherBudgetLines(others, monthLabel, prevLabel) {
   return lines;
 }
 
+const BUDGET_WORDS = { over: 'over budget', 'heading-over': 'on track to go over', close: 'almost used up', ok: 'on track', none: 'no budget', idle: 'no budget' };
+/** The monthly budget (budget.js): what each category may use, what is spent and planned, and where the month is heading. */
+function budgetLines(v, money) {
+  if (!v?.budgetedCount) return [];
+  const t = v.totals;
+  const when = v.phase === 'past' ? 'finished' : v.phase === 'future' ? 'still to come' : `day ${v.day} of ${v.days}`;
+  const out = ['', `Monthly budget for ${monthName(v.month, { year: true })} (${when}). The person decides how much each category may use in a month:`];
+  out.push(`- In all: budget ${money(t.budget)}, spent ${money(t.spent)}, still planned ${money(t.planned)}, left ${money(t.left)}${v.phase === 'current' ? `, expected by month end ${money(t.expected)}` : ''}.`);
+  for (const l of v.lines.filter((x) => x.budget !== null)) {
+    out.push(`- ${safeName(l.name, 40)}: budget ${money(l.budget)}, spent ${money(l.spent)}, still planned ${money(l.planned)}, left ${money(l.left)}; ${BUDGET_WORDS[l.status] ?? l.status}${v.phase === 'current' ? `, expected by month end ${money(l.expected)}` : ''}`);
+  }
+  if (t.unbudgetedSpent > 0) out.push(`- Spent in categories with no budget: ${money(t.unbudgetedSpent)}.`);
+  return out;
+}
+
 /** The summary as text. Pure: the same facts always give the same text. */
 export function buildFactSheet(facts, extras = { biggest: [], latest: [], matches: [] }) {
-  const { months = [], categoryMonths = [], sharing = null, others = [] } = extras;
+  const { months = [], categoryMonths = [], sharing = null, others = [], budgets = [] } = extras;
   const cur = facts.currency || 'USD';
   const money = makeMoney(cur);
   const weekday = new Date(`${facts.today}T12:00:00Z`).toLocaleDateString('en', { weekday: 'long', timeZone: 'UTC' });
@@ -200,6 +218,8 @@ export function buildFactSheet(facts, extras = { biggest: [], latest: [], matche
     lines.push('Spending in the biggest categories, by month (months with nothing are left out):');
     for (const c of categoryMonths) lines.push(`- ${safeName(c.name, 40)}: ${c.months.map((r) => `${monthName(r.month, { year: true })} ${money(r.total)}`).join('; ')}`);
   }
+
+  for (const bv of budgets) lines.push(...budgetLines(bv, money));
 
   const cats = facts.categories
     .filter((c) => c.cur || c.prev || c.avg3)

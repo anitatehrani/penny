@@ -27,7 +27,7 @@ export async function buildExport(userId, db = { query }) {
   const inBudgets = (table, extra = '') => q(`SELECT * FROM ${table} WHERE workspace_id = ANY($1) ${extra}`, [ids]);
 
   const budgets = [];
-  const [categories, transactions, recurring, installments, debts, receipts, members, participants, importRules, importBatches] = await Promise.all([
+  const [categories, transactions, recurring, installments, debts, receipts, members, participants, importRules, importBatches, monthlyBudgets] = await Promise.all([
     inBudgets('categories', 'ORDER BY id'),
     inBudgets('transactions', 'ORDER BY date, id'),
     inBudgets('recurring_rules', 'ORDER BY id'),
@@ -45,6 +45,7 @@ export async function buildExport(userId, db = { query }) {
     ),
     q('SELECT r.workspace_id, r.merchant_key, r.kind, c.name AS category, r.hits, r.created_at, r.updated_at FROM import_rules r JOIN categories c ON c.id = r.category_id WHERE r.workspace_id = ANY($1) ORDER BY r.id', [ids]),
     q('SELECT workspace_id, id, created_at, kind, added, total_in, total_out, first_date, last_date FROM import_batches WHERE workspace_id = ANY($1) ORDER BY id', [ids]),
+    q('SELECT b.workspace_id, c.name AS category, b.month AS from_month, b.amount FROM category_budgets b JOIN categories c ON c.id = b.category_id WHERE b.workspace_id = ANY($1) ORDER BY b.workspace_id, c.name, b.month', [ids]),
   ]);
   for (const w of workspaces) {
     const of = (rows) => rows.filter((r) => r.workspace_id === w.id);
@@ -57,6 +58,7 @@ export async function buildExport(userId, db = { query }) {
       installment_plans: of(installments),
       debts: of(debts),
       receipts: of(receipts),
+      monthly_budget: of(monthlyBudgets).map(({ workspace_id, ...rest }) => rest),
       what_penny_learned_from_imports: of(importRules).map(({ workspace_id, ...rest }) => rest),
       bank_statement_imports: of(importBatches).map(({ workspace_id, ...rest }) => rest),
     });

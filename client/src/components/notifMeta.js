@@ -5,6 +5,7 @@ export const KIND_ICON = {
   payment_overdue: 'alert',
   balance_warning: 'alert',
   forecast_warning: 'trend',
+  budget_alert: 'target',
   ai_insight: 'signal',
   summary_weekly: 'calendar',
   summary_monthly: 'calendar',
@@ -21,6 +22,7 @@ export const KIND_TONE = {
   payment_overdue: 'danger',
   balance_warning: 'danger',
   forecast_warning: 'forecast',
+  budget_alert: 'warn',
   payment_due: 'info',
   ai_insight: 'signal',
   summary_weekly: 'signal',
@@ -29,7 +31,7 @@ export const KIND_TONE = {
 };
 
 export const GROUPS = [
-  { id: 'payments', label: 'Payments', icon: 'clock', kinds: ['payment_due', 'payment_overdue', 'balance_warning', 'forecast_warning'] },
+  { id: 'payments', label: 'Payments', icon: 'clock', kinds: ['payment_due', 'payment_overdue', 'balance_warning', 'forecast_warning', 'budget_alert'] },
   { id: 'ai', label: 'AI insights', icon: 'signal', kinds: ['ai_insight', 'summary_weekly', 'summary_monthly'] },
   { id: 'people', label: 'People & budgets', icon: 'users', kinds: ['connection_request', 'connection_accepted', 'group_invite', 'group_change', 'payment_shared', 'group_activity'] },
   { id: 'account', label: 'Account & system', icon: 'shield', kinds: ['security', 'system'] },

@@ -107,6 +107,7 @@ function Palette({ initialQuery, onClose }) {
         : []),
       { id: 'g-dashboard', group: 'Go to', label: 'Dashboard', icon: 'home', keywords: 'home overview', run: go('/') },
       { id: 'g-payments', group: 'Go to', label: 'Payments', icon: 'list', keywords: 'transactions history', run: go('/payments') },
+      { id: 'g-budget', group: 'Go to', label: 'Monthly budget', icon: 'target', keywords: 'budget limits spending plan categories how much left month over under', run: go('/budget') },
       { id: 'g-recurring', group: 'Go to', label: 'Recurring payments', icon: 'repeat', keywords: 'regular repeat', run: go('/recurring') },
       { id: 'g-subs', group: 'Go to', label: 'View subscriptions', icon: 'repeat', keywords: 'netflix spotify streaming recurring', run: go('/recurring') },
       { id: 'g-debts', group: 'Go to', label: 'Debts', icon: 'debt', keywords: 'owe loans borrowed lent owed to me', run: go('/debts') },

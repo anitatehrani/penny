@@ -6,8 +6,8 @@ import { wrap } from '../lib/http.js';
 /** User-level: interface choices that follow the person around (layout, density, accent, sidebar…), and "active now" status. */
 const router = Router();
 
-export const WIDGETS = ['hero', 'insights', 'upcoming', 'spending', 'recurring', 'paying', 'outlook'];
-export const ROUTES = ['dashboard', 'payments', 'recurring', 'installments', 'debts', 'forecast', 'people', 'settings'];
+export const WIDGETS = ['hero', 'insights', 'upcoming', 'spending', 'budget', 'recurring', 'paying', 'outlook'];
+export const ROUTES = ['dashboard', 'payments', 'budget', 'recurring', 'installments', 'debts', 'forecast', 'people', 'settings'];
 const widget = z.enum(WIDGETS);
 
 const schema = z

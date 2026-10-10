@@ -17,6 +17,7 @@ const GROUPS = [
       { app: 'overdue', email: 'email_overdue', label: 'Overdue payment alerts', hint: 'A payment is past its date and still not paid.' },
       { app: 'balance_warning', email: 'email_balance', label: 'Low balance alerts', hint: 'Your balance is already below zero.' },
       { app: 'forecast_warning', email: 'email_forecast', label: 'Forecast warnings', hint: 'The forecast shows the balance going negative in a coming month.' },
+      { app: 'budget_alerts', label: 'Monthly budget alerts', hint: 'A category has used up 80% of its monthly budget, or has gone over it. In the app only.' },
     ],
   },
   {
@@ -195,7 +196,7 @@ export default function NotificationSettings() {
                     <Switch checked={!!settings[r.app]} onChange={(v) => update({ [r.app]: v })} label={`${r.label}: in the app`} />
                   </span>
                   <span className="pref-cell" role="cell" data-col="Email">
-                    <Switch checked={!!settings[r.email]} onChange={(v) => update({ [r.email]: v })} disabled={!emailOn} label={`${r.label}: by email`} />
+                    {r.email ? <Switch checked={!!settings[r.email]} onChange={(v) => update({ [r.email]: v })} disabled={!emailOn} label={`${r.label}: by email`} /> : <span className="muted small">Not by email</span>}
                   </span>
                 </div>
               ))}

@@ -15,6 +15,7 @@ import { useQuick } from '../quick.jsx';
 import { useWorkspace } from '../workspace.jsx';
 import FirstRun from './FirstRun.jsx';
 import WidgetFrame from './WidgetFrame.jsx';
+import BudgetWidget from './widgets/BudgetWidget.jsx';
 import CashFlowWidget from './widgets/CashFlowWidget.jsx';
 import HeroMonthWidget from './widgets/HeroMonthWidget.jsx';
 import HeroWidget from './widgets/HeroWidget.jsx';
@@ -30,6 +31,7 @@ const TITLES = {
   insights: 'Insights',
   upcoming: 'Coming up',
   spending: 'Spending',
+  budget: 'Monthly budget',
   recurring: 'Recurring',
   paying: 'Paying off',
   outlook: 'Cash flow',
@@ -147,7 +149,7 @@ export default function DashboardPage() {
   const hide = (id) => save({ hidden: [...layout.hidden, id] });
   const show = (id) => save({ hidden: layout.hidden.filter((w) => w !== id) });
   const size = (id, s) => save({ sizes: { ...layout.sizes, [id]: s } });
-  const reset = () => setPrefs({ layout: { order: WIDGETS.slice(), hidden: [], sizes: { hero: 'l', insights: 'l', upcoming: 'm', spending: 'm', recurring: 'm', paying: 'm', outlook: 'm' } }, collapsed: [] });
+  const reset = () => setPrefs({ layout: { order: WIDGETS.slice(), hidden: [], sizes: { hero: 'l', insights: 'l', upcoming: 'm', spending: 'm', budget: 'm', recurring: 'm', paying: 'm', outlook: 'm' } }, collapsed: [] });
 
   if (summary.error && !summary.data) return <ErrorState error={summary.error} onRetry={summary.reload} title="The dashboard did not load" />;
   if (!summary.data || !ready) return <DashboardSkeleton />;
@@ -194,6 +196,12 @@ export default function DashboardPage() {
         return (
           <WidgetFrame key={id} {...common} eyebrow={monthView ? monthLabel(month) : 'This month'} title="Where the money goes">
             <SpendingWidget compare={monthView ? compare : insightData?.compare} />
+          </WidgetFrame>
+        );
+      case 'budget':
+        return (
+          <WidgetFrame key={id} {...common} eyebrow={monthLabel(month)} title="Monthly budget">
+            <BudgetWidget month={month} version={version} />
           </WidgetFrame>
         );
       case 'recurring':

@@ -1,0 +1,284 @@
+/* ==========================================================================
+   Monthly budget (docs/DESIGN.md section 43): the page and the dashboard widget.
+   A state is never shown by colour alone: every bar has words next to it.
+   ========================================================================== */
+.bud-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+.bud-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s-4) var(--s-6);
+}
+.bud-big {
+  font-size: clamp(2rem, 6vw, 2.75rem);
+  line-height: 1.1;
+  font-weight: 650;
+  margin: var(--s-1) 0;
+}
+.bud-big.good {
+  color: var(--pos);
+}
+.bud-big.warn {
+  color: var(--caution);
+}
+.bud-big.bad {
+  color: var(--neg);
+}
+.bud-head p {
+  margin: 0;
+}
+.bud-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3) var(--s-6);
+  margin: 0;
+}
+.bud-facts dt {
+  color: var(--ink-3);
+  font-size: var(--fs-2);
+}
+.bud-facts dd {
+  margin: 2px 0 0;
+  font-size: var(--fs-3);
+  font-weight: 600;
+}
+.bud-warn {
+  color: var(--neg);
+  font-weight: 600;
+}
+.bud-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-3);
+  margin: 0;
+}
+.bud-legend .lg {
+  display: inline-block;
+  width: 14px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.bud-legend .lg.planned {
+  background: repeating-linear-gradient(135deg, var(--accent) 0 3px, transparent 3px 6px);
+  border: 1px solid var(--accent);
+}
+.bud-legend .lg.pace {
+  width: 0;
+  height: 12px;
+  border-radius: 0;
+  background: none;
+  border-left: 2px dashed var(--ink-2);
+}
+.bud-help summary {
+  cursor: pointer;
+  color: var(--ink-2);
+  font-size: var(--fs-2);
+}
+.bud-help p {
+  margin: var(--s-2) 0 0;
+  max-width: 70ch;
+}
+
+/* ---------- the bar ---------- */
+.bud-bar {
+  position: relative;
+  height: 12px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.bud-spent,
+.bud-planned {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+}
+.bud-spent {
+  left: 0;
+  background: var(--accent);
+}
+.bud-planned {
+  background: repeating-linear-gradient(135deg, var(--accent) 0 3px, transparent 3px 6px);
+  opacity: 0.55;
+}
+.bud-bar.over .bud-spent {
+  background: var(--neg);
+}
+.bud-mark,
+.bud-pace {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+}
+.bud-mark {
+  border-left: 3px solid var(--ink);
+}
+.bud-pace {
+  border-left: 2px dashed var(--ink-2);
+}
+.bud-row.s-heading-over .bud-spent,
+.bud-row.s-close .bud-spent {
+  background: var(--caution);
+}
+
+/* ---------- what stands out ---------- */
+.bud-findings ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.bud-findings li {
+  display: flex;
+  gap: var(--s-3);
+  align-items: flex-start;
+  font-size: var(--fs-3);
+  line-height: 1.45;
+}
+.bud-findings li svg {
+  flex: none;
+  margin-top: 3px;
+}
+.bud-findings .sev-alert svg {
+  color: var(--neg);
+}
+.bud-findings .sev-watch svg {
+  color: var(--caution);
+}
+.bud-findings .sev-good svg {
+  color: var(--pos);
+}
+.bud-findings .sev-info svg {
+  color: var(--ink-3);
+}
+
+/* ---------- the categories ---------- */
+.bud-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.bud-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-4) 0;
+  border-top: 1px solid var(--line);
+}
+.bud-row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.bud-row-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-3);
+}
+.bud-nums {
+  margin-left: auto;
+  font-size: var(--fs-3);
+}
+.bud-row-bottom {
+  margin: 0;
+}
+.bud-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-3);
+}
+.bud-chip {
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: var(--fs-2);
+  font-weight: 600;
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+.bud-chip.good {
+  background: var(--accent-soft);
+  color: var(--pos);
+}
+.bud-chip.warn {
+  background: var(--warn-bg);
+  color: var(--warn-ink);
+}
+.bud-chip.bad {
+  background: var(--danger-bg);
+  color: var(--danger-ink);
+}
+.bud-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  margin-top: var(--s-2);
+  padding: var(--s-4);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-2);
+  background: var(--surface-2);
+}
+.bud-editor input[type='text'],
+.bud-editor input:not([type]),
+.bud-editor input[inputmode='decimal'] {
+  max-width: 220px;
+}
+.bud-suggest {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+.bud-scope {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.bud-start {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-top: var(--s-2);
+}
+
+/* ---------- the dashboard widget ---------- */
+.bud-widget {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.bud-widget .bud-big {
+  font-size: 1.75rem;
+  margin: 0;
+}
+.bud-widget ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.bud-widget li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2) var(--s-3);
+  font-size: var(--fs-2);
+}
+.bud-widget li .bud-nums {
+  font-size: var(--fs-2);
+}

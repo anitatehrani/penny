@@ -1071,3 +1071,46 @@ OpenRouter's free models allow only a limited number of questions a day for the 
 ### How it is tested
 
 `ai-unit.test.js` (free-model check, configuration, allowance, cleaning, every way the request can fail, the summary, the names) and `api-ai.test.js` (a pretend OpenRouter on this computer: off without a key, off until switched on, what is and is not sent, history, buttons stay exact, fallback notes, daily limit, empty budget, shared budgets, reset), plus a browser check (`e2e/ai.e2e.cjs`). No test uses a real key or reaches the real service.
+
+## 43. Monthly budget per category (defined before implementation)
+
+Each expense category can have an amount it may use in a month. The page **Monthly budget** (`/budget`) shows, for any month, how much of each is spent, planned and left, where the month is heading, and what is worth a look. It works in the middle of a month (a pace and an estimate) and at the end of it (a review), and for a month still to come (what is planned against it).
+
+### Words
+
+"Budget" already means the whole shared account in Penny ("shared budget"), so the page and the menu say **Monthly budget**, and a category's amount is its budget. Everything shown is in plain words, and a state is never shown by colour alone.
+
+### Data and the rule for months
+
+`category_budgets (workspace_id, category_id, month 'YYYY-MM', amount NULL | >= 0)`. A row means: **from this month on** the category has this amount, until a later row says otherwise; NULL means no budget from then on. The budget in force in a month is the latest row at or before it (`effectiveBudgets`). Consequences that were chosen on purpose:
+
+- Changing a budget never rewrites the past: the months before keep what they had, so a review of an old month stays true.
+- Two choices when saving (`PUT /budgets/:categoryId`): **from this month on** (rows after that month are removed, so the later months follow the new amount) or **this month only** (a row for the next month restores what it had, unless it already had one). Removing a budget is saving NULL.
+- A budget of 0 is a real budget (nothing may be spent); no row is "not budgeted".
+- Budgets belong to the budget (workspace): every member of a shared budget sees and may change them. They are removed with their category. Only expense categories of the open budget can have one.
+
+### What is counted
+
+For a month: **spent** = paid expenses, **planned** = pending expenses dated in the month (recurring items, installments and anything dated later), skipped ones left out, and balance adjustments and loans handed over are not spending (the same rules as the assistant). Payments with no category are shown as "Uncategorized" and cannot have a budget; categories without a budget but with spending are listed apart and counted separately ("went on categories with no budget").
+
+### Where the month is heading
+
+`buildBudgetView` (pure, `server/src/lib/budget.js`). Per category: `left = budget - spent`, `leftAfterPlanned`, `percent`, `perDay` (what is left after the planned payments, over the days still to come, today included) and **expected by month end** = spent + planned + the everyday spending still to come, where everyday spending is the paid payments entered by hand (`source = 'manual'`) carried at their pace so far; before day 5 the average of the last three months is used instead, because a few days say little. A month that is over expects spent + what stayed unpaid; a month to come expects what is planned. States: `over` (more than the budget is spent), `heading-over` (expected beyond it), `close` (80% used, current month), `ok`, `none` (no budget, some spending), `idle`. The three months before a month give "last month", "usually" (their average) and a **suggested budget** (the average rounded up to 5, 10, 50 or 100 by size, `niceBudget`). `POST /budgets/fill` sets budgets for every category that has none (or all, `only_empty: false`) from the usual spending or from last month's.
+
+### What is said
+
+`analyse` writes the sentences ("What stands out"), most important first: what is over and by how much; where the pace will end over, or what is already planned beyond the budget; categories at 80%; spending in categories with no budget; budgets that add up to more than the income expected (or income not in any budget); for a month that is over, "You stayed within budget in 7 of 9 categories..." and where the most was left; and, when all is well, that it is. Nothing is said about a budget that has nothing set.
+
+### Alerts, dashboard, assistant
+
+- **Alerts:** the notification scan (`scanBudgets`) tells each member of a budget, in the app only, when a category reaches **80%** and when it goes **over** (current month, paid spending only), once for each level (dedupe key per budget, category, month and level; going straight past 100% gives only "over"). A setting, "Monthly budget alerts" (`notification_settings.budget_alerts`, on by default), and "pause alerts" apply. Not e-mailed.
+- **Dashboard:** a widget "Monthly budget" (`budget`, after "Where the money goes"; existing layouts get it appended): the figure left, one bar, up to three categories that need a look, and a link. The menu item is pinnable (`budget` is a favourite id).
+- **Assistant:** "How is my budget?" and questions about one category ("how much is left for groceries?", "am I over budget on dining?") are answered by the built-in rules from the same view; the AI summary (section 42) holds this month's and last month's budget lines.
+
+### Where it lives
+
+`server/src/lib/budget.js`, `routes/budgets.js` (`GET /budgets?month=`, `PUT /budgets/:categoryId`, `POST /budgets/fill`), `schema.sql`, `notifications.js` (`scanBudgets`), `assistant.js`, `aiFacts.js`; `client/src/pages/Budget.jsx`, `budgetLogic.js`, `dashboard/widgets/BudgetWidget.jsx`, `design/budget.css`, `components/NotificationSettings.jsx`.
+
+### How it is tested
+
+Server: `budget-logic.test.js` (the view, the pace, the states, the sentences, the calendar: leap years, the turn of a year, the first and last day), `api-budgets.test.js` (what is stored and how months carry, scope, fill, validation, who may see or change what, the alerts, the assistant, the data export), `api-budgets-edges.test.js` (the turn of a year, saves at the same moment, a category that changes kind, a person who left a shared budget, the database's own rules, alerts for zero budgets and paused alerts, the shared and personal answers, preferences), `api-viewas.test.js` (an admin looking at an account may read the budget and cannot change it), `api-ai.test.js` (the summary), and `client-parity.test.js` (the lists the browser and the server each keep must agree: dashboard widgets, pinnable menu items, notification kinds). Client: `budgetLogic.test.js` (the bar, the words of a state, a typed amount, the summary, the layout and menu). Browser: `e2e/budget.e2e.cjs` (the empty page, suggesting, changing, for one month only, a finished month, the dashboard and its month, the alert, the setting and that it is kept, the search box, the phone menu, the words on every bar, a phone and the dark theme).

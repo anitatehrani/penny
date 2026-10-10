@@ -601,3 +601,19 @@ CREATE TABLE IF NOT EXISTS import_rules (
   updated_at   timestamptz NOT NULL DEFAULT now(),
   UNIQUE (workspace_id, merchant_key, kind)
 );
+
+-- =====================================================================
+-- Monthly budget per category (docs/DESIGN.md section 43)
+-- A row says: from this month on, this category has this much to spend each month (until a later row says otherwise).
+-- amount NULL = no budget from that month on. Earlier months keep what they had, so changing a budget never rewrites the past.
+-- =====================================================================
+CREATE TABLE IF NOT EXISTS category_budgets (
+  workspace_id integer NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  category_id  integer NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+  month        text NOT NULL CHECK (month ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'),
+  amount       numeric(12,2) CHECK (amount IS NULL OR amount >= 0),
+  updated_by   integer REFERENCES users(id) ON DELETE SET NULL,
+  updated_at   timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (workspace_id, category_id, month)
+);
+ALTER TABLE notification_settings ADD COLUMN IF NOT EXISTS budget_alerts boolean NOT NULL DEFAULT true;

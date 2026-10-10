@@ -36,6 +36,7 @@ import './design/admin.css';
 import './design/legal.css';
 import './design/landing.css';
 import './design/import.css';
+import './design/budget.css';
 
 /** Re-mounts the data layer whenever the open budget changes, so every page reloads its own data. */
 function Scoped() {

@@ -326,3 +326,19 @@ describe('with a key on the server', () => {
     assert.equal((await status(p)).on, false);
   });
 });
+
+describe('the monthly budget in the summary', () => {
+  it('holds this month and last month against the budget, so the service can say how a category is doing', async () => {
+    const p = await person(on);
+    const food = await categoryId(p.client, 'Groceries');
+    const month = new Date().toISOString().slice(0, 7);
+    ok(await p.client.put(`/budgets/${food}`, { month, amount: 100 }));
+    await turn(p, true);
+    router.state.next = answer('Groceries is over.');
+    await ask(p, 'am I over my grocery budget?');
+    const system = router.calls.at(-1).body.messages[0].content;
+    assert.match(system, /Monthly budget for \w+ \d{4} \(day \d+ of \d+\)/);
+    assert.match(system, /- In all: budget \S+ ?100\.00, spent \S+ ?54\.50, still planned \S+ ?0\.00, left \S+ ?45\.50/);
+    assert.match(system, /- Groceries: budget \S+ ?100\.00, spent \S+ ?54\.50, still planned \S+ ?0\.00, left \S+ ?45\.50; (on track|almost used up|on track to go over|over budget)/);
+  });
+});

@@ -1,5 +1,6 @@
 import { query } from '../db.js';
 import { addDays } from './dates.js';
+import { budgetForMonth } from './budget.js';
 import { buildInsights, buildSummary, makeFmt, monthName } from './insights.js';
 
 /**
@@ -8,7 +9,7 @@ import { buildInsights, buildSummary, makeFmt, monthName } from './insights.js';
  * it does not understand gets an honest "I can't answer that yet" and a list of things it can do.
  */
 
-const SUGGESTIONS = ['Give me a summary', 'Will I go negative?', 'What is due soon?', 'Where does my money go?', 'What are my subscriptions?', 'How can I save money?'];
+const SUGGESTIONS = ['Give me a summary', 'How is my budget?', 'Will I go negative?', 'What is due soon?', 'Where does my money go?', 'How can I save money?'];
 const round2 = (n) => Math.round(n * 100) / 100;
 const pctChange = (now, before) => (before > 0 ? Math.round(((now - before) / before) * 100) : null);
 const row = (label, value, extra = {}) => ({ label, value, ...extra });
@@ -51,6 +52,40 @@ export async function answerQuestion(rawQuestion, { workspaceId, facts, aiOn = f
   if (has(q, /summary|summari[sz]e|overview|how am i doing|how('s| is) (my )?month/)) {
     const s = buildSummary(facts);
     return reply('summary', s.text, { blocks: [{ type: 'rows', rows: s.stats.map((x) => row(x.label, x.value, { tone: x.tone })) }], follow_ups: ['Where does my money go?', 'What is due soon?'] });
+  }
+
+  // the monthly budget (docs/DESIGN.md section 43): all of it, or one category
+  if (has(q, /\bbudgets?\b|spending limit|left (for|in|on) /)) {
+    const view = await budgetForMonth(workspaceId, facts.month, { today: facts.today });
+    if (!view.budgetedCount) {
+      return reply('budget', 'You have not set a monthly budget yet. Give each category an amount for the month, and I can tell you how much of it is spent, how much is left and which categories are heading over.', {
+        link: { label: 'Set up your budget', to: '/budget' },
+        follow_ups: ['Where does my money go?'],
+      });
+    }
+    const t = view.totals;
+    const cat = findCategory(q, facts);
+    const one = cat && view.lines.find((l) => l.id === cat.id && l.budget !== null);
+    if (one) {
+      const note = one.status === 'over' ? `That is ${fmt(one.spent - one.budget)} over.` : one.status === 'heading-over' ? `At this pace it will end around ${fmt(one.expected)}, over its budget.` : `${fmt(one.left)} is left.`;
+      return reply('budget', `${one.name}: ${fmt(one.spent)} spent of its ${fmt(one.budget)} budget for ${monthName(view.month)}${one.planned > 0 ? `, with ${fmt(one.planned)} more planned` : ''}. ${note}`, {
+        link: { label: 'Open the budget', to: '/budget' },
+        follow_ups: ['How is my budget?', 'Where does my money go?'],
+      });
+    }
+    const watch = view.lines.filter((l) => ['over', 'heading-over', 'close'].includes(l.status));
+    const shown = (watch.length ? watch : view.lines.filter((l) => l.budget !== null).sort((a, b) => (b.percent ?? 0) - (a.percent ?? 0))).slice(0, 6);
+    const words = { over: 'over budget', 'heading-over': 'on track to go over', close: 'almost used up', ok: 'on track' };
+    const head =
+      view.phase === 'past'
+        ? `In ${monthName(view.month)} you spent ${fmt(t.spent)} of the ${fmt(t.budget)} you budgeted.`
+        : `So far in ${monthName(view.month)} you have spent ${fmt(t.spent)} of the ${fmt(t.budget)} you budgeted, so ${fmt(Math.max(0, t.left))} is left${view.phase === 'current' ? ` with ${view.remainingDays} day${view.remainingDays === 1 ? '' : 's'} to go` : ''}.`;
+    const first = view.findings.find((f) => f.severity === 'alert' || f.severity === 'watch');
+    return reply('budget', `${head}${first ? ` ${first.text}` : ' Every category is on track.'}`, {
+      blocks: [{ type: 'rows', rows: shown.map((l) => row(l.name, `${fmt(l.spent)} of ${fmt(l.budget)}`, { sub: words[l.status], tone: l.status === 'over' ? 'neg' : undefined, color: l.color })) }],
+      link: { label: 'Open the budget', to: '/budget' },
+      follow_ups: ['Where does my money go?', 'How can I save money?'],
+    });
   }
 
   if (has(q, /negative|below (zero|0)|run out|overdraft|go under|forecast|broke|short of money|end of (the )?month/)) {

@@ -2,7 +2,8 @@ import { pool, query, withTransaction } from '../db.js';
 import { alertEmail, formatMoney } from './emailTemplates.js';
 import { forecastForWorkspace } from './forecastService.js';
 import { appUrl, sendMail } from './mailer.js';
-import { addDays, addMonthsYM, monthStart } from './dates.js';
+import { addDays, addMonthsYM, monthOf, monthStart, todayYMD } from './dates.js';
+import { budgetForMonth } from './budget.js';
 import { buildInsights, gatherFacts, makeFmt, monthName, periodFigures } from './insights.js';
 import { signToken } from './secret.js';
 
@@ -12,6 +13,7 @@ export const KIND_PREF = {
   payment_overdue: 'overdue',
   balance_warning: 'balance_warning',
   forecast_warning: 'forecast_warning',
+  budget_alert: 'budget_alerts',
   ai_insight: 'ai_insights',
   summary_weekly: 'weekly_summary',
   summary_monthly: 'monthly_summary',
@@ -30,6 +32,7 @@ export const KIND_EMAIL_PREF = {
   payment_overdue: 'email_overdue',
   balance_warning: 'email_balance',
   forecast_warning: 'email_forecast',
+  budget_alert: null, // in the app only
   ai_insight: 'email_ai',
   summary_weekly: 'email_weekly',
   summary_monthly: 'email_monthly',
@@ -44,7 +47,7 @@ export const KIND_EMAIL_PREF = {
 };
 export const KINDS = Object.keys(KIND_PREF);
 /** Time-sensitive kinds are silenced while alerts are paused; social events still arrive. */
-const PAUSABLE = new Set(['payment_due', 'payment_overdue', 'balance_warning', 'forecast_warning', 'ai_insight', 'summary_weekly', 'summary_monthly', 'group_activity']);
+const PAUSABLE = new Set(['payment_due', 'payment_overdue', 'balance_warning', 'forecast_warning', 'budget_alert', 'ai_insight', 'summary_weekly', 'summary_monthly', 'group_activity']);
 
 export async function getSettings(userId, db = pool) {
   await db.query('INSERT INTO notification_settings (user_id) VALUES ($1) ON CONFLICT DO NOTHING', [userId]);
@@ -247,6 +250,7 @@ export async function runAlertScan({ userId = null } = {}) {
   }
 
   created += await scanBalances(userId);
+  created += await scanBudgets(userId);
   created += await scanInsights(userId);
 
   // e-mail whoever wants it (daily digests when it is their time, instant mail for the rest)
@@ -255,6 +259,52 @@ export async function runAlertScan({ userId = null } = {}) {
 
   if (userId === null) await housekeeping();
   return { created };
+}
+
+/**
+ * Tell people when a category of this month's budget is nearly used up (80%) or over (100%), once for each, in the app. Whoever is in the
+ * budget and has budget alerts on is told; a budget with no limits set costs nothing here.
+ */
+async function scanBudgets(userId) {
+  let created = 0;
+  const month = monthOf(todayYMD());
+  const { rows: spaces } = await query(
+    `SELECT w.id, w.name, w.kind,
+            COALESCE((SELECT json_agg(m.user_id) FROM workspace_members m LEFT JOIN notification_settings s ON s.user_id = m.user_id
+                      WHERE m.workspace_id = w.id AND COALESCE(s.budget_alerts, true) AND (s.paused_until IS NULL OR s.paused_until <= now())
+                        AND ($1::int IS NULL OR m.user_id = $1)), '[]'::json) AS users
+     FROM workspaces w
+     WHERE EXISTS (SELECT 1 FROM category_budgets b WHERE b.workspace_id = w.id)
+       AND EXISTS (SELECT 1 FROM workspace_members m WHERE m.workspace_id = w.id AND ($1::int IS NULL OR m.user_id = $1))`,
+    [userId],
+  );
+  for (const w of spaces) {
+    if (!w.users.length) continue;
+    const view = await budgetForMonth(w.id, month);
+    const monthText = new Date(`${month}-15T12:00:00Z`).toLocaleDateString('en', { month: 'long', timeZone: 'UTC' });
+    for (const l of view.lines) {
+      if (l.budget === null || l.id === null) continue;
+      const over = l.spent > l.budget + 0.005;
+      const near = !over && l.budget > 0 && l.spent >= 0.8 * l.budget;
+      if (!over && !near) continue;
+      const where = w.kind === 'group' ? ` · ${w.name}` : '';
+      const n = over
+        ? { level: 100, title: `${l.name} is over its budget`, body: `${formatMoney(l.spent, view.currency)} spent of ${formatMoney(l.budget, view.currency)} for ${monthText}.${where}` }
+        : { level: 80, title: `${l.name} has used ${l.percent}% of its budget`, body: `${formatMoney(l.left, view.currency)} left of ${formatMoney(l.budget, view.currency)} for ${monthText}.${where}` };
+      for (const uid of w.users) {
+        const id = await insertNotification(pool, uid, {
+          kind: 'budget_alert',
+          title: n.title,
+          body: n.body,
+          link: '/budget',
+          data: { workspace_id: w.id, category_id: l.id, month, level: n.level, spent: l.spent, budget: l.budget },
+          dedupeKey: `budget:${w.id}:${l.id}:${month}:${n.level}`,
+        });
+        if (id) created += 1;
+      }
+    }
+  }
+  return created;
 }
 
 async function scanBalances(userId) {

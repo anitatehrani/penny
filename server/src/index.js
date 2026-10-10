@@ -32,6 +32,7 @@ import profile from './routes/profile.js';
 import recurring from './routes/recurring.js';
 import reports from './routes/reports.js';
 import insights from './routes/insights.js';
+import budgets from './routes/budgets.js';
 import preferences from './routes/preferences.js';
 import settings from './routes/settings.js';
 import shared from './routes/shared.js';
@@ -79,7 +80,7 @@ app.use('/api', contact); // the contact form (anybody may write)
 app.use('/api', requireAuth);
 for (const r of [profile, avatars, people, workspaces, notifications, receiptFiles, preferences, backups, admin]) app.use('/api', r);
 app.use('/api', resolveWorkspace);
-for (const r of [settings, carryover, cardBills, safeToSpend, reconcile, transactions, importer, receipts, recurring, installments, debts, reports, shared, insights]) app.use('/api', r);
+for (const r of [settings, carryover, cardBills, safeToSpend, reconcile, transactions, importer, receipts, recurring, installments, debts, reports, shared, insights, budgets]) app.use('/api', r);
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found' }));
 
 // Serve the built React app when present (npm run build).

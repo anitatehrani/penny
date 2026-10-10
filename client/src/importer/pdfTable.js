@@ -339,7 +339,7 @@ export function layoutPdf(pages) {
         if (lines[b.first].y - l.y > 5 * lines[b.first].h) break;
         if (blocks.some((o) => k >= o.first && k <= o.last)) break;
         if (recurring(l)) continue;
-        if (l.cells.length <= 2 && l.cells[0].x0 <= b.cols[0].x1 + 2 && !/^page/i.test(l.text)) {
+        if (l.cells.length <= 2 && l.cells[0].x0 <= b.cols[0].x1 + 2 && !/^page\b/i.test(l.text)) {
           title = l.text;
           break;
         }

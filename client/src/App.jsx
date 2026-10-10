@@ -14,6 +14,7 @@ import Notifications from './pages/Notifications.jsx';
 import People from './pages/People.jsx';
 import Profile from './pages/Profile.jsx';
 import PublicProfile from './pages/PublicProfile.jsx';
+import Budget from './pages/Budget.jsx';
 import Recurring from './pages/Recurring.jsx';
 import Settings from './pages/Settings.jsx';
 import Transactions from './pages/Transactions.jsx';
@@ -47,6 +48,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<DashboardPage />} />
             <Route path="/payments" element={<Transactions />} />
+            <Route path="/budget" element={<Budget />} />
             <Route path="/recurring" element={<Recurring />} />
             <Route path="/installments" element={<Installments />} />
             <Route path="/debts" element={<Debts />} />

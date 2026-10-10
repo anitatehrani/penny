@@ -87,6 +87,7 @@ const settingsSchema = z
     overdue: flag,
     balance_warning: flag,
     forecast_warning: flag,
+    budget_alerts: flag,
     ai_insights: flag,
     weekly_summary: flag,
     monthly_summary: flag,
