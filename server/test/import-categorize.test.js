@@ -83,13 +83,29 @@ describe('the examples people expect', () => {
     ['Esselunga', 'Groceries'], ['ESSELUNGA SPA 0123 MILANO', 'Groceries'], ['Coop Alleanza 3.0', 'Groceries'], ['Penny Market S.r.l.', 'Groceries'], ['Il Fornaio', 'Groceries'], ['Dedem Spa Pv012385', 'Groceries'], ['Panificio Randazzo', 'Groceries'],
     ['Netflix', 'Subscriptions'], ['Paypal *spotify*p478c2', 'Subscriptions'], ['Anthropic* Claude Sub', 'Subscriptions'], ['APPLE.COM/BILL', 'Subscriptions'],
     ['Uber *trip', 'Transport'], ['Lime*prime N675 Milan', 'Transport'], ['Autolinee Toscane Borgo San Lor', 'Transport'], ['Trenitalia 4523', 'Transport'], ['ENI STATION', 'Transport'], ['FlixBus', 'Transport'],
-    ['Enel Energia', 'Utilities'], ['Prodotti Servizi Windtre', 'Utilities'], ['Vodafone Italia', 'Utilities'],
+    ['Enel Energia', 'Utilities'], ['Vodafone Italia', 'Utilities'], ['Fastweb', 'Utilities'],
+    ['Prodotti Servizi Windtre', 'Subscriptions'], ['Iliad', 'Subscriptions'], ['Ho. Mobile', 'Subscriptions'],
+    ['Addebito Saldo E/c Carta Di Credito', 'Installments & loans'], ['Paypal *paga In 3 Rate …6461', 'Installments & loans'], ['PayPal Pay in 3', 'Installments & loans'],
     ['Deliveroo', 'Dining & leisure'], ['Autogrill 0373', 'Dining & leisure'], ['Pizzeria Da Mario', 'Dining & leisure'], ["McDonald's 1234", 'Dining & leisure'],
     ['Farmacia Comunale', 'Health'], ['Agos Ducato spa rata', 'Installments & loans'],
   ];
   for (const [text, want] of cases) {
     it(`${text} is ${want}`, () => assert.equal(name(guess(text)), want));
   }
+  it('what the bank calls the line decides when the name says nothing, and the right name beats a wrong bank category', () => {
+    assert.equal(name(guess('Camporeale Bianchi', 'expense', { bank_category: 'Cellulare' })), 'Subscriptions', 'a phone plan is a subscription');
+    const rate = guess('Paypal *paga In 3 Rate …6461', 'expense', { bank_category: 'Tempo libero varie' });
+    assert.equal(name(rate), 'Installments & loans', 'paying in three instalments is not leisure, whatever the bank says');
+    const bill = guess('Addebito Saldo E/c Carta Di Credito', 'expense', { bank_category: 'Addebito mia carta di credito' });
+    assert.deepEqual([name(bill), bill.transfer], ['Installments & loans', false]);
+  });
+  it('the shop behind a payment service counts, not the service', () => {
+    assert.equal(name(guess('Klarna* Flix SE Paris', 'expense', { bank_category: 'Tempo libero varie' })), 'Transport');
+    assert.equal(guess('Klarna* Sklum Paris').category.name, 'Shopping');
+    assert.equal(name(guess('Klarna*Farmaciasocca Stockholm')), 'Health');
+    assert.equal(name(guess('Paypal *spotify*p478c2')), 'Subscriptions');
+    assert.equal(guess('Klarna* Unknown Shop').category.name, 'Shopping', 'with nothing behind it, the service itself is the best guess');
+  });
   it('names the budget does not have a category for become new categories, with the standard name', () => {
     const z = guess('ZARA ITALIA SRL');
     assert.deepEqual([z.category.name, z.category.isNew, z.category.id], ['Clothing', true, null]);

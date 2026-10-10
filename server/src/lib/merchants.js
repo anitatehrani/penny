@@ -84,6 +84,8 @@ export const BRANDS = {
     'Sephora', 'Douglas', 'Rossmann', 'DM Drogerie=dm drogerie|dm drogeriemarkt', 'Acqua e Sapone=acqua e sapone', 'Tigotà=tigota|tigotà', 'Yankee Candle', 'Pandora', 'Swarovski', 'Rituals', 'Lush', 'Body Shop',
   ],
   subscriptions: [
+    // a phone plan is a monthly subscription (a landline, broadband or electricity bill is a utility)
+    'WindTre=windtre|wind tre|3 italia|prodotti servizi windtre|servizi windtre', 'Iliad', 'Ho Mobile=ho mobile', 'Kena Mobile=kena mobile|kena', 'PosteMobile=postemobile|poste mobile', 'Very Mobile', 'Lycamobile', 'Spusu', 'CoopVoce=coopvoce|coop voce', 'Vodafone Mobile=vodafone mobile',
     'Netflix', 'Spotify', 'Apple Services=apple com bill|apple services|itunes|icloud', 'Google One=google one|google storage|youtube premium|youtube music|google youtubepremium', 'Disney Plus=disney plus|disney|disneyplus', 'Prime Video=prime video|amazon prime|amznprime|amzn digital|audible',
     'DAZN', 'NOW TV=now tv|nowtv', 'Sky', 'HBO', 'Paramount', 'Kindle Unlimited=kindle unlimited|amazon kindle', 'Adobe', 'Microsoft 365=microsoft 365|office 365|microsoft office|msbill', 'Dropbox', 'Notion', 'OpenAI=chatgpt|openai',
     'Anthropic=anthropic|claude ai|claude sub', 'GitHub', 'Canva', 'Duolingo', 'Patreon', 'Twitch', 'PlayStation Plus=playstation plus|ps plus|psn', 'Xbox Game Pass=xbox game pass|xbox live', 'Nintendo Online=nintendo online|nintendo switch online',
@@ -92,14 +94,14 @@ export const BRANDS = {
   ],
   utilities: [
     'Enel', 'Plenitude=plenitude|eni plenitude', 'Edison', 'A2A', 'Hera', 'Iren', 'Acea', 'Sorgenia', 'E.ON=e on|eon', 'Illumia', 'Axpo', 'Octopus Energy=octopus energy', 'British Gas', 'EDF', 'Engie', 'Vattenfall', 'Naturgy', 'Iberdrola',
-    'TIM=tim spa|telecom italia|tim', 'Vodafone', 'WindTre=windtre|wind tre|wind|3 italia', 'Iliad', 'Fastweb', 'Ho Mobile=ho mobile', 'Kena Mobile=kena', 'PosteMobile=postemobile|poste mobile', 'Very Mobile', 'Tiscali', 'Linkem',
+    'TIM=tim spa|telecom italia|tim', 'Vodafone', 'Fastweb', 'Tiscali', 'Linkem',
     'O2', 'Three', 'EE', 'Orange', 'SFR', 'Bouygues', 'Free Mobile', 'Telekom', 'Swisscom', 'Sunrise', 'Salt', 'Telenor', 'Proximus', 'KPN', 'Ziggo', 'Telefonica=movistar|telefonica', 'Digi', 'Canone Rai=canone rai|rai canone|rai abbonamento',
-    'Tari=tari|tassa rifiuti', 'Acquedotto', 'Gas Natural', 'Italgas', 'Bolletta=bolletta|bollette|utenza|utenze', 'Prodotti Servizi Windtre', 'Servizi Windtre',
+    'Tari=tari|tassa rifiuti', 'Acquedotto', 'Gas Natural', 'Italgas', 'Bolletta=bolletta|bollette|utenza|utenze',
   ],
   benefits: ['INPS=inps|inail|naspi|assegno unico|cassa integrazione', 'Pensione=pensione|pension payment|rente|kindergeld'],
   salary: ['Stipendio=stipendio|stipendi|salary|payroll|retribuzione|emolumenti|cedolino|busta paga|gehalt|salaire'],
   rent: ['Affitto=affitto|canone di locazione|canone locazione|locazione', 'Condominio=condominio|spese condominiali|amministratore', 'Rent=rent payment|monthly rent|rent', 'Miete', 'Loyer', 'Alquiler'],
-  loans: ['Agos=agos|agos ducato', 'Findomestic', 'Compass', 'Santander Consumer', 'Prestito=prestito|finanziamento|rata mutuo|rata finanziamento|rate mutuo', 'Mutuo=mutuo', 'Loan=loan repayment|loan payment', 'Sella Personal Credit', 'Younited', 'Cofidis', 'Cetelem', 'Pagodil', 'Paypal Credit'],
+  loans: ['Carta di Credito=addebito saldo e c carta di credito|addebito carta di credito|saldo carta di credito|credit card payment|pagamento carta di credito|payment to card|pagamento saldo carta|credit card bill|card bill', 'PayPal Pay in 3=paga in 3 rate|paga in 3|paga in 4|pay in 3|pay in 4|in 3 rate|in 4 rate|pagamento in 3 rate|pagamento in rate|pagamento rateale|rate senza interessi|pay later|paga dopo|paga con scalapay', 'Agos=agos|agos ducato', 'Findomestic', 'Compass', 'Santander Consumer', 'Prestito=prestito|finanziamento|rata mutuo|rata finanziamento|rate mutuo', 'Mutuo=mutuo', 'Loan=loan repayment|loan payment', 'Sella Personal Credit', 'Younited', 'Cofidis', 'Cetelem', 'Pagodil', 'Paypal Credit'],
   health: [
     'Farmacia=farmacia|farmacie|parafarmacia', 'Pharmacy=pharmacy|chemist', 'Apotheke', 'Boots', 'Lloyds Pharmacy=lloyds pharmacy', 'CVS', 'Walgreens', 'Ospedale', 'Clinica', 'Ambulatorio', 'Laboratorio Analisi=laboratorio analisi|analisi cliniche',
     'ASL=asl|ats|ticket sanitario', 'Dentista=dentista|studio dentistico|odontoiatr', 'Dottore=dott ssa|medico|studio medico|poliambulatorio', 'Fisioterapia=fisioterap|osteopata|chiropratic', 'Ottica=ottica|optician|specsavers|salmoiraghi', 'Doctolib', 'Centro Medico',
@@ -124,7 +126,7 @@ export const BRANDS = {
   cash: ['Prelievo=prelievo|prelievi|prelievo bancomat|prelievo contante|cash withdrawal|atm withdrawal|bancomat prelievo|cash at|geldautomat|retrait|retiro cajero|atm', 'Versamento Contanti=versamento contanti|cash deposit|cash in'],
   transfers: [
     'Giroconto=giroconto|giro conto', 'Revolut=revolut', 'To Pocket=to pocket|from pocket|pocket withdrawal|pocket transfer', 'Apple Pay Deposit=apple pay deposit|top up|topup|top-up|ricarica conto|ricarica carta|carica carta',
-    'Addebito Carta di Credito=addebito saldo e c carta di credito|addebito carta di credito|saldo carta di credito|credit card payment|pagamento carta di credito|payment to card', 'Satispay', 'Wise=wise|transferwise', 'Transfer To=transfer to|transfer from|trasferimento a|trasferimento da|sent from revolut|to own account|own account|own transfer|between accounts',
+    'Satispay', 'Wise=wise|transferwise', 'Transfer To=transfer to|transfer from|trasferimento a|trasferimento da|sent from revolut|to own account|own account|own transfer|between accounts',
   ],
 };
 
@@ -135,11 +137,11 @@ export const WORDS = {
   clothing: ['abbigliamento', 'boutique', 'calzature', 'scarpe', 'shoes', 'clothing', 'fashion', 'moda', 'intimo', 'lingerie', 'sartoria', 'tessuti'],
   transport: ['taxi', 'parcheggio', 'parking', 'sosta', 'biglietto', 'abbonamento bus', 'carburante', 'benzina', 'gasolio', 'diesel', 'rifornimento', 'autolinee', 'autobus', 'metropolitana', 'ferrovie', 'railway', 'train', 'treno', 'pedaggio', 'autostrada', 'noleggio', 'car rental', 'bike', 'scooter', 'monopattino', 'tram', 'bus', 'parkplatz', 'tankstelle', 'carburant', 'peage'],
   shopping: ['negozio', 'shop', 'store', 'outlet', 'online', 'acquisto', 'purchase', 'marketplace', 'magazzini', 'grandi magazzini', 'department store', 'bazar'],
-  subscriptions: ['abbonamento', 'subscription', 'membership', 'premium', 'streaming', 'abo', 'abonnement', 'suscripcion'],
-  utilities: ['utenza', 'bolletta', 'energia', 'elettricita', 'electricity', 'luce', 'gas', 'acqua', 'water', 'internet', 'telefono', 'telephone', 'mobile', 'cellulare', 'fibra', 'broadband', 'wifi', 'strom', 'wasser', 'heizung', 'electricite', 'rifiuti'],
+  subscriptions: ['cellulare', 'abbonamento', 'subscription', 'membership', 'premium', 'streaming', 'abo', 'abonnement', 'suscripcion'],
+  utilities: ['utenza', 'bolletta', 'energia', 'elettricita', 'electricity', 'luce', 'gas', 'acqua', 'water', 'internet', 'telefono', 'telephone', 'mobile', 'fibra', 'broadband', 'wifi', 'strom', 'wasser', 'heizung', 'electricite', 'rifiuti'],
   rent: ['affitto', 'pigione', 'canone mensile', 'rent'],
   loans: ['rata', 'rate', 'finanziamento', 'prestito', 'mutuo', 'loan', 'installment', 'instalment', 'kredit', 'credit rate', 'leasing'],
-  health: ['farmaci', 'medic*', 'dottor*', 'visita', 'analisi', 'ticket', 'sanitaria', 'salute', 'health', 'clinic*', 'hospital', 'ospedal*', 'dental', 'dentist*', 'terapia', 'psicolog*', 'physio*', 'arzt', 'zahnarzt', 'medecin'],
+  health: ['farmacia*', 'farmaci', 'medic*', 'dottor*', 'visita', 'analisi', 'ticket', 'sanitaria', 'salute', 'health', 'clinic*', 'hospital', 'ospedal*', 'dental', 'dentist*', 'terapia', 'psicolog*', 'physio*', 'arzt', 'zahnarzt', 'medecin'],
   fitness: ['palestra', 'fitness', 'gym', 'yoga', 'pilates', 'nuoto', 'swimming', 'sport', 'calcio', 'tennis', 'padel', 'climbing'],
   personal_care: ['parrucch*', 'barbier*', 'estetic*', 'beauty', 'cosmetic*', 'profumeri*', 'manicure', 'unghie', 'salon', 'hair'],
   entertainment: ['cinema', 'teatro', 'concerto', 'museo', 'biglietti', 'spettacolo', 'evento', 'event', 'game', 'giochi', 'videogiochi', 'tempo libero', 'leisure', 'ticket one', 'ingresso', 'entry', 'discoteca', 'nightclub', 'bowling', 'karaoke'],
@@ -174,7 +176,7 @@ export const BANK_CATEGORIES = [
   ['viaggi e vacanze', 'travel'], ['viaggi', 'travel'], ['vacanze', 'travel'], ['alberghi', 'travel'],
   ['cura della persona', 'personal_care'], ['bellezza', 'personal_care'], ['salute e benessere', 'health'], ['salute', 'health'], ['farmacia', 'health'], ['spese mediche', 'health'], ['medico', 'health'],
   ['hi tech e informatica', 'shopping'], ['elettronica e informatica', 'shopping'], ['hi tech', 'shopping'], ['shopping', 'shopping'], ['acquisti online', 'shopping'], ['acquisti', 'shopping'], ['casa e arredamento', 'home'], ['casa', 'home'], ['arredamento', 'home'], ['bricolage', 'home'],
-  ['utenze e bollette', 'utilities'], ['utenze', 'utilities'], ['bollette', 'utilities'], ['cellulare', 'utilities'], ['telefono e internet', 'utilities'], ['telefonia', 'utilities'], ['energia', 'utilities'], ['luce e gas', 'utilities'],
+  ['utenze e bollette', 'utilities'], ['utenze', 'utilities'], ['bollette', 'utilities'], ['cellulare', 'subscriptions'], ['telefono e internet', 'utilities'], ['telefonia', 'utilities'], ['energia', 'utilities'], ['luce e gas', 'utilities'],
   ['rate mutuo e finanziamento', 'loans'], ['mutuo e finanziamenti', 'loans'], ['finanziamenti', 'loans'], ['mutuo', 'rent'], ['affitto', 'rent'], ['affitto e condominio', 'rent'], ['condominio', 'rent'],
   ['imposte bolli e commissioni', 'fees'], ['commissioni e spese bancarie', 'fees'], ['spese bancarie', 'fees'], ['commissioni', 'fees'], ['imposte e tasse', 'taxes'], ['tasse', 'taxes'], ['imposte', 'taxes'],
   ['prelievi', 'cash'], ['prelievo contante', 'cash'], ['contanti', 'cash'],
@@ -182,7 +184,7 @@ export const BANK_CATEGORIES = [
   ['abbonamenti', 'subscriptions'], ['servizi digitali', 'subscriptions'],
   ['stipendio e pensione', 'salary'], ['stipendio', 'salary'], ['stipendi e pensioni', 'salary'], ['pensione', 'benefits'], ['sussidi', 'benefits'],
   ['rimborsi spese e storni', 'refunds'], ['rimborsi', 'refunds'], ['storni', 'refunds'], ['interessi', 'interest'],
-  ['giroconti', 'transfers'], ['trasferimenti', 'transfers'], ['carta di credito', 'transfers'], ['addebito mia carta di credito', 'transfers'],
+  ['giroconti', 'transfers'], ['trasferimenti', 'transfers'], ['carta di credito', 'loans'], ['addebito mia carta di credito', 'loans'],
   ['altre uscite', null], ['addebiti vari', null], ['bonifici ricevuti', null], ['bonifici', null], ['altre entrate', null], ['entrate', null], ['uscite', null], ['varie', null], ['non categorizzato', null], ['altro', null],
   // English
   ['groceries', 'groceries'], ['grocery', 'groceries'], ['supermarkets', 'groceries'], ['food and groceries', 'groceries'], ['food shops', 'groceries'],

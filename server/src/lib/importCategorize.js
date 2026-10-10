@@ -36,6 +36,14 @@ export function merchantWords(description) {
     .filter((t) => t.length > 1 && !/\d/.test(t) && !STOP.has(t) && !NOISE.has(t));
 }
 
+/** A description without the payment service in front of the star: "Klarna* Flix SE Paris" is "Flix SE Paris". Unchanged when there is no star. */
+export function withoutProcessors(description) {
+  const s = String(description ?? '');
+  if (!s.includes('*')) return s;
+  const kept = s.split('*').map((x) => x.trim()).filter((seg) => seg && !PROCESSORS.has(normalize(seg)));
+  return kept.length ? kept.join(' ') : s;
+}
+
 /** The words used to look a merchant up (up to three, in the order written). */
 export const merchantKey = (description) => merchantWords(description).slice(0, 3).join(' ');
 
@@ -186,7 +194,9 @@ export function suggest(line, categories, memory) {
   const words = merchantWords(line.description);
   const merchant = ruleKey(line.description) || ruleKey(line.note) || '';
   const text = `${line.description ?? ''} ${line.note ?? ''}`;
-  const known = matchKnown(text);
+  // the shop behind a payment service counts before the service itself ("Klarna* Flix" is a bus, not "shopping on Klarna")
+  const behind = withoutProcessors(line.description);
+  const known = (behind !== line.description ? matchKnown(`${behind} ${line.note ?? ''}`) : null) ?? matchKnown(text);
   const out = { merchant, brand: known?.via === 'brand' && known.strength >= 0.9 ? known.name : null, category: null, source: null, confidence: 0, review: 'none', reason: 'Penny has no idea what this is. Pick a category.', transfer: false };
 
   const learned = words.length ? memory.learned(type, words) : null;
