@@ -73,6 +73,11 @@ export default function TxRow({ tx, onChange, onEdit, compact }) {
               <Icon name="check" size={12} /> Adjustment
             </span>
           )}
+          {tx.import_batch_id != null && (
+            <span className="badge" title="Added from a bank statement. You can undo a whole import from Import statement.">
+              <Icon name="upload" size={12} /> Imported
+            </span>
+          )}
           {tx.source === 'debt' && (
             <span className="badge" title={tx.type === 'income' ? 'Money paid back to you. It counts in your balance, not as earnings.' : 'Part of paying off a debt'}>
               <Icon name="debt" size={12} /> {tx.type === 'income' ? 'Paid back' : 'Debt'}

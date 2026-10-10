@@ -5,7 +5,8 @@
   "description": "Browser checks for the interface (needs Chrome or Edge and the demo data)",
   "scripts": {
     "ui": "node ui.e2e.cjs",
-    "landing": "node landing-assets.cjs"
+    "landing": "node landing-assets.cjs",
+    "import": "node import.e2e.cjs"
   },
   "dependencies": {
     "pg": "^8.13.0",

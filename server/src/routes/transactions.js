@@ -31,7 +31,7 @@ const baseSchema = z.object({
 });
 
 export const SELECT = `
-  SELECT t.id, t.type, t.description, t.amount, t.date, t.status, t.note, t.source, t.pay_method, t.charged_on, t.debt_id,
+  SELECT t.id, t.type, t.description, t.amount, t.date, t.status, t.note, t.source, t.pay_method, t.charged_on, t.debt_id, t.import_batch_id,
          t.category_id, t.recurring_id, t.installment_plan_id, t.installment_no,
          pl.purchase_amount AS plan_purchase_amount, pl.installment_count AS plan_installment_count,
          c.name AS category_name, c.color AS category_color,

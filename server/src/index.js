@@ -15,6 +15,7 @@ import { resolveWorkspace } from './lib/workspace.js';
 import admin from './routes/admin.js';
 import contact from './routes/contact.js';
 import inbound from './routes/inbound.js';
+import importer from './routes/import.js';
 import auth from './routes/auth.js';
 import avatars from './routes/avatars.js';
 import backups from './routes/backups.js';
@@ -54,6 +55,8 @@ app.use((_req, res, next) => {
   next();
 });
 app.use('/api/inbound', inbound); // parsed e-mail from Brevo: before the ordinary JSON reader, which would refuse a big mail
+// a statement's lines (up to 3,000 of them) are bigger than any other request; everything else stays at 100 KB
+app.use('/api/import', express.json({ limit: '2mb' }));
 app.use(express.json({ limit: '100kb' }));
 
 // API pipeline: public health check -> session lookup -> auth routes (public + account) -> must be signed in
@@ -76,7 +79,7 @@ app.use('/api', contact); // the contact form (anybody may write)
 app.use('/api', requireAuth);
 for (const r of [profile, avatars, people, workspaces, notifications, receiptFiles, preferences, backups, admin]) app.use('/api', r);
 app.use('/api', resolveWorkspace);
-for (const r of [settings, carryover, cardBills, safeToSpend, reconcile, transactions, receipts, recurring, installments, debts, reports, shared, insights]) app.use('/api', r);
+for (const r of [settings, carryover, cardBills, safeToSpend, reconcile, transactions, importer, receipts, recurring, installments, debts, reports, shared, insights]) app.use('/api', r);
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found' }));
 
 // Serve the built React app when present (npm run build).

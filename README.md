@@ -10,6 +10,7 @@ installments) and see where your balance is heading — including when it goes n
 | Area | What you can do |
 | --- | --- |
 | **Payments** | Add income/expenses, pick any date (past dates = "already paid"), mark paid/unpaid, edit, delete. Month navigator, filters (to pay / paid / overdue / skipped, type, how it was paid, category), search, CSV export. |
+| **Import a bank statement** | **Import statement** on the Payments page reads a CSV, Excel (`.xlsx`) or PDF statement from any bank (Revolut, Isybank, N26, Chase, ING, Sparkasse ... no bank has its own code), finds the date, description and amount (or money out and money in) by itself, suggests a category for each line (Esselunga is Groceries, Zara is Clothing, Netflix is Subscriptions, Uber is Transport), marks what it is unsure about, and lets you check, rename, leave out or bulk-edit lines before anything is saved. Lines already in your payments, lines the bank has not booked yet and cancelled lines are left out; a scheduled bill that matches a line can be marked as paid instead of added twice. Penny remembers the categories you correct. **The file is read in your browser and never uploaded**; account and card numbers are taken out of the text; **Undo this import** removes exactly what it added. If a file cannot be understood, a screen lets you say which column is which. See `docs/DESIGN.md` section 41. |
 | **Credit card** | Mark an expense "Paid with credit card": record the day you bought it, and choose the month the card bill is paid. It counts in that month (balance, forecast, totals, alerts), not the purchase month. It is still listed on the day you bought it, marked "counts on 10 Nov" and kept out of that month's figures (shown as "Bought on card"), and in the bill month it carries a "Credit card" badge with "bought 1 Oct". The day of the month you pay the card is a setting (default the 10th). |
 | **Recurring** | Rent, subscriptions, salary, yearly birthdays, quarterly insurance… (weekly / monthly / yearly, every N, pause/resume). It can **end** never, on a date, or after a number of payments (the form shows the last payment). Generates real pending payments for the next 24 months. Moving one occurrence to another day keeps it moved. |
 | **Installments** | Enter total *or* per-installment amount, number of installments, first due date and how many are already paid. One payment per month, progress tracking, remaining total. |
@@ -143,6 +144,7 @@ npm test              # everything (about 40 seconds)
 npm run test:server   # API, security, migration and logic tests
 npm run test:client   # browser-side logic (password checklist vs server rules, formatting, fuzzy search, avatars, layout rules)
 npm run e2e           # drives a real Chrome/Edge through the interface (needs the app running and the demo data)
+cd e2e && npm run import   # the bank statement import in a real browser (starts the app on a throw-away database; needs `npm run build`)
 ```
 
 `npm run e2e` is separate from `npm test` because it needs a browser. It checks the dashboard, notification centre, command palette,
@@ -462,6 +464,9 @@ with a password, Google sign-in will *not* silently take it over: sign in with t
 | `POST /workspaces/:id/invites` · `GET /workspaces/:id/invites` · `DELETE /workspace-invites/:id` | invite connections / cancel |
 | `POST /workspace-invites/:id/accept\|decline` | answer an invitation |
 | `POST /workspaces/:id/leave\|transfer` · `DELETE /workspaces/:id/members/:username` | membership |
+| `POST /import/preview` · `POST /import/commit` | bank statement import: categories and duplicates for the lines the browser read (keeps nothing) · save them in one go (up to 3,000 lines) |
+| `GET /import/batches` · `DELETE /import/batches/:id` | recent imports · undo one |
+| `GET /import/rules` · `DELETE /import/rules[/:id]` | what Penny learned from your category choices · forget it |
 | `GET /shared` · `POST /shared/:id/import` | payments shared with me / add my share to the open budget |
 | `PUT/DELETE /profile/avatar` · `GET /avatars/:id` | profile picture (raw image body, max 512 KB) / remove / view |
 | `GET/POST /transactions/:id/receipts` · `DELETE /receipts/:id` · `GET /receipts/:id[?download=1]` | receipts of a payment (raw body, `X-Filename` header, max 5 MB) |

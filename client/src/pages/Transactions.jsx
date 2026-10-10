@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api, qs } from '../api.js';
 import CardBillDialog from '../components/CardBillDialog.jsx';
+import ImportDialog from '../components/ImportDialog.jsx';
 import TransactionForm from '../components/TransactionForm.jsx';
 import TxRow from '../components/TxRow.jsx';
 import FilterSelect from '../components/ds/FilterSelect.jsx';
@@ -74,6 +75,7 @@ export default function Transactions() {
   const [search, setSearch] = useState(() => params.get('q') ?? '');
   const [editing, setEditing] = useState(null); // null | {} (new) | tx
   const [partPaying, setPartPaying] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   const set = (key, value) => {
     const next = new URLSearchParams(params);
@@ -129,6 +131,9 @@ export default function Transactions() {
           <a className="btn" href={`/api/transactions/export.csv${qs({ month: status === 'overdue' ? '' : month, status, type, pay, category_id: category, member, ws: current.id })}`}>
             <Icon name="download" /> CSV
           </a>
+          <button className="btn" onClick={() => setImporting(true)}>
+            <Icon name="upload" /> Import statement
+          </button>
           <button className="btn primary" onClick={() => setEditing({})}>
             <Icon name="plus" /> Add payment
           </button>
@@ -233,6 +238,16 @@ export default function Transactions() {
           onClose={() => setPartPaying(false)}
           onDone={() => {
             setPartPaying(false);
+            reload();
+          }}
+        />
+      )}
+      {importing && (
+        <ImportDialog
+          onClose={() => setImporting(false)}
+          onDone={(lastDate) => {
+            // open the month of the newest payment that was added, so the person sees them
+            if (lastDate) set('month', lastDate.slice(0, 7) === currentMonth() ? '' : lastDate.slice(0, 7));
             reload();
           }}
         />

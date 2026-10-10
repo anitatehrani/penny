@@ -969,3 +969,71 @@ the people you trust before strangers can sign up, since some things (password r
 - **Privacy.** Replies are kept and deleted with the message: after a year, with the account (when sent while signed in), or when an admin deletes the message. They are part of "Download my data" for messages sent while signed in. The privacy policy already says answers come by e-mail and messages are kept a year; it now says it covers the replies too.
 - **Setup** (README, "Replies by e-mail"): add two MX records for `reply.penny-budget.app`, register the webhook with Brevo once (an API call), set `REPLY_DOMAIN` and `INBOUND_SECRET` in the server `.env`.
 - **Tested** by API tests (the signed address, wrong and missing secrets, tampered or unknown addresses, duplicates, automatic mail, spam, other sender, big bodies, the message coming back as unread with a notification, the thread, quoting the latest reply, the export) and a browser check of the thread.
+
+## 41. Importing a bank statement (defined before implementation)
+
+**What was missing.** Every payment had to be typed in. Banks give you the whole month as a file (Revolut and Isybank give a PDF, many give CSV or Excel), so Penny should read it, understand each line, guess the category, and let the person check the result before anything is saved. No bank gets its own code: the reader works out the layout of whatever it is given.
+
+**Where it is.** Payments page, next to "Add payment": **Import statement**. The manual "Add payment" form is untouched; importing is a faster way in, not a replacement.
+
+### The steps the person sees
+
+1. **Choose a file** (CSV, Excel `.xlsx`, PDF; drag and drop or browse). The window says first, in plain words, that the file is read inside the browser and is not sent anywhere.
+2. **Penny reads it** and finds, by itself, which part is the date, the description and the amount (or money out and money in).
+3. If it cannot be sure, a **column-matching screen** shows the first lines of the file as a table; the person says which column is which, how dates and numbers are written, and sees the result live. What they choose is remembered for files with the same column names.
+4. **Review.** Every line, with its date, description, amount, a suggested category and marks where Penny is unsure or suspicious. The person can change a category, rename a line, skip lines, change a line from expense to income, pick several lines and change them together, see only the lines that need a look, and search.
+5. **Confirm.** One button ("Import 38 payments"). A last screen says what was added, and offers **Undo import**.
+
+### Safety of the statement (the important part)
+
+A statement holds the account holder's name and address, IBAN, card numbers and the people they paid. So:
+
+- **The file never leaves the browser.** It is opened and read on the person's own device (PDF with a PDF reader loaded only when needed, Excel and CSV with small readers of our own). It is kept in memory while the window is open and dropped when it closes; nothing goes to local storage, and the file name is never sent or kept.
+- **Only the lines the person is shown are sent**, over the same connection as the rest of the app, and only date, description, amount, type, the bank's own category if it has one, and a reference. The header of a statement (name, address, IBAN, account number, plan, totals) is not read into any line.
+- **Sensitive strings are removed from descriptions before they leave the browser**: IBANs (kept as country and last four), card numbers (full or masked), long numbers (mandate, account and reference numbers, kept as the last four), e-mail addresses, and the statement's own "Transaction Id" lines (used as a reference only). The server removes them again if they come back (it does not trust the browser).
+- **Nothing about the preview is stored**: the server answers the preview request and keeps nothing. Request bodies are not logged.
+- **What is saved** is what any payment holds, plus: a reference (the bank's transaction id if it has one, otherwise a fingerprint of date, amount and the bank's wording, so the same line is never imported twice), and which import it came from. Not the file, not its name, not the account number.
+- **Penny's memory of corrections** holds only a short merchant name and a category, per budget. It can be read and cleared by the person ("What Penny remembers", inside the import window, so closing it cannot lose a review in progress), is part of "Download my data", and goes with the budget or the account when they are deleted.
+- **Hardening.** PDF reading runs with scripting, scripts in forms and eval off, and without fetching anything from the network; limits on file size (15 MB), pages (60), lines (3,000 payments) and the inner size of an Excel file (zip bombs). Imported text is shown as text, never as markup, and saved text that starts with `=`, `+`, `-` or `@` stays harmless in the CSV export (already the case). A PDF with a password asks for it; the password is used by the reader in the browser and goes nowhere.
+- **Reversible.** Every import is one batch. "Undo import" removes exactly the payments that import added and puts back any scheduled payments it marked as paid.
+- **Rights.** Only people who may add payments can import (an admin "viewing as" someone is read-only, so cannot). Preview and confirm are limited in rate.
+- **Our own tests never use a real statement.** Fixtures are invented lines in the same layouts.
+
+### Reading a file (modules, each separate and tested alone)
+
+| Module (`client/src/importer/`) | One job |
+| --- | --- |
+| `csv.js`, `xlsx.js`, `pdf.js` + `pdfTable.js` | **Parsing.** Turn a file into tables of text cells. CSV: guess the separator, quotes, line breaks inside cells, the text encoding. Excel: open the zip, read shared strings, dates (by the cell's number format) and numbers. PDF: take every word with its position on the page, join words into lines and cells, find the header line, and cut the page into columns; a payment that wraps over several lines (or sits centred in its row, or is top-aligned) is kept as one row, even across pages. Several tables in one file (pending, completed, reverted, pockets) stay separate sections. |
+| `headers.js`, `values.js`, `detect.js` | **Understanding.** A dictionary of column names in English, Italian, German, French, Spanish, Portuguese and Dutch gives each column a role (date, value date, description, payee, details, amount, money out, money in, balance, currency, direction, category, status, reference, fee). The data confirms or corrects the names (a column called "Valuta" is a date or a currency depending on what is in it). Without a header row the roles come from the content alone. Dates (day first, month first, year first, written months in seven languages, two-digit years, a missing year taken from today) and numbers (`1.074,34`, `1,074.34`, `(20.00)`, `20.00-`, `€ -20,33`, `CR`/`DR`) are worked out from all the values of the file, not from one cell; when day/month cannot be decided it uses the order of the lines and otherwise says so. |
+| `normalize.js` | **Normalising.** Applies the roles: one row per payment with an ISO date, a cleaned description (wrapped lines joined, labelled lines such as "Reference:" moved to a note), a positive amount and `income` or `expense`. Total and balance lines, lines without a date or amount, and reverted lines are left out and listed (nothing disappears silently); a fee column becomes its own line. Whether a line is final ("booked") is read from a status column or from the section title ("Pending"). |
+| `redact.js` | Removes the sensitive strings above. |
+
+Server (`server/src/lib/`), also separate:
+
+| Module | One job |
+| --- | --- |
+| `merchants.js` | The built-in knowledge: shops and brands (Esselunga, Coop, Zara, Netflix, Uber, Deliveroo, Enel, Amazon ...), generic words (supermercato, ristorante, farmacia, bonifico ...) and what banks call their own categories, each mapped to a kind of spending. |
+| `importCategorize.js` | **Categorising.** Cleans a description down to the merchant ("Paypal *spotify*p478c2" is Spotify; "Il Fornaio Genova" is Fornaio), then chooses, in this order: what the person taught Penny for that merchant, what the person's own earlier payments with that merchant used, the built-in knowledge, the bank's own category. It answers with a category of the budget (or a new one to be created), where the idea came from and how sure it is; below a threshold the line is marked **Check**; with no idea it is marked **Needs a category**. Income is never given an expense category. |
+| `importDuplicates.js` | **Duplicates.** Compares each line with what is already in the budget: the same reference (already imported), the same amount and kind within three days with a similar description (a payment typed by hand), and scheduled payments that are still waiting. Each existing payment can match only one line, so two identical withdrawals on one day stay two lines. Answers: *already imported* (skipped), *possible duplicate* (skipped, can be turned on), *matches a scheduled payment* (offers to mark that one as paid instead of adding a second), *similar* (kept, with a warning). |
+| `routes/import.js` | **Saving.** `POST /api/import/preview` (stateless: categories and duplicates for the lines), `POST /api/import/commit` (one database transaction: new categories, payments, scheduled payments marked paid, memory of corrections, one batch record), `GET /api/import/batches` and `DELETE /api/import/batches/:id` (undo), `GET/DELETE /api/import/rules` (the memory). |
+
+### Rules of the result
+
+- A line becomes a payment with `status` paid (it already happened), paid with cash/bank (`pay_method` cash), `source` the ordinary manual one, so every report treats it like any payment; it carries `import_batch_id` and `import_ref`. Dates after today are saved as pending.
+- Lines marked **not booked** by the bank (pending, "contabilizzato: no", a Pending section) and **reverted** lines are off by default, with one click to include them: a card hold can change amount or day when it is booked, and importing it twice later would double the spending.
+- **Transfers** (to a pocket, between your own accounts, a person-to-person transfer, a top-up, a card bill settlement) get the category *Transfers*, marked for a look. They are real movements of the account's balance, so they are included; the sections and the category make them easy to leave out.
+- **Scheduled payments**: a line that matches a payment of the budget that is still waiting (a recurring bill, say) offers "Mark as paid" instead of adding a duplicate; the date and amount of that payment become the real ones.
+- **Remembering**: when a person gives a line a category different from the suggestion (or gives one to a line that had none), Penny saves it for that merchant (if "Remember my choices" is on, which it is by default) and offers to apply it to the other lines of the same merchant in the same file straight away. The next import prefers it.
+- **Categories**: a suggestion is matched to the budget's own categories by name and by common synonyms (Restaurants and Dining & leisure; Clothing and Fashion). If nothing fits, the category is shown as *new* and is created only if a line that is imported uses it. Categories the person did not ask for are never created.
+- **Currency**: if the file says its amounts are in another currency than the budget's, the window says so before the review; lines in a different currency than the rest of the file are off by default.
+
+### Limits
+
+Scans (a PDF that is a picture) have no text to read: Penny says so and suggests the CSV or Excel download. Old binary `.xls` files and OFX/QIF are not read yet (save as `.xlsx` or CSV); a web page saved with the name `.xls` (some banks do that) is read as a table. Amounts are only recorded in the budget's currency, never converted.
+
+### What was built, and how it is tested
+
+- **Reading** (`client/src/importer/`): `csv.js` (separator, quotes, encodings, web-page tables), `xlsx.js` (own reader over `fflate`, size limits, dates by cell format), `pdf.js` + `pdfTable.js` (words with positions, headings, columns, wrapped rows, sections, page furniture left out), `headers.js` (the column-name dictionary, status and direction words), `values.js` (dates and numbers), `detect.js`, `normalize.js`, `redact.js`, `read.js` (the two steps `openStatement` and `interpret`). One date order per file: a table that cannot tell takes the order of a table of the same file that can.
+- **Checks on its own work**: the statement's balance column, where it has one, is compared with the amounts read ("5 of 5 lines add up"), which shows that money in and money out were not swapped. The two statements this feature was built against (a Revolut PDF with four tables and an Isybank PDF of 74 lines) were read to the cent: the money in and out of each table matched the totals the bank prints. Neither is kept anywhere in the project.
+- **Review** (`client/src/importReview.js`, `components/ImportDialog.jsx`, `design/import.css`): defaults (what is on and what is left out and why), summary, views (all, to check, left out, duplicates, transfers), search, bulk edits, the offer to apply a choice to the other lines of the same shop, and what is sent to be saved. The Payments list marks imported payments with an "Imported" badge.
+- **Tests**: 176 client tests (values, headings, CSV, Excel, PDF layout in three row alignments and across pages, a corpus of 15 invented statements in the layouts of different banks, review logic), 108 server tests (categories and the built-in knowledge, duplicates, redaction, and the API: preview, commit, new categories, scheduled payments, memory, undo, rights, export and deletion) and 18 browser checks (`e2e/import.e2e.cjs`: the window, a CSV, an Excel file and a PDF, editing, saving, the same file again, undo, remembering, a file that is not a statement, the matching screen, a phone and the dark theme).

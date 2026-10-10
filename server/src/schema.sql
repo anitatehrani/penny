@@ -561,3 +561,40 @@ CREATE UNIQUE INDEX IF NOT EXISTS contact_replies_mail_idx ON contact_replies (m
 INSERT INTO contact_replies (message_id, created_at, direction, body, admin_id)
   SELECT m.id, m.replied_at, 'out', m.reply, m.replied_by FROM contact_messages m
   WHERE m.reply IS NOT NULL AND m.replied_at IS NOT NULL AND NOT EXISTS (SELECT 1 FROM contact_replies r WHERE r.message_id = m.id);
+
+-- Importing a bank statement (docs/DESIGN.md section 41). One import is one batch: what was added, what it marked as paid (to put back on undo),
+-- and the totals. Not the file, not its name, not an account number. A payment made by an import carries its batch and a reference: the bank's
+-- own transaction id, or a fingerprint of the line, so the same line is never imported twice (unique per budget).
+CREATE TABLE IF NOT EXISTS import_batches (
+  id           serial PRIMARY KEY,
+  workspace_id integer NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  user_id      integer REFERENCES users(id) ON DELETE SET NULL,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  kind         text NOT NULL DEFAULT 'csv',
+  added        integer NOT NULL DEFAULT 0,
+  settled      jsonb NOT NULL DEFAULT '[]',
+  total_in     numeric(14,2) NOT NULL DEFAULT 0,
+  total_out    numeric(14,2) NOT NULL DEFAULT 0,
+  first_date   date,
+  last_date    date
+);
+CREATE INDEX IF NOT EXISTS import_batches_ws_idx ON import_batches (workspace_id, created_at DESC);
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS import_batch_id integer REFERENCES import_batches(id) ON DELETE SET NULL;
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS import_ref text;
+CREATE INDEX IF NOT EXISTS transactions_import_batch_idx ON transactions (import_batch_id) WHERE import_batch_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS transactions_import_ref_uq ON transactions (workspace_id, import_ref) WHERE import_ref IS NOT NULL;
+
+-- What Penny learned from the categories a person chose while importing: a short merchant name and a category, per budget (and per kind, since
+-- the same name can be a shop you pay and a person who pays you). Read and cleared by the person; deleted with the budget or the category.
+CREATE TABLE IF NOT EXISTS import_rules (
+  id           serial PRIMARY KEY,
+  workspace_id integer NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  merchant_key text NOT NULL,
+  kind         text NOT NULL CHECK (kind IN ('income', 'expense')),
+  category_id  integer NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+  hits         integer NOT NULL DEFAULT 1,
+  user_id      integer REFERENCES users(id) ON DELETE SET NULL,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  updated_at   timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (workspace_id, merchant_key, kind)
+);
