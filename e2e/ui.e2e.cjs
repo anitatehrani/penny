@@ -2731,14 +2731,30 @@ async function sessionFor(db, email) {
       eq(await count(page, '.msg.unread'), 2, 'both unread');
       truthy(/signed-in person/.test(await text(page, '.msg:first-child .msg-preview')), 'the newest first: ' + (await text(page, '.msg:first-child .msg-preview')));
     });
-    await check('opening a message shows all of it, marks it read (the count goes down), and offers a reply that opens the mail program', async () => {
+    await check('opening a message shows all of it, marks it read (the count goes down), and offers to answer it', async () => {
       await page.click('.msg:last-child .msg-head');
       await page.waitForSelector('.msg.open .msg-text');
       eq(await text(page, '.msg.open .msg-text'), TEXT, 'the whole text');
       await page.waitForFunction(() => /^Messages ?1$/.test([...document.querySelectorAll('[role=tab]')].find((t) => /Messages/.test(t.textContent)).textContent.trim().replace(/\s+/g, ' ')));
-      const href = await page.$eval('.msg.open a.btn', (a) => a.getAttribute('href'));
-      truthy(href.startsWith('mailto:visitor@example.com?subject='), 'a reply to the writer: ' + href);
+      truthy(/Answer by e-mail/.test(await text(page, '.msg.open .admin-actions')), 'an answer button');
       eq((await db.query('SELECT read_at IS NOT NULL AS r FROM contact_messages WHERE message = $1', [TEXT])).rows[0].r, true, 'marked read in the database');
+    });
+    await check('answering opens a window addressed to the writer, quotes what they wrote, cannot be sent empty, and keeps the answer', async () => {
+      await clickBtn(page, /Answer by e-mail/, '.msg.open button');
+      await page.waitForSelector('.modal textarea');
+      truthy(/visitor@example\.com/.test(await text(page, '.modal')), 'it names the address');
+      eq(await text(page, '.modal .msg-quote'), TEXT, 'what they wrote is quoted');
+      eq(await page.$eval('.modal button.btn.primary', (b) => b.disabled), true, 'nothing to send yet');
+      await page.type('.modal textarea', 'E2E answer: thank you, it is done.');
+      eq(await page.$eval('.modal button.btn.primary', (b) => b.disabled), false, 'now it can be sent');
+      await page.click('.modal button.btn.primary');
+      await page.waitForFunction(() => !document.querySelector('.modal'));
+      await page.waitForSelector('.msg.open .msg-answer');
+      truthy(/E2E answer: thank you/.test(await text(page, '.msg-answer')), 'the answer is shown on the message');
+      const row = (await db.query('SELECT reply, replied_at FROM contact_messages WHERE message = $1', [TEXT])).rows[0];
+      truthy(row.replied_at && /^E2E answer/.test(row.reply), 'kept in the database');
+      truthy(/Answer again/.test(await text(page, '.msg.open .admin-actions')), 'the button now offers to answer again');
+      eq((await db.query("SELECT status FROM email_log WHERE kind = 'contact-reply' AND to_email = 'visitor@example.com' ORDER BY id DESC LIMIT 1")).rows[0].status, 'preview', 'saved as a preview (no mail server in this test setup)');
     });
     await check('mark unread, archive and restore work from the open message, and the filter shows archived ones', async () => {
       await clickBtn(page, /^\s*Mark unread/, '.msg.open button');
@@ -2776,6 +2792,7 @@ async function sessionFor(db, email) {
       eq(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true, 'the form: no sideways scroll');
     });
     await db.query("DELETE FROM contact_messages WHERE message LIKE 'E2E:%'");
+    await db.query("DELETE FROM email_log WHERE kind = 'contact-reply' AND to_email = 'visitor@example.com'");
     await db.query("DELETE FROM notifications WHERE user_id = $1 AND title = 'New message'", [userId]);
     await setAdmin(false);
   }

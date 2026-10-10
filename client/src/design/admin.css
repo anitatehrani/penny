@@ -483,3 +483,25 @@
     margin-left: 6px;
   }
 }
+
+/* the answer already sent, and the quoted message in the answer dialog */
+.msg-answer {
+  margin: 0 0 8px;
+  padding: 10px 14px;
+  border-left: 3px solid var(--accent);
+  border-radius: 0 12px 12px 0;
+  background: var(--accent-soft);
+}
+.msg-answer p {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.55;
+  color: var(--ink);
+}
+.msg-quote {
+  max-height: 140px;
+  overflow: auto;
+  font-size: var(--fs-3);
+  color: var(--ink-2);
+}

@@ -536,3 +536,8 @@ CREATE TABLE IF NOT EXISTS contact_messages (
 );
 CREATE INDEX IF NOT EXISTS contact_messages_created_idx ON contact_messages (created_at DESC);
 CREATE INDEX IF NOT EXISTS contact_messages_user_idx ON contact_messages (user_id);
+
+-- The admin's answer to a message, sent by e-mail from the Messages tab (docs/DESIGN.md section 38): when, by whom, and what was said.
+ALTER TABLE contact_messages ADD COLUMN IF NOT EXISTS replied_at timestamptz;
+ALTER TABLE contact_messages ADD COLUMN IF NOT EXISTS reply text;
+ALTER TABLE contact_messages ADD COLUMN IF NOT EXISTS replied_by integer REFERENCES users(id) ON DELETE SET NULL;

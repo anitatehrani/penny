@@ -6,9 +6,10 @@ import { EVENT_KINDS, record } from '../lib/audit.js';
 import { IMPERSONATION_MINUTES, rateLimit, requireAdmin } from '../lib/auth.js';
 import { backupStatus } from '../lib/backup.js';
 import { HttpError, idParam, wrap } from '../lib/http.js';
-import { shapeMessage } from '../lib/contact.js';
+import { replyBody, shapeMessage } from '../lib/contact.js';
+import { contactReplyEmail } from '../lib/emailTemplates.js';
 import { legalConfig } from '../lib/legal.js';
-import { appUrl, mailMode } from '../lib/mailer.js';
+import { appUrl, mailMode, sendMail } from '../lib/mailer.js';
 import { notify } from '../lib/notifications.js';
 import { signupsOpen } from '../lib/signups.js';
 import { verifyPassword } from '../lib/password.js';
@@ -357,6 +358,31 @@ const setMark = (column) =>
   });
 router.post('/admin/messages/:id/read', setMark('read_at'));
 router.post('/admin/messages/:id/archive', setMark('archived_at'));
+
+// An answer, sent by e-mail from the address Penny sends from, with the admin's own address as "reply to" so the writer's next message
+// reaches the admin directly. Only an admin can do this, and only to the address the writer gave in the form.
+const replyLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 30, keyFn: (req) => `contact-reply:${req.user.id}`, message: 'You have sent a lot of replies this hour. Try again later.' });
+router.post(
+  '/admin/messages/:id/reply',
+  replyLimiter,
+  wrap(async (req, res) => {
+    const id = idParam(req);
+    const { reply } = replyBody.parse(req.body ?? {});
+    const m = (await query('SELECT * FROM contact_messages WHERE id = $1', [id])).rows[0];
+    if (!m) throw new HttpError(404, 'Not found');
+    const mail = contactReplyEmail({ name: m.name, reply, original: m.message, topic: shapeMessage(m).topic_label });
+    let sent;
+    try {
+      sent = await sendMail({ to: m.email, subject: mail.subject, text: mail.text, html: mail.html, headers: { 'Reply-To': `${req.user.name.replace(/[\r\n"<>]/g, '')} <${req.user.email}>` } });
+    } catch (err) {
+      await query(`INSERT INTO email_log (user_id, to_email, subject, kind, status, error) VALUES ($1, $2, $3, 'contact-reply', 'failed', $4)`, [m.user_id, m.email, mail.subject, String(err.message).slice(0, 300)]);
+      throw new HttpError(502, 'The e-mail could not be sent. Nothing was saved; try again in a moment.');
+    }
+    await query(`INSERT INTO email_log (user_id, to_email, subject, kind, status) VALUES ($1, $2, $3, 'contact-reply', $4)`, [m.user_id, m.email, mail.subject, sent.status]);
+    const { rows } = await query('UPDATE contact_messages SET reply = $2, replied_at = now(), replied_by = $3, read_at = COALESCE(read_at, now()) WHERE id = $1 RETURNING *', [id, reply, req.user.id]);
+    res.json({ message: shapeMessage(rows[0]), unread: await unreadCount(), mail: sent.status });
+  }),
+);
 
 router.delete(
   '/admin/messages/:id',

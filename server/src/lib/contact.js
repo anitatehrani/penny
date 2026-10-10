@@ -14,6 +14,7 @@ export const TOPICS = {
   other: 'Other',
 };
 export const MESSAGE_MIN = 10;
+export const REPLY_MAX = 4000;
 export const MESSAGE_MAX = 4000;
 export const KEEP_DAYS = 365;
 /** Most messages accepted in one day, from everybody together, so a flood cannot fill the database. */
@@ -22,6 +23,7 @@ export const DAILY_CAP = 200;
 // Control characters are dropped (a message is text), line breaks and tabs are kept.
 const text = (max) => z.string().transform((s) => s.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').replace(/\r\n?/g, '\n').trim()).pipe(z.string().max(max, `must be at most ${max} characters`));
 
+export const replyBody = z.object({ reply: text(REPLY_MAX).pipe(z.string().min(2, 'is required')) });
 export const contactBody = z.object({
   name: text(80).pipe(z.string().min(1, 'is required')),
   email: z.string().trim().toLowerCase().email('must be a valid email address').max(254),
@@ -62,4 +64,7 @@ export const shapeMessage = (r) => ({
   read: !!r.read_at,
   archived: !!r.archived_at,
   signed_in: r.user_id != null,
+  replied: !!r.replied_at,
+  replied_at: r.replied_at,
+  reply: r.reply,
 });

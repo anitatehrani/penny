@@ -143,3 +143,21 @@ export function accountDeletedEmail({ name }) {
     text: `Hi ${first},\n\nYour Penny account and everything in it was deleted, as you asked.\n\nCopies kept in our backups are overwritten within about six months. If you did not do this, contact the person who runs the site right away.`,
   };
 }
+
+/** An admin's answer to a message sent through the contact form. The original is quoted so the answer makes sense on its own. */
+export function contactReplyEmail({ name, reply, original, topic }) {
+  const first = name.split(' ')[0];
+  const quoted = original
+    .split('\n')
+    .map((l) => `> ${l}`)
+    .join('\n');
+  return {
+    subject: `Re: your message to Penny (${topic})`,
+    html: shell(
+      `Hi ${first}`,
+      `<div style="white-space:pre-wrap;line-height:1.55">${esc(reply)}</div><div style="margin-top:18px;padding-left:12px;border-left:3px solid #e4e3de;color:#6b6a65;font-size:13px;white-space:pre-wrap;line-height:1.5"><div style="margin-bottom:4px">You wrote:</div>${esc(original)}</div>`,
+      'You get this because you wrote to Penny through the contact form. You can answer this e-mail.',
+    ),
+    text: `Hi ${first},\n\n${reply}\n\n---\nYou wrote:\n${quoted}\n`,
+  };
+}

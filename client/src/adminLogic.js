@@ -112,9 +112,3 @@ export function messagePreview(text, max = 120) {
   const one = line.trim().replace(/\s+/g, ' ');
   return one.length > max ? `${one.slice(0, max - 1).trimEnd()}…` : one;
 }
-
-/** A link that opens the admin's own mail program, addressed to the writer, with a subject that says what it answers. */
-export function replyHref(m) {
-  const subject = `Re: your message to Penny (${m.topic_label})`;
-  return `mailto:${encodeURIComponent(m.email).replace('%40', '@')}?subject=${encodeURIComponent(subject)}`;
-}

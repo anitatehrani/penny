@@ -1,16 +1,25 @@
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 import { DAILY_CAP, KEEP_DAYS, MESSAGE_MAX, pruneContactMessages } from '../src/lib/contact.js';
-import { Client, eventually, fails, ok, PW, shutdown, signup, startServer } from './helpers.js';
+import { Client, eventually, fails, headerOf, ok, PW, shutdown, signup, startFakeSmtp, startServer } from './helpers.js';
 
 // The contact form and the admin's Messages tab (docs/DESIGN.md section 38).
 // TRUST_PROXY lets each test come from its own made-up address, because the form allows only a few messages an hour from one place.
-let srv;
+let srv; // no mail server: e-mails are only saved in a folder
+let mailSrv; // a (fake) mail server that records what is sent
+let brokenSrv; // a mail server that is not there
+let fake;
 before(async () => {
-  srv = await startServer('contact', { TRUST_PROXY: '1' });
+  fake = await startFakeSmtp();
+  [srv, mailSrv, brokenSrv] = await Promise.all([
+    startServer('contact', { TRUST_PROXY: '1' }),
+    startServer('contactmail', { ...fake.env, TRUST_PROXY: '1' }),
+    startServer('contactbad', { ...fake.env, SMTP_PORT: '1', TRUST_PROXY: '1' }),
+  ]);
 });
 after(async () => {
-  await shutdown(srv);
+  await fake.close();
+  await shutdown(srv, mailSrv, brokenSrv);
 });
 
 const q = (sql, params) => srv.db.query(sql, params);
@@ -140,7 +149,7 @@ describe('the admin\'s Messages tab', () => {
     const all = await list(a, '?filter=all');
     assert.deepEqual(all.messages.map((m) => m.name), ['Third', 'Second', 'First']);
     assert.equal(all.unread, 3);
-    assert.deepEqual(Object.keys(all.messages[0]).sort(), ['archived', 'created_at', 'email', 'id', 'message', 'name', 'read', 'signed_in', 'topic', 'topic_label']);
+    assert.deepEqual(Object.keys(all.messages[0]).sort(), ['archived', 'created_at', 'email', 'id', 'message', 'name', 'read', 'replied', 'replied_at', 'reply', 'signed_in', 'topic', 'topic_label']);
     assert.equal((await list(a)).total, 3, 'unread is the default view');
     const second = all.messages[1];
     ok(await a.client.post(`/admin/messages/${second.id}/read`, { value: true }));
@@ -246,5 +255,108 @@ describe('what happens to a message afterwards', () => {
       ('new', 'n@example.com', 'other', 'a recent message here', now() - make_interval(days => $1 - 5), NULL)`, [KEEP_DAYS]);
     await pruneContactMessages(srv.db);
     assert.deepEqual((await q('SELECT name FROM contact_messages')).rows.map((r) => r.name), ['new']);
+  });
+});
+
+describe('answering a message from the Messages tab', () => {
+  const sendTo = (server, body = GOOD) => new Client(server.base).raw('POST', '/contact', { body, headers: { 'x-forwarded-for': newIp() } });
+  async function adminOn(server) {
+    const p = await signup(server);
+    await server.db.query('UPDATE users SET is_admin = true WHERE id = $1', [p.user.id]);
+    return p;
+  }
+  const firstId = async (a) => ok(await a.client.get('/admin/messages?filter=all')).messages[0].id;
+  const mailed = () => fake.messages.length;
+
+  it('the answer goes to the writer by e-mail, quoting what they wrote, with the admin as "reply to"', async () => {
+    const a = await adminOn(mailSrv);
+    ok(await sendTo(mailSrv, { ...GOOD, name: 'Sam Visitor', email: 'sam@example.com', topic: 'problem', message: 'My forecast looks wrong after the card bill.\nCan you check?' }), 201);
+    const id = await firstId(a);
+    const before = mailed();
+    const r = ok(await a.client.post(`/admin/messages/${id}/reply`, { reply: 'Hi Sam, <b>thanks</b> for telling me.\nIt is fixed now.' }));
+    assert.equal(r.mail, 'sent');
+    assert.equal(mailed(), before + 1);
+    const m = fake.messages.at(-1);
+    assert.match(m.to, /sam@example\.com/);
+    assert.equal(m.subject, 'Re: your message to Penny (Something is wrong)');
+    assert.match(m.text, /^Hi Sam,\n\nHi Sam, <b>thanks<\/b> for telling me\.\nIt is fixed now\./);
+    assert.match(m.text, /> My forecast looks wrong after the card bill\.\n> Can you check\?/);
+    assert.ok(m.html.includes('&lt;b&gt;thanks&lt;/b&gt;') && !m.html.includes('<b>thanks'), 'markup in the answer is shown as text');
+    assert.ok(headerOf(m, 'Reply-To').includes(a.user.email), 'replies go to the admin: ' + headerOf(m, 'Reply-To'));
+    assert.match(headerOf(m, 'From'), /alerts@test\.local/);
+  });
+
+  it('it is kept: marked replied and read, with what was said, in the list and in the e-mail log', async () => {
+    const a = await adminOn(mailSrv);
+    ok(await sendTo(mailSrv, { ...GOOD, email: 'logged@example.com', message: 'Another question for the admin here' }), 201);
+    const id = await firstId(a);
+    const r = ok(await a.client.post(`/admin/messages/${id}/reply`, { reply: 'Here is the answer.' }));
+    assert.equal(r.message.replied, true);
+    assert.equal(r.message.reply, 'Here is the answer.');
+    assert.equal(r.message.read, true);
+    const listed = ok(await a.client.get('/admin/messages?filter=all')).messages.find((x) => x.id === id);
+    assert.equal(listed.replied, true);
+    const log = (await mailSrv.db.query(`SELECT status FROM email_log WHERE kind = 'contact-reply' AND to_email = 'logged@example.com'`)).rows[0];
+    assert.equal(log.status, 'sent');
+    assert.equal((await mailSrv.db.query('SELECT replied_by FROM contact_messages WHERE id = $1', [id])).rows[0].replied_by, a.user.id);
+  });
+
+  it('a bad answer is refused and nothing is sent: empty, too long, no such message', async () => {
+    const a = await adminOn(mailSrv);
+    ok(await sendTo(mailSrv), 201);
+    const id = await firstId(a);
+    const before = mailed();
+    fails(await a.client.post(`/admin/messages/${id}/reply`, { reply: '   ' }), 400);
+    fails(await a.client.post(`/admin/messages/${id}/reply`, { reply: 'x'.repeat(4001) }), 400);
+    fails(await a.client.post(`/admin/messages/${id}/reply`, {}), 400);
+    fails(await a.client.post('/admin/messages/999999/reply', { reply: 'Hello there' }), 404);
+    assert.equal(mailed(), before);
+    assert.equal((await mailSrv.db.query('SELECT replied_at FROM contact_messages WHERE id = $1', [id])).rows[0].replied_at, null);
+  });
+
+  it('only admins can answer: a visitor is asked to sign in, an ordinary person is told "not found"', async () => {
+    const person = await signup(mailSrv);
+    const before = mailed();
+    assert.equal((await new Client(mailSrv.base).post('/admin/messages/1/reply', { reply: 'Hello there' })).status, 401);
+    assert.equal((await person.client.post('/admin/messages/1/reply', { reply: 'Hello there' })).status, 404);
+    assert.equal(mailed(), before);
+  });
+
+  it('when the mail server cannot be reached the admin is told, and the message is not marked as answered', async () => {
+    const a = await adminOn(brokenSrv);
+    ok(await sendTo(brokenSrv), 201);
+    const id = await firstId(a);
+    const e = fails(await a.client.post(`/admin/messages/${id}/reply`, { reply: 'This cannot be delivered.' }), 502);
+    assert.match(e.error, /could not be sent/);
+    const row = (await brokenSrv.db.query('SELECT replied_at, reply FROM contact_messages WHERE id = $1', [id])).rows[0];
+    assert.equal(row.replied_at, null);
+    assert.equal(row.reply, null);
+    assert.equal((await brokenSrv.db.query(`SELECT status FROM email_log WHERE kind = 'contact-reply'`)).rows[0].status, 'failed');
+  });
+
+  it('without a mail server it only saves a preview, and says so', async () => {
+    const a = await admin();
+    ok(await send(GOOD), 201);
+    const id = (await list(a)).messages[0].id;
+    assert.equal(ok(await a.client.post(`/admin/messages/${id}/reply`, { reply: 'Saved but not sent.' })).mail, 'preview');
+  });
+
+  it('a name with line breaks cannot add headers such as a hidden copy to somebody else', async () => {
+    const a = await adminOn(mailSrv);
+    await mailSrv.db.query('UPDATE users SET name = $2 WHERE id = $1', [a.user.id, 'Evil\r\nBcc: victim@example.com']);
+    ok(await sendTo(mailSrv), 201);
+    const id = await firstId(a);
+    ok(await a.client.post(`/admin/messages/${id}/reply`, { reply: 'Hello from a tricky name.' }));
+    const m = fake.messages.at(-1);
+    assert.equal(headerOf(m, 'Bcc'), undefined);
+    assert.equal(m.headerLines.filter((l) => /victim@example\.com/.test(l) && !/^reply-to:/i.test(l)).length, 0, 'no header other than Reply-To names the victim');
+  });
+
+  it('an admin can send 30 answers an hour, and the 31st is turned away', async () => {
+    const a = await adminOn(mailSrv);
+    ok(await sendTo(mailSrv), 201);
+    const id = await firstId(a);
+    for (let i = 0; i < 30; i++) ok(await a.client.post(`/admin/messages/${id}/reply`, { reply: `Answer number ${i + 1}` }));
+    fails(await a.client.post(`/admin/messages/${id}/reply`, { reply: 'One too many' }), 429);
   });
 });

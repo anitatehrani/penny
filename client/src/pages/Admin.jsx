@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api.js';
-import { agoText, checkSummary, deleteConfirmed, eventWho, formatBytes, messagePreview, percent, personBadges, rangeText, replyHref, signInMethods, signupBars, uptimeText, viewAsProblem } from '../adminLogic.js';
+import { agoText, checkSummary, deleteConfirmed, eventWho, formatBytes, messagePreview, percent, personBadges, rangeText, signInMethods, signupBars, uptimeText, viewAsProblem } from '../adminLogic.js';
 import { backupLine } from '../backupLogic.js';
 import Select from '../components/ds/Select.jsx';
 import { Field, Icon, Loading, Modal, ErrorBox, Empty } from '../components/ui.jsx';
@@ -557,10 +557,58 @@ const MESSAGE_FILTERS = [
   { value: 'archived', label: 'Archived' },
 ];
 
-function MessageItem({ m, open, onToggle, onChange, onCount }) {
+/** Answer a message by e-mail, from here. The writer gets it from Penny's address, and their reply goes to the admin's own address. */
+function ReplyDialog({ m, onClose, onDone }) {
+  const { notify } = useApp();
+  const { user } = useAuth();
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  async function submit(e) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await api.post(`/admin/messages/${m.id}/reply`, { reply: text });
+      if (r.mail === 'preview') notify('Saved, but not e-mailed: this server has no mail server set up (see System).', 'error');
+      else notify(`Answer sent to ${m.name}`);
+      onDone(r.message, r.unread);
+    } catch (err) {
+      setError(err.message);
+      setBusy(false);
+    }
+  }
+  return (
+    <Modal title={`Answer ${m.name}`} onClose={onClose} wide>
+      <form onSubmit={submit} className="form">
+        {error && <ErrorBox error={{ message: error }} />}
+        <p className="muted small">
+          To <strong>{m.email}</strong>. It is sent from Penny with your address ({user.email}) as the reply address, so when {m.name.split(' ')[0]} answers, it reaches you directly. What they wrote is quoted underneath.
+        </p>
+        <p className="msg-text msg-quote">{m.message}</p>
+        <Field label="Your answer">
+          <textarea value={text} onChange={(e) => setText(e.target.value)} rows={7} maxLength={4000} required autoFocus />
+        </Field>
+        <div className="form-actions">
+          <button type="button" className="btn" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className="btn primary" disabled={busy || text.trim().length < 2}>
+            <Icon name="send" size={14} /> {busy ? 'Sending…' : 'Send answer'}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function MessageItem({ m: base, open, onToggle, onChange, onCount }) {
   const { notify } = useApp();
   // reading a message in the Unread list must not make it vanish from under the reader, so what was just read is remembered here
   const [local, setLocal] = useState(null);
+  const [replying, setReplying] = useState(false);
+  const [patch, setPatch] = useState(null); // what changed here (an answer was sent), shown without making the message leave the list it is in
+  const m = patch ? { ...base, ...patch } : base;
   const read = local ?? m.read;
   async function act(path, value, message) {
     try {
@@ -606,13 +654,19 @@ function MessageItem({ m, open, onToggle, onChange, onCount }) {
       {open && (
         <div className="msg-body">
           <p className="msg-text">{m.message}</p>
+          {m.replied && (
+            <div className="msg-answer">
+              <span className="muted small">You answered {agoText(m.replied_at)}:</span>
+              <p>{m.reply}</p>
+            </div>
+          )}
           <p className="muted small">
             Sent {whenText(m.created_at)}{m.signed_in ? ', while signed in to an account' : ', without signing in'}.
           </p>
           <div className="admin-actions">
-            <a className="btn sm primary-soft" href={replyHref(m)}>
-              <Icon name="send" size={14} /> Reply by e-mail
-            </a>
+            <button className="btn sm primary-soft" onClick={() => setReplying(true)}>
+              <Icon name="send" size={14} /> {m.replied ? 'Answer again' : 'Answer by e-mail'}
+            </button>
             <button className="btn sm" onClick={() => act('read', !read)}>
               <Icon name={read ? 'undo' : 'check'} size={14} /> {read ? 'Mark unread' : 'Mark read'}
             </button>
@@ -624,6 +678,18 @@ function MessageItem({ m, open, onToggle, onChange, onCount }) {
             </button>
           </div>
         </div>
+      )}
+      {replying && (
+        <ReplyDialog
+          m={m}
+          onClose={() => setReplying(false)}
+          onDone={(message, unread) => {
+            setReplying(false);
+            setPatch(message);
+            setLocal(true);
+            onCount(unread);
+          }}
+        />
       )}
     </li>
   );
@@ -645,7 +711,7 @@ function Messages({ onUnread }) {
     <>
       <div className="admin-filters">
         <Select label="Show" value={filter} onChange={(v) => { setFilter(v); setPage(1); setOpenId(null); }} options={MESSAGE_FILTERS} variant="filter" />
-        <p className="muted small admin-note">What people wrote through the contact form. Kept for a year, then deleted. Answer by e-mail: the writer is not told anything automatically.</p>
+        <p className="muted small admin-note">What people wrote through the contact form. Kept for a year, then deleted. Open a message to answer it by e-mail; the writer is not told anything automatically.</p>
       </div>
       {error ? (
         <ErrorBox error={error} />
