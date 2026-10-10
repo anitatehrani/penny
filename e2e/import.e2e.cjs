@@ -171,6 +171,9 @@ const text = (page, sel = 'body') => page.$eval(sel, (e) => e.textContent);
 
   await check('Payments has the new button next to Add payment, and Add payment still works', async () => {
     truthy(/Import statement/.test(await text(page, '.head-actions')), 'the Import statement button');
+    truthy(/Export data/.test(await text(page, '.head-actions')), 'the export button says what it does in plain words');
+    truthy(!/CSV/.test(await text(page, '.head-actions')), 'and does not use the word CSV');
+    await shot(page, '0-header');
     await clickText(page, /Add payment/);
     await page.waitForSelector('.modal form, .modal input');
     truthy(/Add payment/.test(await text(page, '.modal')), 'the add payment form');

@@ -28,10 +28,10 @@ export async function openStatement(bytes, { pdfjs, password } = {}) {
   const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   if (!b.length) throw new ImportError('empty', 'That file is empty.');
   if (startsWithPdf(b)) {
-    if (b.length > MAX_PDF_BYTES) throw new ImportError('toobig', 'That PDF is larger than 15 MB. Download the CSV or Excel version from your bank instead.');
+    if (b.length > MAX_PDF_BYTES) throw new ImportError('toobig', 'That PDF is larger than 15 MB. Choose a shorter period, or download the statement from your bank as a spreadsheet instead.');
     const pages = await readPdfWords(b, { pdfjs, password });
     if (!pages.some((p) => p.items.length)) {
-      throw new ImportError('scan', 'This PDF has no text in it: it is probably a scan, a photo of paper. Penny cannot read pictures. Download the statement as CSV or Excel from your bank, or as a PDF made by the bank.');
+      throw new ImportError('scan', 'This PDF has no text in it: it is probably a scan, a photo of paper. Penny cannot read pictures. Download the statement again from the website or app of your bank, as a PDF the bank makes or as a spreadsheet.');
     }
     const found = layoutPdf(pages);
     let tables = found.tables;
@@ -40,7 +40,7 @@ export async function openStatement(bytes, { pdfjs, password } = {}) {
       if (loose) tables = [loose];
     }
     if (!tables.length) {
-      throw new ImportError('notable', 'Penny could not find a table of payments in this PDF. If your bank also offers the statement as CSV or Excel, that is the more reliable way.');
+      throw new ImportError('notable', 'Penny could not find a list of payments in this PDF. If your bank also offers the statement as a spreadsheet, that is the more reliable way.');
     }
     // the words near the top of the first page (the currency of the statement) are all that is read outside the tables
     const header = found.lines[0]?.slice(0, 12).map((l) => l.text).join(' ') ?? '';
@@ -48,7 +48,7 @@ export async function openStatement(bytes, { pdfjs, password } = {}) {
   }
   if (isZip(b)) return { kind: 'xlsx', grids: readXlsx(b) };
   if (isOle(b)) {
-    throw new ImportError('oldexcel', 'That is an old Excel file (.xls). Open it in Excel and use Save As to make an .xlsx or CSV file, then choose that one.');
+    throw new ImportError('oldexcel', 'That is an old kind of spreadsheet file (.xls). Open it in Excel, choose Save As, pick the newer Excel format (.xlsx), and then choose that file here.');
   }
   if (b.length > MAX_TEXT_BYTES) throw new ImportError('toobig', 'That file is larger than 12 MB.');
   const text = decodeText(b);

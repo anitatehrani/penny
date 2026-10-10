@@ -5,6 +5,8 @@
  *   2. cd e2e && npm run landing        (APP_URL, DATABASE_URL and CHROME_PATH work as for the browser checks)
  *   3. rebuild the client (cd client && npx vite build)
  *
+ * ONLY=import (or a comma list: dashboard,forecast,payments,installments,shared,debts,import,og) makes just those pictures and leaves the rest as they are.
+ *
  * It changes the demo account (a roomier opening balance so the first picture shows a healthy budget, and two made-up debts for the Debts
  * picture), so never run it against real data: it refuses unless the database name has "scratch" or "demo" in it, or FORCE=1 is set.
  */
@@ -21,6 +23,8 @@ const CHROME =
   process.env.CHROME_PATH ||
   ['C:/Program Files/Google/Chrome/Application/chrome.exe', 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', '/usr/bin/google-chrome', '/usr/bin/chromium', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'].find((p) => fs.existsSync(p));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const only = (process.env.ONLY || '').split(',').map((x) => x.trim()).filter(Boolean);
+const want = (name) => !only.length || only.includes(name);
 
 (async () => {
   if (!CHROME) throw new Error('Chrome not found: set CHROME_PATH');
@@ -40,8 +44,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     return res.json();
   };
   // a roomier balance, so the first thing a visitor sees is a healthy budget (the debts come later, only for their own picture)
-  const cur = await api('GET', '/settings');
-  await api('PUT', '/settings', { opening_balance: Number(cur.opening_balance) + 4200, currency: cur.currency });
+  if (!only.length) {
+    const cur = await api('GET', '/settings');
+    await api('PUT', '/settings', { opening_balance: Number(cur.opening_balance) + 4200, currency: cur.currency });
+  }
 
   const browser = await puppeteer.launch({ executablePath: CHROME, headless: 'new', args: ['--no-sandbox', '--allow-file-access-from-files'] });
   const take = async (name, url, theme, ws) => {
@@ -57,16 +63,53 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     await ctx.close();
   };
   for (const theme of ['light', 'dark']) {
-    await take('dashboard', '/', theme, personal);
-    await take('forecast', '/forecast', theme, personal);
-    await take('payments', '/payments', theme, personal);
-    await take('installments', '/installments', theme, personal);
-    await take('shared', '/', theme, group);
+    if (want('dashboard')) await take('dashboard', '/', theme, personal);
+    if (want('forecast')) await take('forecast', '/forecast', theme, personal);
+    if (want('payments')) await take('payments', '/payments', theme, personal);
+    if (want('installments')) await take('installments', '/installments', theme, personal);
+    if (want('shared')) await take('shared', '/', theme, group);
   }
+
+  // the import window on a made-up statement, stopped at the review step (nothing is saved)
+  if (want('import')) {
+    const day = (n) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
+    const lines = [
+      ['ESSELUNGA MILANO 0123', -45.3, 13],
+      ['ZARA ITALIA SRL', -59.9, 11],
+      ['NETFLIX.COM', -15.49, 9],
+      ['UBER *TRIP', -18.2, 7],
+      ['Studio Verdi', -85.0, 5],
+      ['TRANSFER TO SAVINGS', -200.0, 4],
+      ['PAYROLL ACME SPA', 2600.0, 3],
+      ['ENI STATION 1234', -42.0, 2],
+    ];
+    const file = path.join(require('node:os').tmpdir(), 'penny-landing-statement.csv');
+    fs.writeFileSync(file, ['Date,Description,Amount', ...lines.map(([d, a, n]) => `${day(n)},${d},${a.toFixed(2)}`)].join('\n'));
+    for (const theme of ['light', 'dark']) {
+      const ctx = await browser.createBrowserContext();
+      const page = await ctx.newPage();
+      await page.setViewport({ width: 1280, height: 800, deviceScaleFactor: 1.5 });
+      await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: theme }, { name: 'prefers-reduced-motion', value: 'reduce' }]);
+      await page.setCookie({ name: 'sid', value: token, url: BASE });
+      await page.evaluateOnNewDocument((key, id) => { try { localStorage.setItem(key, String(id)); } catch { /* ignore */ } }, `workspace:${alex.id}`, personal.id);
+      await page.goto(BASE + '/payments', { waitUntil: 'networkidle0' });
+      await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => /Import statement/.test(b.textContent))?.click());
+      await page.waitForSelector('input[type=file]');
+      await (await page.$('input[type=file]')).uploadFile(file);
+      await page.waitForSelector('.imp-line', { timeout: 20000 });
+      await sleep(900);
+      await page.screenshot({ path: path.join(OUT, `import-${theme}.webp`), type: 'webp', quality: 80 });
+      await ctx.close();
+    }
+    fs.rmSync(file, { force: true });
+  }
+  if (want('debts')) {
   const laptop = await api('POST', '/debts', { name: 'Laptop from Sam', total_amount: 900, plan: 'monthly', first_due_date: '2026-11-05', installment_count: 6, count_in_budget: true });
   await api('POST', '/debts', { name: 'Dentist payment plan', total_amount: 420, plan: 'monthly', first_due_date: '2026-10-20', installment_count: 3, count_in_budget: true });
   await api('POST', `/debts/${laptop.id}/payments`, { amount: 150, date: '2026-10-05' });
   for (const theme of ['light', 'dark']) await take('debts', '/debts', theme, personal);
+  }
+  if (want('og')) {
 
   // the share image: the headline and the dashboard picture on a soft background
   const pub = path.resolve(__dirname, '../client/public');
@@ -94,6 +137,7 @@ p { margin: 26px 0 0; font-size: 29px; line-height: 1.4; color: #474a52; }
   await og.goto(url(tmp), { waitUntil: 'networkidle0' });
   await sleep(500);
   await og.screenshot({ path: path.join(OUT, 'og.png'), type: 'png' });
+  }
 
   await browser.close();
   await db.end();

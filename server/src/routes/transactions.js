@@ -233,7 +233,7 @@ router.get(
         r.note,
       ].map(csvCell).join(','),
     );
-    res.type('text/csv').attachment('transactions.csv').send([head.join(','), ...lines].join('\n'));
+    res.type('text/csv').attachment('penny-payments.csv').send([head.join(','), ...lines].join('\n'));
   }),
 );
 

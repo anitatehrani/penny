@@ -352,10 +352,12 @@
   justify-content: space-between;
   gap: var(--s-2) var(--s-4);
   position: sticky;
-  bottom: -1px;
+  /* the dialog's backdrop has 16px of padding that sticky respects: reach down through it so nothing shows underneath */
+  bottom: -16px;
   z-index: 2;
   background: var(--surface);
-  padding: var(--s-3) 0 var(--s-1);
+  margin-bottom: -16px;
+  padding: var(--s-3) 0 calc(var(--s-1) + 16px);
   border-top: 1px solid var(--line);
 }
 .imp-foot-bar .modal-actions {

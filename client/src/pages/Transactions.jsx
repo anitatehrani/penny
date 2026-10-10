@@ -128,8 +128,8 @@ export default function Transactions() {
           <p className="muted">Everything you paid or still have to pay. Add past payments by choosing an earlier date.</p>
         </div>
         <div className="head-actions">
-          <a className="btn" href={`/api/transactions/export.csv${qs({ month: status === 'overdue' ? '' : month, status, type, pay, category_id: category, member, ws: current.id })}`}>
-            <Icon name="download" /> CSV
+          <a className="btn" href={`/api/transactions/export.csv${qs({ month: status === 'overdue' ? '' : month, status, type, pay, category_id: category, member, ws: current.id })}`} title="Save the payments shown here in a file that opens like a spreadsheet">
+            <Icon name="download" /> Export data
           </a>
           <button className="btn" onClick={() => setImporting(true)}>
             <Icon name="upload" /> Import statement

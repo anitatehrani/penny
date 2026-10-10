@@ -717,6 +717,88 @@
 }
 .lp-g {
   grid-column: 9 / 13;
+  grid-row: 3;
+}
+.lp-h {
+  --c: var(--lp-teal);
+  grid-column: 1 / 13;
+  grid-row: 4;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: 28px;
+  align-items: center;
+}
+.lp-h-text > p {
+  margin: 14px 0 0;
+  line-height: 1.55;
+}
+/* a statement turning into lines with a category each */
+.lp-import {
+  display: grid;
+  gap: 12px;
+}
+.lp-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  justify-self: start;
+  padding: 8px 14px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 12px;
+  background: var(--surface);
+  font-size: var(--fs-3);
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.lp-file small {
+  font-weight: 500;
+  color: var(--ink-3);
+}
+.lp-lines {
+  list-style: none;
+  margin: 0;
+  padding: 4px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.lp-lines li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 76px;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 0;
+  border-top: 1px solid var(--line);
+  font-size: var(--fs-3);
+}
+.lp-lines li:first-child {
+  border-top: 0;
+}
+.lp-lines span {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lp-lines i {
+  font-style: normal;
+  font-size: var(--fs-1);
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--c, var(--accent)) 18%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--c, var(--accent)) 40%, var(--line));
+}
+.lp-lines i.q {
+  --c: var(--lp-amber);
+}
+.lp-lines b {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
 }
 .lp-mini-forecast {
   display: flex;
@@ -1529,13 +1611,19 @@
   .lp-d,
   .lp-e,
   .lp-f,
-  .lp-g {
+  .lp-g,
+  .lp-h {
     grid-column: auto;
     grid-row: auto;
   }
   .lp-a,
-  .lp-b {
+  .lp-b,
+  .lp-h {
     grid-column: 1 / -1;
+  }
+  .lp-h {
+    grid-template-columns: 1fr;
+    gap: 20px;
   }
   .lp-steps {
     grid-template-columns: 1fr;

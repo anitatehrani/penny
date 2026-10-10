@@ -20,7 +20,7 @@ export async function loadPdfjs() {
  */
 export async function readPdfWords(bytes, { pdfjs, password } = {}) {
   if (!pdfjs) throw new Error('readPdfWords needs the PDF library');
-  if (bytes.byteLength > MAX_PDF_BYTES) throw new ImportError('toobig', 'That PDF is larger than 15 MB. Download the CSV or Excel version from your bank instead.');
+  if (bytes.byteLength > MAX_PDF_BYTES) throw new ImportError('toobig', 'That PDF is larger than 15 MB. Choose a shorter period, or download the statement from your bank as a spreadsheet instead.');
   const task = pdfjs.getDocument({
     data: new Uint8Array(bytes), // a copy: the reader takes ownership of what it is given
     password,

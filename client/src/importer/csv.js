@@ -139,6 +139,6 @@ export function readHtmlTable(text) {
     );
   const best = (tables.length ? tables : [text]).map(rowsOf).sort((a, b) => b.length - a.length)[0] ?? [];
   const rows = best.filter((r) => r.some((c) => c !== '')).slice(0, MAX_ROWS);
-  if (!rows.length) throw new ImportError('empty', 'Penny found no table in that file.');
+  if (!rows.length) throw new ImportError('empty', 'Penny found no list of payments in that file.');
   return { source: 'csv', name: 'File', rows };
 }

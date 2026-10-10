@@ -289,11 +289,11 @@ export default function Settings() {
 
       <section className="card">
         <div className="card-head">
-          <h2>Export</h2>
+          <h2>Export your payments</h2>
         </div>
-        <p className="muted">Download every payment as a CSV file you can open in Excel or Google Sheets.</p>
+        <p className="muted">Save all your payments in one file. It opens like a spreadsheet, in Excel, Numbers or Google Sheets, so you can keep it or look at it on a computer.</p>
         <a className="btn" href={`/api/transactions/export.csv?status=&ws=${current.id}`}>
-          <Icon name="download" /> Download all payments
+          <Icon name="download" /> Export all payments
         </a>
       </section>
 

@@ -290,6 +290,55 @@ function Bento() {
             </div>
           </article>
 
+          <article className="lp-card lp-h lp-reveal">
+            <div className="lp-h-text">
+              <header>
+                <span className="lp-chipicon">
+                  <Icon name="upload" size={18} />
+                </span>
+                <h3>Bring in a bank statement</h3>
+              </header>
+              <p>
+                Drop in a statement from your bank, as a PDF or a spreadsheet file. Penny finds the columns by itself, suggests a category for every line, spots what is already there and shows you everything before it saves a thing. The file is read on your
+                device and never uploaded.
+              </p>
+            </div>
+            <div className="lp-import" aria-hidden="true">
+              <div className="lp-file">
+                <Icon name="file" size={18} />
+                <span>statement.pdf</span>
+                <small>38 lines</small>
+              </div>
+              <ul className="lp-lines">
+                <li>
+                  <span>Esselunga</span>
+                  <i style={{ '--c': 'var(--lp-teal)' }}>Groceries</i>
+                  <b>−€45.30</b>
+                </li>
+                <li>
+                  <span>Zara</span>
+                  <i style={{ '--c': 'var(--lp-pink)' }}>Clothing</i>
+                  <b>−€59.90</b>
+                </li>
+                <li>
+                  <span>Netflix</span>
+                  <i style={{ '--c': 'var(--lp-violet)' }}>Subscriptions</i>
+                  <b>−€15.49</b>
+                </li>
+                <li>
+                  <span>Uber</span>
+                  <i style={{ '--c': 'var(--lp-sky)' }}>Transport</i>
+                  <b>−€18.20</b>
+                </li>
+                <li className="check">
+                  <span>Corner bakery</span>
+                  <i className="q">Check</i>
+                  <b>−€5.80</b>
+                </li>
+              </ul>
+            </div>
+          </article>
+
           <article className="lp-card lp-g lp-reveal">
             <header>
               <span className="lp-chipicon">
@@ -338,6 +387,21 @@ const TOUR = [
     title: 'Everything you pay, in one calm list',
     text: 'Pending, paid and overdue are clear at a glance. Rent, salary and subscriptions repeat by themselves, weekly, monthly or yearly, with an end date if they have one.',
     points: ['Change one month, or every month still to come', 'Categories, search and filters', 'Attach a receipt to a payment', 'Past dates count as already paid'],
+  },
+  {
+    id: 'import',
+    icon: 'upload',
+    label: 'Import',
+    shot: 'import',
+    alt: 'The import window: the lines of a bank statement, each with a suggested category, and a mark on the ones Penny wants you to check',
+    title: 'Bring in a whole statement instead of typing it',
+    text: 'Choose a statement from your bank, as a PDF or a spreadsheet file. Penny reads it on your device, suggests a category for every line, and shows you the lot before anything is saved.',
+    points: [
+      'No list of supported banks: Penny works out the layout of the file itself, and asks you once if it cannot',
+      'Esselunga is Groceries, Zara is Clothing, Netflix is Subscriptions; what Penny is unsure about is marked',
+      'Lines already in your payments are spotted, and a scheduled bill can be marked paid instead of added twice',
+      'Penny remembers the categories you correct; one click undoes a whole import',
+    ],
   },
   {
     id: 'installments',
@@ -423,16 +487,16 @@ function Tour() {
   );
 }
 
-const MARQUEE = ['Forecast', 'Recurring bills', 'Installments', 'Credit cards', 'Debts', 'Shared budgets', 'Receipts', 'Alerts', 'Insights', 'Ask Penny', 'Any currency', 'Light and dark'];
+const MARQUEE = ['Forecast', 'Recurring bills', 'Installments', 'Credit cards', 'Debts', 'Shared budgets', 'Bank statement import', 'Receipts', 'Alerts', 'Insights', 'Ask Penny', 'Any currency', 'Light and dark'];
 
 const STEPS = [
-  { icon: 'plus', title: 'Add what you pay and earn', text: 'One-off payments, rent and salary that repeat, installments, money you owe and money owed to you. Enter it once.' },
+  { icon: 'plus', title: 'Add what you pay and earn', text: 'One-off payments, rent and salary that repeat, installments, money you owe and money owed to you. Enter it once, or import a bank statement.' },
   { icon: 'trend', title: 'See what is ahead', text: 'Your balance month by month, a warning well before it dips below zero, and a figure for what is safe to spend today.' },
   { icon: 'bell', title: 'Stay in control', text: 'Alerts before a bill is due, plain answers when you ask a question, and nothing hidden in the numbers.' },
 ];
 
 const PRIVACY = [
-  { icon: 'shield', title: 'Private by design', text: 'No ads, no tracking, no selling your data. No bank login to hand over.' },
+  { icon: 'shield', title: 'Private by design', text: 'No ads, no tracking, no selling your data. No bank login to hand over, and a statement you import is read on your device, never uploaded.' },
   { icon: 'download', title: 'Yours to take', text: 'Download everything you have entered as a file, whenever you like.' },
   { icon: 'trash', title: 'Yours to delete', text: 'One button removes your account and everything in it, immediately.' },
   { icon: 'eye', title: 'No surprises', text: 'If the person running the site ever has to look inside your account to help you, they need a written reason, and you are told.' },
@@ -440,7 +504,8 @@ const PRIVACY = [
 
 const FAQ = [
   { q: 'Is Penny free?', a: 'Yes. You can sign up and use it without paying.' },
-  { q: 'Does it connect to my bank?', a: 'No, on purpose. You enter payments yourself, or set them to repeat, so Penny never sees your bank login. When your real balance and Penny\'s drift apart, "Match my bank balance" fixes it in one step.' },
+  { q: 'Does it connect to my bank?', a: 'No, on purpose, so Penny never sees your bank login. You enter payments yourself, set them to repeat, or import a statement file from your bank. When your real balance and Penny\'s drift apart, "Match my bank balance" fixes it in one step.' },
+  { q: 'Can I import a bank statement?', a: 'Yes: a PDF or a spreadsheet file (CSV or Excel), from any bank. Penny works out the layout by itself (it reads English, Italian, German, French, Spanish, Portuguese and Dutch headings), suggests a category for each line and lets you check everything before it saves. The file is read in your browser and never uploaded, and one click undoes an import.' },
   { q: 'Who can see my data?', a: 'You, and the people you share a budget with, in that budget only. The person who runs the site sees account basics, not what your payments are or their amounts. They can look inside your account only to help you, with a written reason, and you are told when it happens.' },
   { q: 'Can I share a budget with my partner or family?', a: 'Yes. Make a shared budget and invite people you are connected with. You can also split single payments between people.' },
   { q: 'What if I want to leave?', a: 'Download everything as a file, then delete your account, both in Settings. Deleting is immediate and complete.' },
@@ -535,7 +600,7 @@ export default function Landing() {
               See your money <span className="lp-grad">months ahead</span>, not just where it went.
             </h1>
             <p className="lp-lead">
-              Penny turns your payments, recurring bills, installments and debts into one clear forecast. Share a budget with the people you live with. No bank login, no ads, no selling your data.
+              Penny turns your payments, recurring bills, installments and debts into one clear forecast. Bring in a bank statement instead of typing, and share a budget with the people you live with. No bank login, no ads, no selling your data.
             </p>
             <div className="lp-cta">
               {signup}

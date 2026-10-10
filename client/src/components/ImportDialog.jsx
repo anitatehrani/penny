@@ -242,7 +242,7 @@ function Pick({ onFile, error, onChanged, onMemory }) {
       >
         <Icon name="upload" size={28} />
         <strong>Drop a statement here</strong>
-        <span className="muted">CSV, Excel (.xlsx) or PDF, from any bank</span>
+        <span className="muted">A PDF or a spreadsheet (CSV or Excel) from your bank, from any bank</span>
         <button type="button" className="btn primary" onClick={() => input.current?.click()}>
           Choose a file
         </button>
