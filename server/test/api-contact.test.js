@@ -161,6 +161,35 @@ describe('the admin\'s Messages tab', () => {
     fails(await a.client.get('/admin/messages?filter=bogus'), 400);
   });
 
+  it('the three counts are always there, and a search narrows the list and the counts together: name, address, text, or a reply', async () => {
+    await wipe();
+    const a = await admin();
+    await q(`INSERT INTO contact_messages (name, email, topic, message, read_at, archived_at) VALUES
+      ('Sam Rivera', 'sam@example.com', 'question', 'How do I move a payment to next month?', NULL, NULL),
+      ('Priya Nair', 'priya@work.example.org', 'problem', 'The forecast shows 100% more than the dashboard', NULL, NULL),
+      ('Chris Walker', 'chris@example.com', 'account', 'Please delete my account', now(), NULL),
+      ('Dana Lee', 'dana@example.com', 'idea', 'An idea about cards', now(), now()),
+      ('Sam Archived', 'sam.old@example.com', 'other', 'An old question about cards', NULL, now())`);
+    const dana = (await q("SELECT id FROM contact_messages WHERE name = 'Dana Lee'")).rows[0].id;
+    await q(`INSERT INTO contact_replies (message_id, direction, body) VALUES ($1, 'out', 'The unicorn setting is under Settings')`, [dana]);
+    const all = await list(a, '?filter=all');
+    assert.deepEqual(all.counts, { unread: 2, all: 3, archived: 2 });
+    assert.equal(all.total, 3);
+    const sam = await list(a, '?filter=all&q=SAM');
+    assert.deepEqual(sam.counts, { unread: 1, all: 1, archived: 1 }, 'the counts follow the search, in any case');
+    assert.deepEqual(sam.messages.map((m) => m.name), ['Sam Rivera']);
+    assert.deepEqual((await list(a, '?filter=archived&q=sam')).messages.map((m) => m.name), ['Sam Archived']);
+    assert.deepEqual((await list(a, '?filter=all&q=work.example.org')).messages.map((m) => m.name), ['Priya Nair'], 'the address');
+    assert.deepEqual((await list(a, '?filter=all&q=delete my')).messages.map((m) => m.name), ['Chris Walker'], 'the text');
+    assert.deepEqual((await list(a, '?filter=archived&q=unicorn')).messages.map((m) => m.name), ['Dana Lee'], 'the words of an answer');
+    assert.deepEqual((await list(a, '?filter=all&q=100%25')).messages.map((m) => m.name), ['Priya Nair'], 'a percent sign is searched for, not a wildcard');
+    assert.equal((await list(a, '?filter=all&q=a_b')).total, 0, 'nor is an underscore');
+    const none = await list(a, '?filter=all&q=nothing-like-this');
+    assert.deepEqual([none.total, none.counts.all, none.counts.archived], [0, 0, 0]);
+    assert.equal(none.unread, 2, 'the number on the tab does not depend on a search');
+    fails(await a.client.get(`/admin/messages?q=${'x'.repeat(101)}`), 400);
+  });
+
   it('mark read and unread, archive and restore; the unread count follows and the first read time is kept', async () => {
     await wipe();
     const a = await admin();

@@ -2734,6 +2734,20 @@ async function sessionFor(db, email) {
       eq(await count(page, '.msg.unread'), 2, 'both unread');
       truthy(/signed-in person/.test(await text(page, '.msg:first-child .msg-preview')), 'the newest first: ' + (await text(page, '.msg:first-child .msg-preview')));
     });
+    await check('the three views are buttons that show how many each holds, and the search narrows the list and the numbers together', async () => {
+      const views = () => page.$$eval('.msg-filters button[role=radio]', (b) => b.map((x) => x.textContent.trim().replace(/\s+/g, '')));
+      eq((await views()).join(), 'Unread2,All2,Archived0', 'the numbers are there at a glance');
+      eq(await page.$eval('.msg-filters button[aria-checked=true]', (b) => b.textContent.trim().replace(/\d+$/, '')), 'Unread', 'Unread is chosen to begin with');
+      await page.type('.msg-filters input[type=search]', 'signed-in');
+      await page.waitForFunction(() => document.querySelectorAll('.msg').length === 1);
+      eq((await views()).join(), 'Unread1,All1,Archived0', 'the numbers follow the search');
+      await page.type('.msg-filters input[type=search]', 'zzz-nothing');
+      await page.waitForFunction(() => /Nothing found/.test(document.querySelector('[role=tabpanel]').textContent));
+      await page.click('.msg-filters input[type=search]', { clickCount: 3 });
+      await page.keyboard.press('Backspace');
+      await page.waitForFunction(() => document.querySelectorAll('.msg').length === 2);
+      eq((await views()).join(), 'Unread2,All2,Archived0', 'cleared: everything is back');
+    });
     await check('opening a message shows all of it, marks it read (the count goes down), and offers to answer it', async () => {
       await page.click('.msg:last-child .msg-head');
       await page.waitForSelector('.msg.open .msg-text');
@@ -2765,9 +2779,7 @@ async function sessionFor(db, email) {
       await clickBtn(page, /^\s*Archive/, '.msg.open button');
       await page.waitForFunction(() => document.querySelectorAll('.msg').length === 1);
       eq((await db.query('SELECT archived_at IS NOT NULL AS a FROM contact_messages WHERE message = $1', [TEXT])).rows[0].a, true, 'archived in the database');
-      await page.click('.admin-filters .filter-btn');
-      await page.waitForSelector('.filter-opt');
-      await clickBtn(page, /Archived/, '.filter-opt');
+      await clickBtn(page, /Archived/, '.msg-filters button[role=radio]');
       await page.waitForFunction(() => document.querySelectorAll('.msg').length === 1 && /Visitor|visitor/.test(document.querySelector('.msg').textContent));
       await page.click('.msg-head');
       await page.waitForSelector('.msg.open');

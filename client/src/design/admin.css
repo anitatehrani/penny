@@ -521,3 +521,28 @@
   line-height: 1.55;
   color: var(--ink);
 }
+
+/* Messages: the three views as buttons with their counts, and a search beside them */
+.msg-filters {
+  margin-bottom: var(--s-2);
+}
+.msg-note {
+  margin: 0 0 var(--s-4);
+}
+.msg-filters .segmented button .seg-count.hot {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+@media (max-width: 600px) {
+  .msg-filters .segmented {
+    width: 100%;
+  }
+  .msg-filters .segmented button {
+    flex: 1;
+    padding-inline: 8px;
+  }
+  .msg-filters .admin-search {
+    flex-basis: 100%;
+    max-width: none;
+  }
+}

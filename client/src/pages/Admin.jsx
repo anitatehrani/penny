@@ -4,7 +4,7 @@ import { api } from '../api.js';
 import { agoText, checkSummary, deleteConfirmed, eventWho, formatBytes, messagePreview, percent, personBadges, rangeText, signInMethods, signupBars, uptimeText, viewAsProblem } from '../adminLogic.js';
 import { backupLine } from '../backupLogic.js';
 import Select from '../components/ds/Select.jsx';
-import { Field, Icon, Loading, Modal, ErrorBox, Empty } from '../components/ui.jsx';
+import { Field, Icon, Loading, Modal, ErrorBox, Empty, Segmented } from '../components/ui.jsx';
 import { useAuth } from '../auth.jsx';
 import { useApp } from '../context.jsx';
 import { dateLong } from '../format.js';
@@ -552,9 +552,9 @@ function Activity() {
 // Messages from the contact form (docs/DESIGN.md section 38)
 // ------------------------------------------------------------------------------------------------------------------------
 const MESSAGE_FILTERS = [
-  { value: 'unread', label: 'Unread' },
-  { value: 'all', label: 'All' },
-  { value: 'archived', label: 'Archived' },
+  ['unread', 'Unread'],
+  ['all', 'All'],
+  ['archived', 'Archived'],
 ];
 
 /** Answer a message by e-mail, from here. The writer gets it from Penny's address, and their reply goes to the admin's own address. */
@@ -716,30 +716,82 @@ function MessageItem({ m: base, inbox, open, onToggle, onChange, onCount }) {
 
 function Messages({ onUnread }) {
   const [filter, setFilter] = useState('unread');
+  const [text, setText] = useState('');
+  const [q, setQ] = useState('');
   const [page, setPage] = useState(1);
   const [openId, setOpenId] = useState(null);
-  const { data, error, reload } = useFetch(() => api.get(`/admin/messages?filter=${filter}&page=${page}`), [filter, page]);
+  const [counts, setCounts] = useState(null); // the last numbers seen, so the buttons do not blink while a list loads
   useEffect(() => {
-    if (data) onUnread(data.unread);
+    const t = setTimeout(() => {
+      setQ(text.trim());
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [text]);
+  const { data, error, reload } = useFetch(() => api.get(`/admin/messages?filter=${filter}&q=${encodeURIComponent(q)}&page=${page}`), [filter, q, page]);
+  useEffect(() => {
+    if (data) {
+      onUnread(data.unread);
+      setCounts(data.counts);
+    }
   }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
   const changed = (unread) => {
     if (typeof unread === 'number') onUnread(unread);
     reload();
   };
+  const choose = (v) => {
+    setFilter(v);
+    setPage(1);
+    setOpenId(null);
+  };
+  const options = MESSAGE_FILTERS.map(([value, label]) => ({
+    value,
+    label: (
+      <>
+        {label}
+        {counts && (
+          <span className={`seg-count${value === 'unread' && counts.unread > 0 ? ' hot' : ''}`} aria-label={`${counts[value]} ${label.toLowerCase()}`}>
+            {counts[value]}
+          </span>
+        )}
+      </>
+    ),
+  }));
+  const empty =
+    q !== ''
+      ? { title: 'Nothing found', text: `No ${filter === 'all' ? '' : `${filter} `}message matches “${q}”.` }
+      : filter === 'unread'
+        ? { title: 'Nothing waiting', text: 'Every message has been read.' }
+        : filter === 'archived'
+          ? { title: 'Nothing archived', text: 'Archived messages are kept here until they are a year old.' }
+          : { title: 'No messages', text: 'Nobody has written through the contact form yet.' };
   return (
     <>
-      <div className="admin-filters">
-        <Select label="Show" value={filter} onChange={(v) => { setFilter(v); setPage(1); setOpenId(null); }} options={MESSAGE_FILTERS} variant="filter" />
-        <p className="muted small admin-note">What people wrote through the contact form. Kept for a year, then deleted. Open a message to answer it by e-mail; the writer is not told anything automatically.</p>
+      <div className="admin-filters msg-filters">
+        <Segmented value={filter} onChange={choose} options={options} label="Show messages" />
+        <label className="admin-search">
+          <Icon name="search" size={16} />
+          <span className="sr-only">Search messages</span>
+          <input type="search" value={text} onChange={(e) => setText(e.target.value)} placeholder="Search name, e-mail or words" autoComplete="off" />
+        </label>
       </div>
+      <p className="muted small msg-note">What people wrote through the contact form. Kept for a year, then deleted. Open a message to answer it by e-mail; the writer is not told anything automatically.</p>
       {error ? (
         <ErrorBox error={error} />
       ) : !data ? (
         <Loading />
       ) : data.messages.length === 0 ? (
         <section className="card">
-          <Empty title={filter === 'unread' ? 'Nothing waiting' : filter === 'archived' ? 'Nothing archived' : 'No messages'} icon="mail">
-            {filter === 'unread' ? 'Every message has been read.' : filter === 'archived' ? 'Archived messages are kept here until they are a year old.' : 'Nobody has written through the contact form yet.'}
+          <Empty title={empty.title} icon={q ? 'search' : 'mail'}>
+            {empty.text}
+            {filter !== 'all' && data.counts.all > 0 && (
+              <>
+                {' '}
+                <button className="btn sm" onClick={() => choose('all')}>
+                  Show all {data.counts.all}
+                </button>
+              </>
+            )}
           </Empty>
         </section>
       ) : (

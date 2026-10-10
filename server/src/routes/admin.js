@@ -326,6 +326,7 @@ router.get(
 const MESSAGE_PAGE = 25;
 const messageQuery = z.object({
   filter: z.enum(['unread', 'all', 'archived']).default('unread'),
+  q: z.string().trim().max(100).default(''),
   page: z.coerce.number().int().min(1).max(100000).default(1),
 });
 const MESSAGE_FILTER = { unread: 'archived_at IS NULL AND read_at IS NULL', all: 'archived_at IS NULL', archived: 'archived_at IS NOT NULL' };
@@ -335,11 +336,23 @@ router.get(
   '/admin/messages',
   wrap(async (req, res) => {
     const q = messageQuery.parse(req.query);
-    const clause = MESSAGE_FILTER[q.filter];
-    const total = (await query(`SELECT count(*)::int AS n FROM contact_messages WHERE ${clause}`)).rows[0].n;
-    const { rows } = await query(`SELECT * FROM contact_messages WHERE ${clause} ORDER BY created_at DESC, id DESC LIMIT ${MESSAGE_PAGE} OFFSET ${(q.page - 1) * MESSAGE_PAGE}`);
+    // a search looks in the name, the address, the message and the replies; the three counts follow it, so they always match what each tab would show
+    const search = q.q
+      ? " AND (name ILIKE $1 ESCAPE '\\' OR email ILIKE $1 ESCAPE '\\' OR message ILIKE $1 ESCAPE '\\' OR EXISTS (SELECT 1 FROM contact_replies r WHERE r.message_id = contact_messages.id AND r.body ILIKE $1 ESCAPE '\\'))"
+      : '';
+    const params = q.q ? [`%${escapeLike(q.q)}%`] : [];
+    const clause = MESSAGE_FILTER[q.filter] + search;
+    const counts = (
+      await query(
+        `SELECT count(*) FILTER (WHERE archived_at IS NULL AND read_at IS NULL)::int AS unread, count(*) FILTER (WHERE archived_at IS NULL)::int AS "all", count(*) FILTER (WHERE archived_at IS NOT NULL)::int AS archived
+         FROM contact_messages WHERE true${search}`,
+        params,
+      )
+    ).rows[0];
+    const total = counts[q.filter];
+    const { rows } = await query(`SELECT * FROM contact_messages WHERE ${clause} ORDER BY created_at DESC, id DESC LIMIT ${MESSAGE_PAGE} OFFSET ${(q.page - 1) * MESSAGE_PAGE}`, params);
     const threads = await threadsFor(rows.map((r) => r.id));
-    res.json({ messages: rows.map((r) => shapeMessage(r, threads.get(r.id))), total, page: q.page, pages: Math.max(1, Math.ceil(total / MESSAGE_PAGE)), page_size: MESSAGE_PAGE, unread: await unreadCount(), replies_by_email: inboundOn() });
+    res.json({ messages: rows.map((r) => shapeMessage(r, threads.get(r.id))), total, page: q.page, pages: Math.max(1, Math.ceil(total / MESSAGE_PAGE)), page_size: MESSAGE_PAGE, counts, unread: await unreadCount(), replies_by_email: inboundOn() });
   }),
 );
 
