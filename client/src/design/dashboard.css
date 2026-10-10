@@ -762,8 +762,8 @@
 .prow-actions {
   display: flex;
   align-items: center;
-  gap: 2px;
-  min-width: 104px;
+  gap: 6px;
+  min-width: 112px;
   justify-content: flex-end;
   opacity: 0;
   transform: translateX(4px);

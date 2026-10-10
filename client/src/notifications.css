@@ -115,7 +115,7 @@
 .notif-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
   margin-top: 8px;
 }

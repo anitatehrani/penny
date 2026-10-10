@@ -136,7 +136,7 @@ p {
 }
 .head-actions {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   align-items: center;
   flex-wrap: wrap;
 }
@@ -377,8 +377,17 @@ input[type='checkbox'] {
 .form-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
+  gap: 12px;
   margin-top: 4px;
+}
+/* the buttons at the foot of a window (Back, Import, Cancel...): never touching, and wrapping on a narrow screen */
+.modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: var(--s-3);
 }
 .form-actions.left {
   justify-content: flex-start;
@@ -440,7 +449,7 @@ input[type='checkbox'] {
 
 .chips {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 .chip {
@@ -474,7 +483,7 @@ input[type='checkbox'] {
 .month-nav {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
 }
 .month-label {
   min-width: 150px;
@@ -560,7 +569,7 @@ input[type='checkbox'] {
 .tx-actions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
   justify-content: flex-end;
 }
 .cat {
@@ -675,7 +684,7 @@ input[type='checkbox'] {
 }
 .row-actions {
   display: flex;
-  gap: 2px;
+  gap: 6px;
 }
 
 /* ---------- table ---------- */

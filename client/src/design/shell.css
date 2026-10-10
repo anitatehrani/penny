@@ -960,7 +960,7 @@ html {
   }
   .topbar-actions {
     margin-left: 0;
-    gap: 2px;
+    gap: 6px;
   }
   .main {
     padding: var(--s-4) var(--s-3) calc(80px + env(safe-area-inset-bottom));
