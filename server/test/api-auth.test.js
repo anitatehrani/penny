@@ -273,7 +273,7 @@ describe('sessions', () => {
   it('public endpoints stay public', async () => {
     const c = new Client(srv.base.replace(/\/api$/, ''));
     assert.equal((await c.get('/health')).status, 200);
-    assert.deepEqual(ok(await c.get('/auth/config')), { googleClientId: null, signupsOpen: true, passwordResetAvailable: true, legal: { operatorName: null, contactEmail: null, termsVersion: '2026-10-09' } });
+    assert.deepEqual(ok(await c.get('/auth/config')), { googleClientId: null, signupsOpen: true, passwordResetAvailable: true, legal: { operatorName: null, contactEmail: null, termsVersion: '2026-10-10' } });
     assert.equal((await c.get('/auth/username-available?u=freeone')).json.available, true);
     assert.equal((await c.get('/auth/me')).status, 401);
     // asking for a password reset has to work without being signed in (the person has forgotten how to be)
@@ -307,7 +307,7 @@ describe('Google sign-in', () => {
 
   it('is hidden/unavailable when not configured', async () => {
     const c = new Client(srv.base.replace(/\/api$/, ''));
-    assert.deepEqual(ok(await c.get('/auth/config')), { googleClientId: null, signupsOpen: true, passwordResetAvailable: true, legal: { operatorName: null, contactEmail: null, termsVersion: '2026-10-09' } });
+    assert.deepEqual(ok(await c.get('/auth/config')), { googleClientId: null, signupsOpen: true, passwordResetAvailable: true, legal: { operatorName: null, contactEmail: null, termsVersion: '2026-10-10' } });
     fails(await c.post('/auth/google', { credential: 'x'.repeat(40) }), 503);
   });
 

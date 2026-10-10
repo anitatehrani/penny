@@ -60,6 +60,12 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       MAIL_FROM: ${MAIL_FROM:-Penny <no-reply@localhost>}
+      # Optional AI answers in the assistant (README, "AI answers"). The key comes from openrouter.ai; only its free models are ever used.
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      AI_MODELS: ${AI_MODELS:-}
+      AI_DATA_COLLECTION: ${AI_DATA_COLLECTION:-deny}
+      AI_DAILY_LIMIT: ${AI_DAILY_LIMIT:-40}
+      AI_PERSON_DAILY_LIMIT: ${AI_PERSON_DAILY_LIMIT:-20}
       # The app makes its own daily backup (pg_dump is in the image) into /backups, which is a folder of this computer (see volumes).
       BACKUP_DIR: /backups
     volumes:

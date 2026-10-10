@@ -156,6 +156,7 @@ export async function gatherFacts(workspaceId, { today = todayYMD() } = {}) {
       lowest: f.insights.lowest ?? null,
       min: f.minBalance ?? 0, // the safety buffer
     },
+    forecastMonths: f.months.map((m) => ({ month: m.month, endBalance: m.endBalance, income: m.income + m.estimatedIncome, expenses: m.expenses + m.estimatedExpenses })),
   };
 }
 

@@ -244,3 +244,53 @@
   top: 50%;
   translate: 0 -50%;
 }
+
+/* ---------- AI answers (optional, docs/DESIGN.md section 42) ---------- */
+.ai-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.chat-a .ai-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0 0 var(--s-2);
+  color: var(--ink-3);
+  font-size: var(--fs-2);
+  line-height: 1.4;
+}
+.chat-a .ai-label svg {
+  flex: none;
+  margin-top: 2px;
+}
+.ai-card {
+  padding: var(--s-4);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-2);
+  background: var(--surface-2, transparent);
+  font-size: var(--fs-3);
+}
+.ai-card.on {
+  border-color: var(--signal);
+}
+.ai-card p {
+  margin: 0 0 var(--s-3);
+}
+.ai-card .muted {
+  font-size: var(--fs-2);
+}
+.ai-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  margin-bottom: var(--s-2);
+  color: var(--ink);
+}
+.ai-error {
+  color: var(--danger-ink);
+}
+.ai-card.bare {
+  padding: 0;
+  border: 0;
+  background: none;
+}

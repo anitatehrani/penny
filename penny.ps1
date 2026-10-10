@@ -347,6 +347,29 @@ Command replies-setup 'Switch on replies by e-mail on the live site (README, "Re
   }
 }
 
+Command ai-setup 'Switch on AI answers in the assistant on the live site (README, "AI answers"): asks for your OpenRouter key without showing it, puts it in the server settings, restarts Penny and tests it. Add --off to switch it off' {
+  $h = Deploy-Host
+  if (Has '--off') {
+    & ssh $h "cd penny && sed -i '/^OPENROUTER_API_KEY=/d' .env && echo OPENROUTER_API_KEY= >> .env && docker compose up -d"
+    if ($LASTEXITCODE -ne 0) { throw 'Could not switch it off on the server.' }
+    Say 'AI answers are off: the assistant uses only its built-in answers. (The key is removed from the server; delete it on openrouter.ai too if you will not use it again.)' 'Green'
+    return
+  }
+  $secure = Read-Host 'Paste the OpenRouter key (starts with sk-or-). It is not shown and not saved on this computer' -AsSecureString
+  $key = [System.Net.NetworkCredential]::new('', $secure).Password
+  if (-not $key) { throw 'No key was given.' }
+  if ($key -notmatch '^sk-or-[A-Za-z0-9_-]{20,}$') { throw 'That does not look like an OpenRouter key (they start with sk-or- and have no spaces). Copy it again from openrouter.ai, Keys.' }
+  # The key goes to the server on the standard input of ssh, never in a command line (command lines can be seen by other programs and are logged).
+  $remote = 'cd penny && K=$(head -n1 | tr -d ''\r\n'') && sed -i ''/^OPENROUTER_API_KEY=/d'' .env && printf ''OPENROUTER_API_KEY=%s\n'' "$K" >> .env && docker compose up -d'
+  $key | & ssh $h $remote
+  $key = $null
+  if ($LASTEXITCODE -ne 0) { throw 'Could not put the key in the server settings.' }
+  Say 'The key is in the server settings and Penny restarted. Testing it (one made-up question, none of your data)...'
+  & ssh $h 'cd penny && docker compose exec -T app node scripts/ai-check.mjs'
+  if ($LASTEXITCODE -eq 0) { Say 'Done. Everyone now sees "Smarter answers" in the assistant and chooses for themselves whether to turn it on.' 'Green' }
+  else { Say 'The key is saved, but the test did not pass. Read the message above. You can switch it off again with  .\penny ai-setup --off' 'Yellow' }
+}
+
 Command test 'Run the server and client tests (against the Docker database)' {
   Need-Docker; Ensure-Env
   Compose up -d --wait db

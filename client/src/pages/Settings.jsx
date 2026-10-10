@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../api.js';
+import { AiAnswersCard, useAiStatus } from '../assistant/AiAnswers.jsx';
 import AccountCard from '../components/AccountCard.jsx';
 import YourDataCard from '../components/YourDataCard.jsx';
 import AppearanceSettings from '../components/AppearanceSettings.jsx';
@@ -80,6 +81,7 @@ export default function Settings() {
   const { unread } = useNotifications();
   const { settings, categories, reloadSettings, reloadCategories, notify } = useApp();
   const { current, isGroup } = useWorkspace();
+  const ai = useAiStatus(current.id);
   const [opening, setOpening] = useState(String(settings.opening_balance));
   const [currency, setCurrency] = useState(settings.currency);
   const [cardDay, setCardDay] = useState(String(settings.card_pay_day ?? 10));
@@ -296,6 +298,15 @@ export default function Settings() {
           <Icon name="download" /> Export all payments
         </a>
       </section>
+
+      {ai.status?.configured && (
+        <section className="card" aria-labelledby="ai-title">
+          <div className="card-head">
+            <h2 id="ai-title">Assistant: AI answers</h2>
+          </div>
+          <AiAnswersCard ai={ai} full bare />
+        </section>
+      )}
 
       </>
       )}

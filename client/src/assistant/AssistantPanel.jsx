@@ -4,6 +4,7 @@ import { EmptyState, ErrorState } from '../components/ds/States.jsx';
 import { Sheet } from '../components/ds/Sheet.jsx';
 import { Icon, Segmented, Skeleton } from '../components/ui.jsx';
 import AIInsightCard from './AIInsightCard.jsx';
+import { AiAnswersCard, useAiStatus } from './AiAnswers.jsx';
 import { useAssistant } from './assistant.jsx';
 import { useInsights } from './insights.jsx';
 
@@ -32,7 +33,13 @@ function Answer({ entry, onAsk }) {
   const a = entry.a;
   return (
     <div className="chat-a" aria-live="polite">
-      <p>{a.answer}</p>
+      <p className={a.ai?.used ? 'ai-text' : undefined}>{a.answer}</p>
+      {a.ai?.used && (
+        <p className="ai-label">
+          <Icon name="sparkle" size={12} /> Written by an AI service. It can make mistakes, so check any number that matters.
+        </p>
+      )}
+      {a.ai?.note && <p className="ai-label">{a.ai.note}</p>}
       {a.blocks.map((b, i) =>
         b.type === 'rows' && b.rows.length ? (
           <dl className="chat-rows" key={i}>
@@ -68,7 +75,10 @@ function Answer({ entry, onAsk }) {
 }
 
 export default function AssistantPanel() {
-  const { closeAssistant, thread, ask, clear, tab, setTab } = useAssistant();
+  const { closeAssistant, thread, ask: askAny, clear, tab, setTab } = useAssistant();
+  const ai = useAiStatus();
+  const ask = (q) => askAny(q, { chip: true }); // a button: the built-in answer is exact
+  const aiOn = Boolean(ai.status?.ready);
   const { data, loading, error, insights, dismiss, restoreAll, reload } = useInsights();
   const [draft, setDraft] = useState('');
   const endRef = useRef(null);
@@ -80,13 +90,13 @@ export default function AssistantPanel() {
   const submit = (e) => {
     e?.preventDefault();
     if (!draft.trim()) return;
-    ask(draft);
+    askAny(draft); // typed: may go to the AI service, if it is on
     setDraft('');
   };
 
   const footer = (
     <form className="ask-form" onSubmit={submit}>
-      <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Ask about your money…" aria-label="Ask about your finances" maxLength={300} data-autofocus />
+      <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={aiOn ? 'Ask anything about your money…' : 'Ask about your money…'} aria-label="Ask about your finances" maxLength={300} data-autofocus />
       <button className="btn primary icon" aria-label="Send" disabled={!draft.trim()}>
         <Icon name="send" size={16} />
       </button>
@@ -94,7 +104,7 @@ export default function AssistantPanel() {
   );
 
   return (
-    <Sheet title="Assistant" subtitle="Worked out from your budget, on this server. Nothing is sent to an outside AI service." onClose={closeAssistant} width={460} footer={footer} label="Financial assistant">
+    <Sheet title="Assistant" subtitle={aiOn ? 'The buttons are worked out here, on this server. Questions you type go to an AI service you turned on.' : 'Worked out from your budget, on this server. Nothing is sent to an outside AI service.'} onClose={closeAssistant} width={460} footer={footer} label="Financial assistant">
       <div className="assistant">
         <div className="assistant-tabs">
           <Segmented
@@ -181,6 +191,7 @@ export default function AssistantPanel() {
                     ))}
                   </div>
                 </section>
+                <AiAnswersCard ai={ai} />
               </>
             )}
           </div>
@@ -188,6 +199,7 @@ export default function AssistantPanel() {
 
         {tab === 'chat' && (
           <div className="chat">
+            {thread.length === 0 && <AiAnswersCard ai={ai} />}
             {thread.length === 0 ? (
               <EmptyState art="chart" title="Ask anything about your budget" compact>
                 For example “How much did I spend on groceries?” or “Will I go negative?”

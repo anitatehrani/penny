@@ -27,7 +27,7 @@ function extractTerm(q) {
   return term && term.length >= 3 ? term.slice(0, 40) : null;
 }
 
-export async function answerQuestion(rawQuestion, { workspaceId, facts }) {
+export async function answerQuestion(rawQuestion, { workspaceId, facts, aiOn = false }) {
   const q = norm(rawQuestion);
   const fmt = makeFmt(facts.currency);
   const t = facts.totals;
@@ -41,7 +41,9 @@ export async function answerQuestion(rawQuestion, { workspaceId, facts }) {
   }
 
   if (has(q, /^(hi|hello|hey|help)\b|what can you|what do you do|how do you work/)) {
-    return reply('help', 'I read your own ledger on this server and answer questions about it: spending, balance, upcoming payments, subscriptions, forecasts and savings. Nothing is sent to an outside AI service, so I only know what is in your budget.', {
+    return reply('help', aiOn
+      ? 'I read your own ledger on this server. The buttons give exact answers worked out here. Questions you type are sent, with a summary of your budget, to a free AI service (OpenRouter), because you and everyone in this budget turned that on. I only know what is in your budget.'
+      : 'I read your own ledger on this server and answer questions about it: spending, balance, upcoming payments, subscriptions, forecasts and savings. Nothing is sent to an outside AI service, so I only know what is in your budget.', {
       follow_ups: SUGGESTIONS,
     });
   }

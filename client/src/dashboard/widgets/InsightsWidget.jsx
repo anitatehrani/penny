@@ -40,7 +40,7 @@ export default function InsightsWidget() {
       {top.length > 0 ? (
         <div className="insight-list">
           {top.map((i) => (
-            <AIInsightCard key={i.key} insight={i} onDismiss={dismiss} onAsk={(q) => openAssistant({ ask: q })} />
+            <AIInsightCard key={i.key} insight={i} onDismiss={dismiss} onAsk={(q) => openAssistant({ ask: q, chip: true })} />
           ))}
         </div>
       ) : (

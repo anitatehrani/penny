@@ -223,6 +223,15 @@ export function Privacy() {
           Spain; Brevo, a European e-mail delivery service, which handles your address and the e-mails we send you; and Google, only if
           you choose &ldquo;Sign in with Google&rdquo; (it knows you signed in).
         </li>
+        <li>
+          <strong>An AI service, only if you turn it on:</strong> the assistant can answer the questions you type with a free AI service,
+          OpenRouter. It is off until you switch it on, in the assistant or in Settings, and in a shared budget it works only when everyone in
+          the budget has switched it on. While it is on, each question you type is sent to OpenRouter together with a short summary of that
+          budget (amounts, categories, payment names and dates, with account and card numbers taken out), and not your name or e-mail
+          address. OpenRouter passes it to a company that runs the AI model; Penny asks for providers that do not keep or train on what they
+          receive, but Penny cannot check that. Nothing is sent when it is off, and the buttons in the assistant never send anything.
+          Penny does not keep your questions or the answers.
+        </li>
         <li>Public authorities, only where the law requires it.</li>
       </ul>
       <p>We do not sell your data and we do not pass it to advertisers or data brokers.</p>

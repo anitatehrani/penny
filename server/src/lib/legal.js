@@ -4,7 +4,7 @@
  * TERMS_VERSION is the date the text of the two pages (client/src/pages/Legal.jsx) last changed in a way people should be asked about
  * again. A person who accepted an older version, or none, is asked once. Change it only together with the pages.
  */
-export const TERMS_VERSION = '2026-10-09';
+export const TERMS_VERSION = '2026-10-10';
 
 const clean = (v) => {
   const t = String(v ?? '').trim();

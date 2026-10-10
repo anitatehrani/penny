@@ -6,7 +6,8 @@
   "scripts": {
     "ui": "node ui.e2e.cjs",
     "landing": "node landing-assets.cjs",
-    "import": "node import.e2e.cjs"
+    "import": "node import.e2e.cjs",
+    "ai": "node ai.e2e.cjs"
   },
   "dependencies": {
     "pg": "^8.13.0",

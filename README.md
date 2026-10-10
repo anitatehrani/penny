@@ -29,7 +29,7 @@ installments) and see where your balance is heading — including when it goes n
 | **Notifications** | A bell with an unread count and a **Notifications** page: payments coming up and overdue, low-balance warnings, connection requests, group invitations and changes, payments shared with you, and (optionally) activity in shared budgets. Mark read/unread, delete, "Mark paid" straight from the notification, clear read ones. |
 | **Alert rules** | Decide which payments alert you: default (X days before), *always* (with its own number of days) or *never*, for a single payment, a whole recurring item, an installment plan or a category. The most specific rule wins. Pause all payment alerts for a day, week, month or until a date. |
 | **Email alerts** | Confirm your email, then get a daily summary (at the hour you choose, in your time zone) or an email right away, choosing which kinds of alert are emailed. Every email has an unsubscribe link (also one-click for mail apps), and a test email button. |
-| **Assistant** | Insights written from your own ledger: spending up or down against the same point last month, subscriptions that grew, a busy week ahead, the first month the forecast goes negative, where you could save. Each one can be expanded ("Why?"), questioned, or dismissed for the month. Ask your own questions ("How much did I spend on groceries?", "Will I go negative?"). **It is a rules-and-statistics engine running on your server, not a large language model; no financial data leaves it.** |
+| **Assistant** | Insights written from your own ledger: spending up or down against the same point last month, subscriptions that grew, a busy week ahead, the first month the forecast goes negative, where you could save. Each one can be expanded ("Why?"), questioned, or dismissed for the month. Ask your own questions ("How much did I spend on groceries?", "Will I go negative?"). **By default it is a rules-and-statistics engine running on your server, not a large language model; no financial data leaves it.** Optionally (see *AI answers*) the questions a person types can be answered by a free AI service, for people who switch that on. |
 | **Command palette** | `Ctrl`/`⌘` + `K` from anywhere: fuzzy-search pages, actions (add payment, add recurring item…), payments, people, themes and accent colours; type a question to hand it to the assistant. |
 | **Personal dashboard** | Reorder, resize (S/M/L) and hide dashboard widgets, collapse sections, pin pages in the sidebar, collapse the sidebar, choose comfortable or compact density and an accent colour. Saved to your account. |
 | **Month calendar** | Jump to any month with a calendar (a year with arrows and twelve month buttons; keyboard-friendly; a bottom sheet on a phone) on the dashboard, the Payments page, and as the "Counts in" choice of a credit card payment. On the dashboard it opens a **month view** (`/?month=2027-02`, up to 12 months back and 24 ahead): the balance at the end of that month (actual or expected) with its arithmetic, that month's payments, spending against the month before, and cash flow around it. Insights stay about today. |
@@ -145,6 +145,7 @@ npm run test:server   # API, security, migration and logic tests
 npm run test:client   # browser-side logic (password checklist vs server rules, formatting, fuzzy search, avatars, layout rules)
 npm run e2e           # drives a real Chrome/Edge through the interface (needs the app running and the demo data)
 cd e2e && npm run import   # the bank statement import in a real browser (starts the app on a throw-away database; needs `npm run build`)
+cd e2e && npm run ai       # AI answers in a real browser, against a pretend OpenRouter (throw-away database; needs `npm run build`)
 ```
 
 `npm run e2e` is separate from `npm test` because it needs a browser. It checks the dashboard, notification centre, command palette,
@@ -308,6 +309,22 @@ When you answer a message in **Admin, Messages**, the writer's reply can come ba
    `url` `https://your-domain.app/api/inbound/mail/<INBOUND_SECRET>`. The secret is part of the address because Brevo does not sign its requests: keep it private, and if it leaks, change it in `.env` and register the webhook again.
 
 Admin, System shows whether it is on. Penny only accepts mail to the one-off addresses it made for your answers (they carry a signature), ignores automatic and spam mail, and keeps each reply with its message (a year, like the message). Without these settings nothing changes: the reply goes to the admin's own address.
+
+## AI answers (optional)
+
+The assistant normally answers a fixed set of questions from your own ledger, on your server. With a free OpenRouter key it can answer **anything you type** about the budget instead ("did I spend more on food in August?", "can I afford 300 euro for a trip in December?"), using the real figures. The buttons in the assistant stay exact and local.
+
+**Switching it on (once, by whoever runs the site):**
+
+1. Make a key at openrouter.ai (Keys). Only free models are used, so no credit is needed; a key with a credit limit of 0 is the safest.
+2. From this computer, with `DEPLOY_HOST` set: `.penny ai-setup`. It asks for the key without showing it, puts it in the server's `.env` (`OPENROUTER_API_KEY`), restarts Penny and asks one made-up question to test it (`scripts/ai-check.mjs`: no budget data). `.penny ai-setup --off` removes the key again. Never put the key in a file of this repository or paste it in a chat or an e-mail; if it was, make a new one and delete the old.
+3. Everyone then sees a card, "Smarter answers (optional)", in the assistant and in Settings. **Nobody's data is sent until that person turns it on**, and in a shared budget until *everyone* in it has.
+
+**What is sent, and to whom:** the question plus a short written summary of the budget (amounts, categories, payment names and dates, with account and card numbers taken out; never the name or e-mail address) go to OpenRouter, which passes them to the company that runs the model. Penny asks for providers that do not keep or train on what they receive (`AI_DATA_COLLECTION=deny`, the default) but cannot check it. Penny itself keeps neither questions nor answers. The privacy page says all of this. Details: `docs/DESIGN.md` section 42.
+
+**If no free model accepts that privacy setting**, `ai-check` says "policy". Free models are free partly because their providers may keep what they get. Setting `AI_DATA_COLLECTION=allow` lets them; that is a decision about your users' data, so make it knowingly (and say so on the privacy page). The other way out is a paid model, which Penny deliberately never uses.
+
+**Limits:** free models allow a limited number of questions for the whole OpenRouter account: 20 a minute and 50 a day, or 1,000 a day once the account has bought at least 10 credits (OpenRouter's rate limit page). Penny counts as well (`AI_DAILY_LIMIT`, default 40 for the site; `AI_PERSON_DAILY_LIMIT`, default 20), and past the limit, or when the service is down, the built-in answer is shown with a note. `AI_MODELS` names up to three other free models (the free list changes often; ids end in `:free`, or use `openrouter/free`). Anything that is not free is ignored. Answers can be wrong: they are labelled, and the figures should be checked.
 
 ## The home page
 
@@ -478,7 +495,8 @@ with a password, Google sign-in will *not* silently take it over: sign in with t
 | `POST /auth/email/send-verification` · `POST /auth/email/verify` | confirm your email address |
 | `POST /unsubscribe` (public) | one-click unsubscribe from the link in every email |
 | `GET /insights` · `POST /insights/:key/dismiss` · `DELETE /insights/:key/dismiss` · `DELETE /insights/dismissed` | the assistant's insights, month summary and comparison numbers for the open budget · dismiss / undo / restore all |
-| `POST /assistant/ask` `{question}` | answer a typed question from the ledger: `{intent, answer, blocks, follow_ups, link}` (40 a minute) |
+| `POST /assistant/ask` `{question, chip?, history?}` | answer a question from the ledger: `{intent, answer, blocks, follow_ups, link, ai?}` (40 a minute). `chip: true` (a button) is always answered by the built-in rules; a typed question may go to the AI service when it is on (`ai: {used}`, and a `note` when it could not answer) |
+| `GET/PUT /assistant/ai` `{on}` | is the AI service set up on this site, has this person turned it on, and are the other members of this budget waiting: `{configured, on, waiting, members, ready}` |
 | `GET/PUT/DELETE /preferences` | dashboard layout, density, accent, sidebar, pins, avatar style (validated; each key replaced as a whole) |
 | `GET /presence` | who of your connections / budget members is active right now (if they allow it) |
 

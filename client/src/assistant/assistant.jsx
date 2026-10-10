@@ -17,14 +17,22 @@ export function AssistantProvider({ children }) {
   const [thread, setThread] = useState([]);
   const busy = useRef(false);
 
-  const ask = useCallback(async (question) => {
+  // `chip`: the question came from a button, whose answer is worked out exactly on the server; typed questions may go to the AI service (if it is on)
+  const threadRef = useRef([]);
+  threadRef.current = thread;
+  const ask = useCallback(async (question, { chip = false } = {}) => {
     const q = question.trim();
     if (!q) return;
     const id = ++counter;
+    // the last few answered turns, so "and last month?" makes sense to the AI service
+    const history = threadRef.current
+      .filter((x) => x.status === 'done')
+      .slice(-3)
+      .map((x) => ({ q: x.q, a: x.a.answer }));
     setTab('chat');
     setThread((t) => [...t, { id, q, status: 'pending' }]);
     try {
-      const a = await api.post('/assistant/ask', { question: q });
+      const a = await api.post('/assistant/ask', { question: q, ...(chip ? { chip: true } : { history }) });
       setThread((t) => t.map((x) => (x.id === id ? { ...x, status: 'done', a } : x)));
     } catch (e) {
       setThread((t) => t.map((x) => (x.id === id ? { ...x, status: 'error', error: e.message } : x)));
@@ -34,7 +42,7 @@ export function AssistantProvider({ children }) {
   const openAssistant = useCallback(
     (opts = {}) => {
       setOpen(true);
-      if (opts.ask) ask(opts.ask);
+      if (opts.ask) ask(opts.ask, { chip: Boolean(opts.chip) });
       else if (opts.tab) setTab(opts.tab);
     },
     [ask],
