@@ -259,6 +259,25 @@ const freePort = () =>
     truthy(reply.intent !== 'ai' && calls.length === before, 'nothing is sent after turning it off');
   });
 
+  await check('making a shared budget shows the AI notice in plain words, and saying yes to it is kept', async () => {
+    const p = await open('/people?tab=groups');
+    await clickText(p, /New group/);
+    await p.waitForSelector('.modal input[maxlength="60"]');
+    const notice = await text(p, '.modal');
+    truthy(/About the AI assistant/.test(notice) && /agree to that for this budget only/.test(notice) && /takes your agreement back/.test(notice), 'the notice in the window');
+    await p.type('.modal input[maxlength="60"]', 'Home with Mo');
+    await clickText(p, /^Create group$/);
+    await p.waitForFunction(() => !document.querySelector('.modal'), { timeout: 10000 });
+    const db = new pg.Client({ connectionString: `${PG_BASE}/${dbName}` });
+    await db.connect();
+    const { rows } = await db.query(`SELECT m.ai_consent_at IS NOT NULL AS agreed FROM workspace_members m JOIN workspaces w ON w.id = m.workspace_id WHERE w.name = 'Home with Mo'`);
+    await db.end();
+    eq(rows.length, 1, 'members of the new budget');
+    eq(rows[0].agreed, true, 'agreement recorded');
+    await shot(p, '7-new-group');
+    await p.close();
+  });
+
   await check('a phone: the card and the answers fit the screen', async () => {
     await api('/assistant/ai', { method: 'PUT', body: JSON.stringify({ on: true }) });
     next = () => ({ status: 200, body: { model: 'pretend/model:free', choices: [{ message: { content: 'A long answer. '.repeat(40) } }] } });

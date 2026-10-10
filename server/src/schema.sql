@@ -154,6 +154,9 @@ CREATE TABLE IF NOT EXISTS workspace_members (
   PRIMARY KEY (workspace_id, user_id)
 );
 CREATE INDEX IF NOT EXISTS workspace_members_user_idx ON workspace_members (user_id);
+-- Set when the person joined (or made) this budget after being told that the AI assistant may use its figures when any member asks and turns it on
+-- (docs/DESIGN.md section 42). Cleared when they turn AI answers off.
+ALTER TABLE workspace_members ADD COLUMN IF NOT EXISTS ai_consent_at timestamptz;
 
 CREATE TABLE IF NOT EXISTS workspace_invites (
   id           serial PRIMARY KEY,

@@ -63,6 +63,8 @@ router.post(
       [req.user.id],
     );
     const ws = await createGroup(req.user.id, name, mine.rows[0]?.currency ?? 'USD');
+    // the window said that the assistant may use this budget's figures for any member who turns AI answers on (only sent when it said so)
+    if (req.body?.ai === true) await query('UPDATE workspace_members SET ai_consent_at = now() WHERE workspace_id = $1 AND user_id = $2', [ws.id, req.user.id]);
     const { rows } = await query(`${LIST_SQL} WHERE m.user_id = $1 AND w.id = $2`, [req.user.id, ws.id]);
     res.status(201).json(rows[0]);
   }),
@@ -173,8 +175,8 @@ router.post(
       );
       if (!rows[0]) throw new HttpError(404, 'Invitation not found.');
       await client.query(
-        `INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1, $2, 'member') ON CONFLICT DO NOTHING`,
-        [rows[0].workspace_id, req.user.id],
+        `INSERT INTO workspace_members (workspace_id, user_id, role, ai_consent_at) VALUES ($1, $2, 'member', CASE WHEN $3 THEN now() END) ON CONFLICT DO NOTHING`,
+        [rows[0].workspace_id, req.user.id, req.body?.ai === true],
       );
       return rows[0];
     });

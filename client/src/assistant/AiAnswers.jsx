@@ -39,6 +39,10 @@ export function useAiStatus(workspaceId) {
   return { status, busy, error, turn };
 }
 
+/** Shown where a shared budget is made or joined, only when the AI service exists on this site. Saying yes there counts as agreeing (docs/DESIGN.md section 42). */
+export const SHARED_AI_NOTICE =
+  'About the AI assistant: anyone in a shared budget can ask the assistant questions about it if they turn AI answers on. When they do, a summary of the budget (amounts, categories and payment names, with account and card numbers taken out) is sent to a free AI service. By making or joining this budget you agree to that for this budget only. Turning AI answers off in Settings takes your agreement back.';
+
 const WHAT_IS_SENT =
   'Penny sends it your question and a short summary of this budget: amounts, categories, payment names and dates. Account and card numbers are taken out of the payment names first, and Penny does not add your name or e-mail address.';
 
@@ -60,7 +64,7 @@ export function AiAnswersCard({ ai, full = false, bare = false }) {
             handle questions I could not understand before. {WHAT_IS_SENT}
           </p>
           <p className="muted">An AI can make mistakes, so check any number that matters. You can turn this off at any time.</p>
-          {status.members > 1 && <p className="muted">This budget is shared, so it only works when everyone in it has turned it on, because the summary covers the whole budget.</p>}
+          {status.members > 1 && <p className="muted">This budget is shared. The assistant uses its figures only when everyone in it has agreed: by joining it after being told about the AI assistant, or by turning AI answers on themselves.</p>}
         </>
       )}
       {status.on && status.ready && (
@@ -70,10 +74,11 @@ export function AiAnswersCard({ ai, full = false, bare = false }) {
       )}
       {status.on && !status.ready && (
         <p>
-          You turned it on, but {others === 1 ? 'one other person' : `${others} other people`} in this budget {others === 1 ? 'has' : 'have'} not yet. Until everyone has, nothing is sent
-          and I use my built-in answers.
+          You turned it on, but {others === 1 ? 'one other person' : `${others} other people`} in this budget {others === 1 ? 'has' : 'have'} not agreed yet. People agree by joining a shared budget
+          after being told about the AI assistant, or by turning AI answers on themselves. Until everyone has, nothing is sent and I use my built-in answers.
         </p>
       )}
+      {status.on && <p className="muted">Turning this off also takes back anything you agreed to by joining a shared budget.</p>}
       {full && status.on && <p className="muted">When it is on, a question you type is not saved by Penny beyond this conversation, and Penny does not keep the service’s answer.</p>}
       {error && (
         <p className="ai-error" role="alert">

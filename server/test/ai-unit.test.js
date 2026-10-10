@@ -257,10 +257,31 @@ describe('naming other people', () => {
     };
     const facts = { today: '2026-10-10', month: '2026-10', prevMonth: '2026-09', dayOfMonth: 10, daysInMonth: 31, currency: 'EUR', totals: { expenseCur: 0, expensePaidCur: 0, expensePrev: 0, mtdExpenseCur: 0, mtdExpensePrev: 0, paidCount: 0, incomeCur: 0, incomePaidCur: 0, incomePrev: 0 }, categories: [], subscriptions: { items: [], monthlyTotal: 0 }, upcoming: [], overdue: { count: 0, total: 0, items: [] }, balance: { current: 0, endOfMonth: 0, firstNegative: null, lowest: null, min: 0 } };
     const sheet = buildFactSheet(facts, { biggest: [], latest: [], matches: [], sharing });
-    for (const part of ['only one budget, named "Home" (a shared budget with 2 people)', "Dinner\" EUR 80.00 (paid): Mo's part EUR 30.00, Person B's part EUR 10.00; the person keeps EUR 40.00", "Trip\" EUR 200.00 (pending), added by Person A; this person's part EUR 50.00", 'The person owes "Car loan": EUR 900.00 in all, EUR 300.00 paid back so far, EUR 600.00 left', 'Owed to the person by "Friend"']) {
+    for (const part of ['the budget that is open now, named "Home" (a shared budget with 2 people)',"Dinner\" EUR 80.00 (paid): Mo's part EUR 30.00, Person B's part EUR 10.00; the person keeps EUR 40.00", "Trip\" EUR 200.00 (pending), added by Person A; this person's part EUR 50.00", 'The person owes "Car loan": EUR 900.00 in all, EUR 300.00 paid back so far, EUR 600.00 left', 'Owed to the person by "Friend"']) {
       assert.ok(sheet.includes(part), `missing: ${part}
 ${sheet}`);
     }
+  });
+});
+
+describe('the other budgets of the person', () => {
+  const facts = { today: '2026-10-10', month: '2026-10', prevMonth: '2026-09', dayOfMonth: 10, daysInMonth: 31, currency: 'EUR', totals: { expenseCur: 0, expensePaidCur: 0, expensePrev: 0, mtdExpenseCur: 0, mtdExpensePrev: 0, paidCount: 0, incomeCur: 0, incomePaidCur: 0, incomePrev: 0 }, categories: [], subscriptions: { items: [], monthlyTotal: 0 }, upcoming: [], overdue: { count: 0, total: 0, items: [] }, balance: { current: 0, endOfMonth: 0, firstNegative: null, lowest: null, min: 0 } };
+  const others = [
+    { name: 'Home', shared: true, members: 2, currency: 'GBP', waiting: 0, detail: { month: { expenses: 300, income: 2000 }, prev: { expenses: 250, income: 2000 }, categories: [{ name: 'Groceries', total: 120 }], latest: [{ description: 'Weekly shop', amount: 60, date: '2026-10-08', by: 'Mo' }, { description: 'Rent', amount: 900, date: '2026-10-01', by: 'the person' }] } },
+    { name: 'Trip', shared: true, members: 3, currency: 'EUR', waiting: 1 },
+    { name: 'Old', shared: true, members: 2, currency: 'EUR', waiting: 0 },
+  ];
+  const sheet = buildFactSheet(facts, { biggest: [], latest: [], matches: [], others });
+  it('shows a budget everyone agreed to in its own currency, with who added what', () => {
+    for (const part of ['"Home" (shared by 2 people, GBP):', 'October 2026: spending GBP 300.00, income GBP 2,000.00. September 2026: spending GBP 250.00', 'Groceries GBP 120.00', '"Weekly shop" GBP 60.00, added by Mo', '"Rent" GBP 900.00, added by the person']) assert.ok(sheet.includes(part), `missing: ${part}\n${sheet}`);
+  });
+  it('shows only the name, and why, for a budget somebody has not agreed to', () => {
+    assert.ok(sheet.includes('"Trip" (shared by 3 people): not available to the assistant, because one person in it has not agreed yet.'));
+    assert.ok(sheet.includes('"Old" (shared by 2 people): left out to keep this summary short.'));
+    assert.ok(!/Trip[^\n]*(spending|income)/.test(sheet));
+  });
+  it('is left out entirely when there are no others', () => {
+    assert.ok(!buildFactSheet(facts, { biggest: [], latest: [], matches: [], others: [] }).includes('other budgets'));
   });
 });
 

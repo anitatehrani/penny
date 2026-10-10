@@ -225,10 +225,12 @@ export function Privacy() {
         </li>
         <li>
           <strong>An AI service, only if you turn it on:</strong> the assistant can answer the questions you type with a free AI service,
-          OpenRouter. It is off until you switch it on, in the assistant or in Settings, and in a shared budget it works only when everyone in
-          the budget has switched it on. While it is on, each question you type is sent to OpenRouter together with a short summary of that
-          budget (amounts, categories, payment names and dates, with account and card numbers taken out), and not your name or e-mail
-          address. OpenRouter passes it to a company that runs the AI model; Penny asks for providers that do not keep or train on what they
+          OpenRouter. It is off until you switch it on, in the assistant or in Settings. In a shared budget it works only when everyone in the
+          budget has agreed, either by making or joining the budget after being told about the AI assistant, or by switching it on themselves,
+          and then any member who has switched it on may ask questions about that budget; turning AI answers off takes your agreement back.
+          While it is on, each question you type is sent to OpenRouter together with a short summary of the budget you have open and of your
+          other budgets that everyone in them has agreed to (amounts, categories, payment names and dates, with account and card numbers
+          taken out), and not your name or e-mail address. Other people are not named unless your question names them. OpenRouter passes it to a company that runs the AI model; Penny asks for providers that do not keep or train on what they
           receive, but Penny cannot check that. Nothing is sent when it is off, and the buttons in the assistant never send anything.
           Penny does not keep your questions or the answers.
         </li>

@@ -248,6 +248,77 @@ describe('with a key on the server', () => {
     assert.equal((await status(owner)).ready, true);
   });
 
+  it('joining a budget after the notice counts as agreeing; making it does too; turning AI answers off takes it back', async () => {
+    const owner = await person(on);
+    const mo = await signup(on, { name: 'Mo Moretti', username: 'mo_joiner' });
+    await connect(owner, mo);
+    // the owner made the group having seen the notice; Mo joins having seen it, and never turns AI answers on himself
+    const group = ok(await owner.client.post('/workspaces', { name: 'Home', ai: true }), 201);
+    ok(await owner.client.post(`/workspaces/${group.id}/invites`, { username: mo.user.username }), 201);
+    const inv = ok(await mo.client.get('/inbox')).group_invites[0];
+    ok(await mo.client.post(`/workspace-invites/${inv.id}/accept`, { ai: true }));
+    owner.client.ws = group.id;
+    mo.client.ws = group.id;
+    ok(await tx(owner.client, { description: 'Shared rent', amount: 500, status: 'paid' }), 201);
+    router.state.next = answer('Rent is 500.');
+    assert.deepEqual(await turn(owner, true), { configured: true, on: true, waiting: 0, members: 2, ready: true });
+    assert.equal((await status(mo)).on, false, 'Mo has not turned it on for himself');
+    assert.equal((await ask(owner, 'what did we pay for rent?')).intent, 'ai');
+    assert.notEqual((await ask(mo, 'what did we pay for rent?')).intent, 'ai', 'Mo did not turn it on, so his own questions are not sent');
+    // Mo changes his mind: turning it off clears what he agreed to
+    await turn(mo, false);
+    assert.equal((await status(owner)).ready, false);
+    assert.equal((await status(owner)).waiting, 1);
+  });
+
+  it('joining without the notice (an older app or a script) does not count as agreeing', async () => {
+    const owner = await person(on);
+    const mo = await signup(on);
+    await connect(owner, mo);
+    const group = ok(await owner.client.post('/workspaces', { name: 'Plain' }), 201);
+    ok(await owner.client.post(`/workspaces/${group.id}/invites`, { username: mo.user.username }), 201);
+    ok(await mo.client.post(`/workspace-invites/${(await mo.client.get('/inbox')).json.group_invites[0].id}/accept`));
+    owner.client.ws = group.id;
+    assert.deepEqual(await turn(owner, true), { configured: true, on: true, waiting: 2 - 1, members: 2, ready: false });
+    fails(await owner.client.post('/workspaces', { name: 'x'.repeat(61), ai: true }), 400);
+  });
+
+  it('tells the service about the other budgets, in detail only when everyone in them agreed', async () => {
+    const pia = await person(on, { name: 'Pia Panther', username: 'pia_p2' });
+    const mo = await signup(on, { name: 'Mo Moretti', username: 'mo_two' });
+    const sam = await signup(on, { name: 'Sam Sidewinder', username: 'sam_two' });
+    await connect(pia, mo);
+    await connect(pia, sam);
+    // "Home" with Mo: both saw the notice. "Club" with Sam: Sam joined without it.
+    const home = ok(await pia.client.post('/workspaces', { name: 'Home', ai: true }), 201);
+    ok(await pia.client.post(`/workspaces/${home.id}/invites`, { username: mo.user.username }), 201);
+    ok(await mo.client.post(`/workspace-invites/${ok(await mo.client.get('/inbox')).group_invites[0].id}/accept`, { ai: true }));
+    const club = ok(await pia.client.post('/workspaces', { name: 'Club', ai: true }), 201);
+    ok(await pia.client.post(`/workspaces/${club.id}/invites`, { username: sam.user.username }), 201);
+    ok(await sam.client.post(`/workspace-invites/${ok(await sam.client.get('/inbox')).group_invites[0].id}/accept`));
+    mo.client.ws = home.id;
+    ok(await tx(mo.client, { description: 'Mo weekly shop', amount: 61.5, status: 'paid' }), 201);
+    pia.client.ws = club.id;
+    ok(await tx(pia.client, { description: 'Club secret fee', amount: 99, status: 'paid' }), 201);
+    pia.client.ws = null; // the open budget is her personal one
+    await turn(pia, true);
+    router.state.next = answer('Mo paid 61.50.');
+
+    await ask(pia, 'what did Mo pay in our shared budget?');
+    let system = router.calls.at(-1).body.messages[0].content;
+    assert.match(system, /"Home" \(shared by 2 people, USD\)/);
+    assert.match(system, /"Mo weekly shop" \S+ ?61\.50, added by Mo/);
+    assert.match(system, /"Club" \(shared by 2 people\): not available to the assistant, because one person in it has not agreed yet\./);
+    assert.ok(!system.includes('Club secret fee'), 'a budget somebody has not agreed to is not described');
+    await ask(pia, 'what did we pay lately?');
+    system = router.calls.at(-1).body.messages[0].content;
+    assert.match(system, /"Mo weekly shop" \S+ ?61\.50, added by Person A/);
+    for (const call of router.calls.slice(-2)) {
+      const sent = JSON.stringify(call.body);
+      for (const secret of ['Moretti', 'mo_two', 'Sidewinder', 'sam_two', 'Panther', 'pia_p2']) assert.ok(!sent.includes(secret), `leaked: ${secret}`);
+    }
+  });
+
   it('forgets the choice when the preferences are reset, which is the safe direction', async () => {
     const p = await person(on);
     await turn(p, true);

@@ -6,6 +6,7 @@ import { Avatar, Empty, ErrorBox, Field, Icon, Loading, Modal } from '../compone
 import { useAuth } from '../auth.jsx';
 import { useApp } from '../context.jsx';
 import { dateLabel } from '../format.js';
+import { SHARED_AI_NOTICE, useAiStatus } from '../assistant/AiAnswers.jsx';
 import { useFetch } from '../hooks.js';
 import { useWorkspace } from '../workspace.jsx';
 
@@ -225,6 +226,7 @@ function ConnectionsTab() {
 
 function CreateGroup({ connections, onClose, onCreated }) {
   const { notify } = useApp();
+  const aiSite = useAiStatus(null).status?.configured === true; // the AI service exists on this site: say so, and record the agreement
   const [name, setName] = useState('');
   const [invite, setInvite] = useState({});
   const [busy, setBusy] = useState(false);
@@ -233,7 +235,7 @@ function CreateGroup({ connections, onClose, onCreated }) {
     e.preventDefault();
     setBusy(true);
     try {
-      const ws = await api.post('/workspaces', { name });
+      const ws = await api.post('/workspaces', { name, ...(aiSite ? { ai: true } : {}) });
       const chosen = Object.keys(invite).filter((u) => invite[u]);
       const failed = [];
       for (const username of chosen) {
@@ -272,6 +274,7 @@ function CreateGroup({ connections, onClose, onCreated }) {
           ))
         )}
       </div>
+      {aiSite && <p className="muted small">{SHARED_AI_NOTICE}</p>}
       <div className="form-actions">
         <button type="button" className="btn" onClick={onClose}>
           Cancel
@@ -412,6 +415,7 @@ function GroupsTab() {
   const conns = useFetch(() => api.get('/connections'), []);
   const [creating, setCreating] = useState(false);
   const groups = spaces.filter((w) => w.kind === 'group');
+  const aiSite = useAiStatus(null).status?.configured === true;
 
   const refresh = () => {
     reloadSpaces();
@@ -422,7 +426,7 @@ function GroupsTab() {
   async function respond(invite, accept) {
     try {
       if (accept) {
-        const res = await api.post(`/workspace-invites/${invite.id}/accept`);
+        const res = await api.post(`/workspace-invites/${invite.id}/accept`, aiSite ? { ai: true } : {});
         notify(`You joined ${invite.workspace.name}`);
         refresh();
         switchTo(res.workspace_id);
@@ -453,6 +457,7 @@ function GroupsTab() {
           <div className="card-head">
             <h2>Group invitations ({inbox.group_invites.length})</h2>
           </div>
+          {aiSite && <p className="muted small">{SHARED_AI_NOTICE}</p>}
           {inbox.group_invites.map((i) => (
             <Person key={i.id} user={i.inviter} sub={`invites you to “${i.workspace.name}” · ${i.workspace.member_count} ${i.workspace.member_count === 1 ? 'person' : 'people'} so far`}>
               <button className="btn primary sm" onClick={() => respond(i, true)}>
