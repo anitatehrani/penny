@@ -198,7 +198,8 @@ describe('instant e-mail alerts', () => {
     ok(await p.client.post('/notifications/refresh'));
     const m = await eventually(() => inbox(p.user.email)[0], { what: 'e-mail' });
     assert.ok(m.html.includes('&lt;script&gt;alert(1)&lt;/script&gt; &amp; &quot;quotes&quot;'));
-    assert.ok(!/<script|<img/i.test(m.html.replace(/<!doctype[\s\S]*?<body/i, '')), 'no live tags from user input');
+    const withoutOurIcon = m.html.replace(/<img src="[^"]*\/icon-192\.png"[^>]*>/, ''); // the one picture is Penny's own icon in the header
+    assert.ok(!/<script|<img/i.test(withoutOurIcon.replace(/<!doctype[\s\S]*?<body/i, '')), 'no live tags from user input');
     assert.ok(m.text.includes('<script>alert(1)</script>'), 'the plain-text version shows the original text');
   });
 
