@@ -100,15 +100,25 @@ const kindOf = (status, message) => {
  * Send messages [{ role, content }] and get the answer text. Throws AiError. `fetchImpl` is for tests.
  * Nothing about the request or the answer is logged: only what went wrong (a word and a status).
  */
-export async function askModel(messages, { config = aiConfig(), fetchImpl = globalThis.fetch } = {}) {
+export async function askModel(messages, opts = {}) {
+  try {
+    return await askOnce(messages, opts);
+  } catch (e) {
+    if (!(e instanceof AiError) || e.kind !== 'empty') throw e;
+    return askOnce(messages, opts);
+  }
+}
+
+async function askOnce(messages, { config = aiConfig(), fetchImpl = globalThis.fetch } = {}) {
   if (!config.enabled) throw new AiError('down', 'not set up');
   const body = {
     model: config.models[0],
     ...(config.models.length > 1 ? { models: config.models } : {}),
     messages,
     temperature: 0.2,
-    max_tokens: 700,
-    reasoning: { exclude: true },
+    // some free models think silently first and that counts against max_tokens: a small limit left no room for the answer itself
+    max_tokens: 2000,
+    reasoning: { effort: 'low', exclude: true },
     provider: { data_collection: config.dataCollection, allow_fallbacks: true },
   };
   let res;
@@ -138,7 +148,8 @@ export async function askModel(messages, { config = aiConfig(), fetchImpl = glob
     const kind = kindOf(Number(json?.error?.code) || res.status, problem);
     throw new AiError(kind, `status ${res.status}${problem ? `: ${problem.slice(0, 160)}` : ''}`);
   }
-  const text = cleanAnswer(json?.choices?.[0]?.message?.content);
-  if (!text) throw new AiError('empty', 'the model sent no text');
+  const content = json?.choices?.[0]?.message?.content;
+  const text = cleanAnswer(Array.isArray(content) ? content.map((c) => (typeof c === 'string' ? c : c?.text ?? '')).join('') : content);
+  if (!text) throw new AiError('empty', `the model sent no text (${json?.choices?.[0]?.finish_reason ?? 'no reason given'})`);
   return { text, model: typeof json.model === 'string' ? json.model : config.models[0] };
 }

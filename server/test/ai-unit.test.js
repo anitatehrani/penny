@@ -107,7 +107,8 @@ describe('asking the service', () => {
     assert.deepEqual(seen.body.models, DEFAULT_MODELS);
     assert.ok([seen.body.model, ...seen.body.models].every(isFreeModel));
     assert.deepEqual(seen.body.provider, { data_collection: 'deny', allow_fallbacks: true });
-    assert.ok(seen.body.max_tokens <= 800 && seen.body.temperature <= 0.3);
+    assert.ok(seen.body.max_tokens >= 1500 && seen.body.max_tokens <= 3000 && seen.body.temperature <= 0.3);
+    assert.deepEqual(seen.body.reasoning, { effort: 'low', exclude: true });
     assert.deepEqual(seen.body.messages, [{ role: 'user', content: 'hi' }]);
     assert.ok(!JSON.stringify(seen.body).includes(KEY), 'the key is only in the header');
   });
@@ -135,11 +136,24 @@ describe('asking the service', () => {
     assert.equal(await kindOf(reply(404, { error: { code: 404, message: 'No endpoints found matching your data policy (Free model training)' } })), 'policy');
     assert.equal(await kindOf(reply(500, { error: { message: 'Internal error' } })), 'down');
     assert.equal(await kindOf(reply(200, { error: { code: 429, message: 'Provider returned error: rate limit' } })), 'limit'); // an error inside a 200
-    assert.equal(await kindOf(reply(200, { choices: [{ message: { content: '' } }] })), 'empty');
+    assert.equal(await kindOf(reply(200, { choices: [{ message: { content: '' }, finish_reason: 'length' }] })), 'empty');
     assert.equal(await kindOf(reply(200, { choices: [] })), 'empty');
     assert.equal(await kindOf(async () => new Response('<html>bad gateway</html>', { status: 502 })), 'down');
     assert.equal(await kindOf(async () => { throw new TypeError('fetch failed'); }), 'down');
     assert.equal(await kindOf(async () => { throw Object.assign(new Error('x'), { name: 'TimeoutError' }); }), 'timeout');
+  });
+
+  it('tries once more when the answer comes back empty, and reads an answer sent in parts', async () => {
+    let n = 0;
+    const out = await ask(async () => new Response(JSON.stringify({ choices: [{ message: { content: ++n === 1 ? '' : [{ type: 'text', text: 'Second ' }, { type: 'text', text: 'time lucky' }] } }] }), { status: 200 }));
+    assert.equal(out.text, 'Second time lucky');
+    assert.equal(n, 2);
+    n = 0;
+    assert.equal(await kindOf(async () => { n++; return new Response(JSON.stringify({ choices: [{ message: { content: '' } }] }), { status: 200 }); }), 'empty');
+    assert.equal(n, 2, 'only one retry');
+    n = 0;
+    await kindOf(async () => { n++; return new Response(JSON.stringify({ error: { message: 'bad key' } }), { status: 401 }); });
+    assert.equal(n, 1, 'other failures are not retried');
   });
 
   it('refuses to run without a key or without a free model, and never sends the key in an error', async () => {
