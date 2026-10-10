@@ -308,6 +308,45 @@ Command prod-backup 'Make a backup on the live server now and download all its b
   Say 'The live backups are in the folder backups-live. Keep a copy somewhere safe: they hold real financial data.' 'Green'
 }
 
+Command replies-setup 'Switch on replies by e-mail on the live site (README, "Replies by e-mail"): sets the two server settings and tells Brevo where to deliver. Asks for a Brevo API key and does not save it' {
+  $h = Deploy-Host
+  $site = ((& ssh $h "grep '^DOMAIN=' penny/.env | cut -d= -f2") | Out-String).Trim()
+  if (-not $site) { throw 'The server .env has no DOMAIN, so I cannot tell which address is yours.' }
+  $reply = (Args-Without @() | Select-Object -First 1)
+  if (-not $reply) { $reply = "reply.$site" }
+  Say "Replies will come to addresses at $reply (its MX records must point at Brevo: README, Replies by e-mail, step 1)."
+
+  # 1. the two settings on the server: the name, and a long random secret (made once, kept if it is already there)
+  & ssh $h ("cd penny && sed -i '/^REPLY_DOMAIN=/d' .env && echo 'REPLY_DOMAIN=$reply' >> .env && (grep -q '^INBOUND_SECRET=.' .env || (sed -i '/^INBOUND_SECRET=/d' .env && echo INBOUND_SECRET=`$(openssl rand -hex 24) >> .env)) && docker compose up -d")
+  if ($LASTEXITCODE -ne 0) { throw 'Could not set the two settings on the server.' }
+  $secret = ((& ssh $h "grep '^INBOUND_SECRET=' penny/.env | cut -d= -f2") | Out-String).Trim()
+  if ($secret.Length -lt 20) { throw 'The secret on the server is missing or too short.' }
+
+  # 2. tell Brevo (an API call; the key is asked for, used once and not saved)
+  $secure = Read-Host 'Paste the Brevo API key (SMTP & API, API keys; not the SMTP key). Nothing is saved' -AsSecureString
+  $key = [System.Net.NetworkCredential]::new('', $secure).Password
+  if (-not $key) { throw 'No key was given.' }
+  $headers = @{ 'api-key' = $key; 'accept' = 'application/json' }
+  $url = "https://$site/api/inbound/mail/$secret"
+  # what Brevo already has: it answers "does not exist" when there is no inbound webhook yet, which just means there is nothing to compare with
+  $known = $null
+  try {
+    $known = Invoke-RestMethod -Method Get -Uri 'https://api.brevo.com/v3/webhooks?type=inbound' -Headers $headers
+  } catch {
+    if ($_.ErrorDetails.Message -notmatch 'document_not_found') { throw "Brevo refused the key: $($_.ErrorDetails.Message)" }
+  }
+  if ($known -and @($known.webhooks | Where-Object { $_.url -eq $url }).Count -gt 0) { Say 'Brevo already delivers to this address. Nothing more to do.' 'Green'; return }
+  try {
+    $body = @{ type = 'inbound'; events = @('inboundEmailProcessed'); url = $url; domain = $reply; description = 'Penny: replies to answers' } | ConvertTo-Json
+    $made = Invoke-RestMethod -Method Post -Uri 'https://api.brevo.com/v3/webhooks' -Headers $headers -ContentType 'application/json' -Body $body
+    Say "Done: Brevo now delivers replies sent to $reply (webhook $($made.id))." 'Green'
+    Say 'Try it: send yourself a message through the contact form, answer it in Admin, Messages, then reply to that e-mail.'
+  } catch {
+    $detail = $_.ErrorDetails.Message
+    throw "Brevo refused it: $detail   (If it says inbound parsing is not available, it is not part of this Brevo plan.)"
+  }
+}
+
 Command test 'Run the server and client tests (against the Docker database)' {
   Need-Docker; Ensure-Env
   Compose up -d --wait db

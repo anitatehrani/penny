@@ -299,6 +299,8 @@ The two pages (`/terms` and `/privacy`) are written in plain language to describ
 When you answer a message in **Admin, Messages**, the writer's reply can come back into the same message instead of landing in your own mailbox. It uses Brevo's inbound parsing (the same account that sends Penny's e-mail):
 
 1. **DNS.** For the name `reply.your-domain.app` (a sub-domain, not the main one) add two MX records: priority 10 `inbound1.sendinblue.com.` and priority 20 `inbound2.sendinblue.com.`. Changes can take a few hours.
+**Steps 2 and 3 in one go:** `.penny replies-setup` (from this computer, with `DEPLOY_HOST` set). It sets the two server settings (making the secret if there is none), restarts Penny, asks for the Brevo API key (not saved) and registers the webhook. The steps it does are:
+
 2. **Server settings.** In the server's `.env`: `REPLY_DOMAIN=reply.your-domain.app` and `INBOUND_SECRET=` a long random text (for example `openssl rand -hex 24`). Then `docker compose up -d`.
 3. **Tell Brevo where to deliver.** Once, with an API key from Brevo (SMTP and API keys, API keys; not the SMTP key): a `POST https://api.brevo.com/v3/webhooks` with `type` `inbound`, `events` `["inboundEmailProcessed"]`, `domain` `reply.your-domain.app` and
    `url` `https://your-domain.app/api/inbound/mail/<INBOUND_SECRET>`. The secret is part of the address because Brevo does not sign its requests: keep it private, and if it leaks, change it in `.env` and register the webhook again.
