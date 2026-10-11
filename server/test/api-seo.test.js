@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { after, before, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { GUIDES } from '../src/content/guides.js';
 import { shutdown, startServer } from './helpers.js';
 
 // What a search engine meets when it visits (docs/DESIGN.md section 44), through the real server.
@@ -30,13 +31,13 @@ describe('robots.txt and the sitemap', () => {
     assert.ok(text.includes(`Sitemap: ${SITE}/sitemap.xml`));
   });
 
-  it('the sitemap is XML that lists the four public pages at the site\'s own address', async () => {
+  it('the sitemap is XML that lists the public pages and the guides at the site\'s own address', async () => {
     const r = await get('/sitemap.xml');
     assert.equal(r.status, 200);
     assert.match(r.headers.get('content-type'), /^application\/xml/);
     assert.match(r.headers.get('cache-control'), /max-age/);
     const xml = await r.text();
-    assert.deepEqual([...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]), [`${SITE}/`, `${SITE}/terms`, `${SITE}/privacy`, `${SITE}/contact`]);
+    assert.deepEqual([...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]), [`${SITE}/`, `${SITE}/terms`, `${SITE}/privacy`, `${SITE}/contact`, `${SITE}/guides`, ...GUIDES.map((g) => `${SITE}/guides/${g.slug}`)]);
     assert.ok(!xml.includes('<html'), 'not the app page');
   });
 

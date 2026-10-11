@@ -623,6 +623,7 @@ export default function Landing() {
             <a href="#tour">Tour</a>
             <a href="#privacy">Privacy</a>
             <a href="#faq">Questions</a>
+            <a href="/guides">Guides</a>
           </nav>
           <div className="lp-nav-actions">
             <span className="lp-theme-nav">
@@ -806,6 +807,7 @@ export default function Landing() {
         <div className="lp-wrap lp-footer-in">
           <Wordmark height={22} />
           <nav aria-label="Footer">
+            <a href="/guides">Guides</a>
             <Link to="/terms">Terms of use</Link>
             <Link to="/privacy">Privacy policy</Link>
             <Link to="/login">Log in</Link>

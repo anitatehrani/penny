@@ -31,6 +31,7 @@ export function LegalShell({ which, title, children }) {
           <Wordmark height={26} />
         </Link>
         <nav aria-label="Legal pages" className="legal-nav">
+          <a href="/guides">Guides</a>
           <Link to="/terms" aria-current={which === 'terms' ? 'page' : undefined}>
             Terms of use
           </Link>

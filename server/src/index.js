@@ -38,6 +38,7 @@ import settings from './routes/settings.js';
 import shared from './routes/shared.js';
 import transactions from './routes/transactions.js';
 import workspaces from './routes/workspaces.js';
+import { renderGuide, renderGuideNotFound, renderGuidesIndex } from './lib/guidePages.js';
 import { escapeHtml, pageFor, renderPage, robotsTxt, sitemapXml } from './lib/seo.js';
 
 const app = express();
@@ -97,6 +98,30 @@ app.get('/sitemap.xml', (_req, res) => {
 
 // Serve the built React app when present (npm run build).
 const dist = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../client/dist');
+
+// The guides (docs/DESIGN.md section 45): ordinary pages written by the server, readable without scripts. They borrow the stylesheet of the built app
+// when there is one, and are still complete pages when there is not.
+const builtIndex = () => (fs.existsSync(path.join(dist, 'index.html')) ? fs.readFileSync(path.join(dist, 'index.html'), 'utf8') : '');
+let guideStyles;
+const guideContext = () => ({ base: appUrl(), indexHtml: (guideStyles ??= builtIndex()) });
+app.get('/guides', (_req, res) => {
+  res.set('Cache-Control', 'no-cache');
+  res.type('html').send(renderGuidesIndex(guideContext()));
+});
+const guideNotFound = (res) => {
+  res.set('Cache-Control', 'no-cache');
+  res.set('X-Robots-Tag', 'noindex, nofollow');
+  res.status(404).type('html').send(renderGuideNotFound(guideContext()));
+};
+app.get('/guides/:slug', (req, res) => {
+  const page = renderGuide(req.params.slug, guideContext());
+  if (!page) return guideNotFound(res);
+  res.set('Cache-Control', 'no-cache');
+  res.type('html').send(page);
+});
+// anything else under /guides/ (an extra part, a mistyped address) is "not found" too, not the app's catch-all page
+app.get('/guides/*', (_req, res) => guideNotFound(res));
+
 if (fs.existsSync(dist)) {
   // The page itself goes through here (not through express.static) so the link-preview tags carry this site's real address.
   const indexHtml = fs.readFileSync(path.join(dist, 'index.html'), 'utf8');

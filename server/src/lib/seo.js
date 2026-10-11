@@ -2,6 +2,7 @@
 // and the page text for people and programs that do not run scripts. Penny is one page that React draws, so the server writes the parts a
 // search engine reads first (title, description, address, the first words) into the page it sends.
 
+import { GUIDES } from '../content/guides.js';
 import { TERMS_VERSION } from './legal.js';
 
 export const SITE_NAME = 'Penny';
@@ -51,8 +52,15 @@ export function robotsTxt(base) {
   return `User-agent: *\nAllow: /\nDisallow: /api/\n\nSitemap: ${base}/sitemap.xml\n`;
 }
 
+/** Every address that belongs in a search engine: the public pages of the app, the guides page and each guide (dated by when it was last updated). */
+export const SITEMAP_PAGES = [
+  ...PUBLIC_PAGES,
+  { path: '/guides', priority: '0.8', changefreq: 'monthly', lastmod: GUIDES.map((g) => g.updated).sort().at(-1) },
+  ...GUIDES.map((g) => ({ path: `/guides/${g.slug}`, priority: '0.7', changefreq: 'yearly', lastmod: g.updated })),
+];
+
 export function sitemapXml(base) {
-  const urls = PUBLIC_PAGES.map(
+  const urls = SITEMAP_PAGES.map(
     (p) => `  <url>\n    <loc>${escapeHtml(base + (p.path === '/' ? '/' : p.path))}</loc>${p.lastmod ? `\n    <lastmod>${p.lastmod}</lastmod>` : ''}\n    <changefreq>${p.changefreq}</changefreq>\n    <priority>${p.priority}</priority>\n  </url>`,
   ).join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`;
@@ -87,7 +95,7 @@ export function homeNoscript() {
 <ul>${HOME_POINTS.map((p) => `<li>${escText(p)}</li>`).join('')}</ul>
 <h2>Good to know</h2>
 ${HOME_FAQ.map((f) => `<h3>${escText(f.q)}</h3><p>${escText(f.a)}</p>`).join('\n')}
-<p><a href="/login">Log in</a> · <a href="/terms">Terms</a> · <a href="/privacy">Privacy</a> · <a href="/contact">Contact</a></p>
+<p><a href="/login">Log in</a> · <a href="/guides">Guides</a> · <a href="/terms">Terms</a> · <a href="/privacy">Privacy</a> · <a href="/contact">Contact</a></p>
 </main>
 </noscript>`;
 }

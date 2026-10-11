@@ -187,7 +187,7 @@ const freePort = () =>
   await check('the sitemap lists only pages that answer, can be indexed and have a title of their own', async () => {
     const xml = await (await fetch(`${BASE}/sitemap.xml`)).text();
     const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
-    eq(locs.length, 4, 'pages in the sitemap');
+    eq(locs.length, 10, 'pages in the sitemap: four public pages, the guides page and five guides');
     const titles = new Set();
     for (const loc of locs) {
       const r = await fetch(loc);
@@ -197,7 +197,7 @@ const freePort = () =>
       titles.add(/<title>([^<]*)<\/title>/.exec(html)[1]);
       truthy(!/name="robots"/.test(html), `${loc} has no noindex`);
     }
-    eq(titles.size, 4, 'distinct titles');
+    eq(titles.size, 10, 'distinct titles');
     const robots = await (await fetch(`${BASE}/robots.txt`)).text();
     truthy(robots.includes(`Sitemap: ${BASE}/sitemap.xml`), 'robots.txt points to the sitemap');
   });
@@ -242,6 +242,127 @@ const freePort = () =>
     await page.goto(`${BASE}/`, { waitUntil: 'networkidle0' });
     eq(await page.title(), 'Dashboard · Penny', 'title of the dashboard');
     await context.close();
+  });
+
+  const GUIDE_PATHS = ['/guides/how-to-plan-a-monthly-budget', '/guides/budgeting-as-a-couple', '/guides/can-i-afford-it', '/guides/import-a-bank-statement', '/guides/track-subscriptions-and-recurring-bills'];
+
+  await check('the guides read without any script: one main heading, the whole text, and links on to the other guides', async () => {
+    for (const path of ['/guides', ...GUIDE_PATHS]) {
+      const { page, files, close } = await visit(path, { scripts: false });
+      eq(await page.$$eval('h1', (h) => h.length), 1, `h1 on ${path}`);
+      const text = await page.$eval('body', (b) => b.innerText);
+      truthy(text.length > (path === '/guides' ? 600 : 2500), `${path} has its text (${text.length} characters)`);
+      eq(files.filter((f) => f.type === 'script').length, 0, `scripts loaded for ${path}`);
+      truthy(await page.$('a[href="/guides"]'), 'a way to the list of guides');
+      truthy(await page.$('a[href="/"]'), 'a way home');
+      await close();
+    }
+  });
+
+  await check('each guide has its own title, address, description and valid structured data, and nothing that says "do not index"', async () => {
+    const titles = new Set();
+    for (const path of GUIDE_PATHS) {
+      const { page, close } = await visit(path);
+      const title = await page.title();
+      titles.add(title);
+      truthy(/ · Penny$/.test(title) && title.length <= 70, `title: ${title}`);
+      eq(await meta(page, 'link[rel=canonical]'), `${BASE}${path}`, `canonical of ${path}`);
+      const description = await meta(page, 'meta[name=description]');
+      truthy(description.length >= 100 && description.length <= 160, `description of ${description.length} characters`);
+      eq(await page.$('meta[name=robots]'), null, `no noindex on ${path}`);
+      const types = await page.$$eval('script[type="application/ld+json"]', (els) => els.map((e) => JSON.parse(e.textContent)['@type']));
+      eq(types.join(','), 'Article,BreadcrumbList', `structured data on ${path}`);
+      await close();
+    }
+    eq(titles.size, GUIDE_PATHS.length, 'distinct titles');
+  });
+
+  await check('the text can be read in both themes: enough contrast for the text, the links and the examples', async () => {
+    const luminance = ([r, g, b]) => {
+      const f = (v) => ((v /= 255) <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+      return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+    };
+    const ratio = (a, b) => {
+      const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+      return (hi + 0.05) / (lo + 0.05);
+    };
+    for (const theme of ['light', 'dark']) {
+      const { page, close } = await visit('/guides/can-i-afford-it', { theme });
+      const colours = await page.evaluate(() => {
+        const rgb = (c) => c.match(/[\d.]+/g).slice(0, 3).map(Number);
+        const bgOf = (el) => {
+          for (let e = el; e; e = e.parentElement) {
+            const c = getComputedStyle(e).backgroundColor;
+            if (c && !/rgba?\(0, 0, 0, 0\)|transparent/.test(c)) return rgb(c);
+          }
+          return [255, 255, 255];
+        };
+        const pick = (sel) => {
+          const el = document.querySelector(sel);
+          return { text: rgb(getComputedStyle(el).color), bg: bgOf(el), size: parseFloat(getComputedStyle(el).fontSize) };
+        };
+        return { paragraph: pick('.legal-article section p'), heading: pick('.legal-article h2'), link: pick('.legal-article a'), crumb: pick('.g-crumbs a'), cell: pick('.g-example td'), label: pick('.g-example th'), updated: pick('.legal-updated'), note: pick('.g-note') };
+      });
+      for (const [name, c] of Object.entries(colours)) {
+        const r = ratio(c.text, c.bg);
+        truthy(r >= 4.5, `${theme}: ${name} has contrast ${r.toFixed(2)} (needs 4.5)`);
+      }
+      truthy(colours.paragraph.size >= 15, `text size ${colours.paragraph.size}px, for people who read slowly`);
+      const shown = await page.$$eval('.g-mark', (els) => els.filter((e) => getComputedStyle(e).display !== 'none').length);
+      eq(shown, 1, `wordmarks shown in the ${theme} theme`);
+      await close();
+    }
+  });
+
+  await check('on a phone the guides fit the screen: no sideways scrolling, even with the table', async () => {
+    for (const path of ['/guides', ...GUIDE_PATHS]) {
+      const { page, close } = await visit(path, { width: 360, height: 740 });
+      const over = await page.evaluate(() => ({ page: document.documentElement.scrollWidth > window.innerWidth + 1, items: [...document.querySelectorAll('main *')].filter((e) => e.getBoundingClientRect().right > window.innerWidth + 1).map((e) => e.tagName + '.' + e.className).slice(0, 3) }));
+      eq(over.page, false, `sideways scrolling on ${path}: ${over.items.join(', ')}`);
+      await close();
+    }
+  });
+
+  await check('every link on the guides leads somewhere that exists', async () => {
+    const seen = new Set();
+    for (const path of ['/guides', ...GUIDE_PATHS]) {
+      const { page, close } = await visit(path, { scripts: false });
+      const links = await page.$$eval('a[href]', (as) => as.map((a) => a.getAttribute('href')));
+      for (const href of links) {
+        truthy(href.startsWith('/') || href.startsWith('#'), `${path} links outside the site: ${href}`);
+        if (href.startsWith('#') || seen.has(href)) continue;
+        seen.add(href);
+        const r = await fetch(`${BASE}${href}`, { redirect: 'manual' });
+        eq(r.status, 200, `${href} (linked from ${path})`);
+      }
+      truthy(links.every((h) => h !== '' && h !== '/undefined'), 'no empty links');
+      await close();
+    }
+    truthy(seen.size >= 9, `${seen.size} different links checked`);
+  });
+
+  await check('the home page and the terms page lead to the guides, and the guides lead back', async () => {
+    const { page, close } = await visit('/');
+    truthy(await page.$('.lp-nav a[href="/guides"]'), 'a Guides link at the top of the home page');
+    truthy(await page.$('.lp-footer a[href="/guides"]'), 'a Guides link in the footer');
+    await page.evaluate(() => document.querySelector('.lp-footer a[href="/guides"]').click());
+    await page.waitForFunction(() => location.pathname === '/guides', { timeout: 8000 });
+    truthy(/Budgeting guides/.test(await page.$eval('h1', (h) => h.textContent)), 'the list of guides opens');
+    await page.evaluate(() => document.querySelector('a[href="/guides/can-i-afford-it"]').click());
+    await page.waitForFunction(() => location.pathname === '/guides/can-i-afford-it', { timeout: 8000 });
+    await page.evaluate(() => document.querySelector('.legal-back a').click());
+    await page.waitForFunction(() => location.pathname === '/', { timeout: 8000 });
+    eq(await page.title(), 'Penny: a personal budget with a forecast months ahead', 'back on the home page');
+    await close();
+    const terms = await visit('/terms');
+    truthy(await terms.page.$('.legal-nav a[href="/guides"]'), 'a Guides link on the terms page');
+    await terms.close();
+  });
+
+  await check('a guide that does not exist says so, with the right status', async () => {
+    const r = await fetch(`${BASE}/guides/nothing-here`);
+    eq(r.status, 404, 'status');
+    truthy(/That guide does not exist/.test(await r.text()), 'the words');
   });
 
   await check('no script errors in the browser', async () => {

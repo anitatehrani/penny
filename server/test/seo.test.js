@@ -4,6 +4,7 @@ import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { TERMS_VERSION } from '../src/lib/legal.js';
+import { GUIDES } from '../src/content/guides.js';
 import { HOME_FAQ, homeJsonLd, homeNoscript, normalizePath, pageFor, PUBLIC_PAGES, renderPage, robotsTxt, sitemapXml } from '../src/lib/seo.js';
 
 const CLIENT = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../client');
@@ -120,7 +121,7 @@ describe('structured data', () => {
 describe('what a reader without scripts sees', () => {
   const text = homeNoscript();
   it('is the same message as the home page, with the way to log in and the legal pages', () => {
-    for (const part of ['<h1>', 'href="/login"', 'href="/terms"', 'href="/privacy"', 'href="/contact"', 'No bank login, no ads']) assert.ok(text.includes(part), part);
+    for (const part of ['<h1>', 'href="/login"', 'href="/guides"', 'href="/terms"', 'href="/privacy"', 'href="/contact"', 'No bank login, no ads']) assert.ok(text.includes(part), part);
     assert.equal((text.match(/<h1>/g) || []).length, 1);
     for (const f of HOME_FAQ) assert.ok(text.includes(f.q.replace(/&/g, '&amp;')), f.q);
   });
@@ -143,20 +144,20 @@ describe('the sitemap and robots.txt', () => {
     assert.equal(robotsTxt(BASE), `User-agent: *\nAllow: /\nDisallow: /api/\n\nSitemap: ${BASE}/sitemap.xml\n`);
   });
 
-  it('the sitemap lists the public pages, with absolute addresses, and nothing else', () => {
+  it('the sitemap lists the public pages and the guides, with absolute addresses, and nothing else', () => {
     const xml = sitemapXml(BASE);
     assert.match(xml, /^<\?xml version="1.0" encoding="UTF-8"\?>\n<urlset xmlns="http:\/\/www\.sitemaps\.org\/schemas\/sitemap\/0\.9">/);
     const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
-    assert.deepEqual(locs, [`${BASE}/`, `${BASE}/terms`, `${BASE}/privacy`, `${BASE}/contact`]);
+    assert.deepEqual(locs, [`${BASE}/`, `${BASE}/terms`, `${BASE}/privacy`, `${BASE}/contact`, `${BASE}/guides`, ...GUIDES.map((g) => `${BASE}/guides/${g.slug}`)]);
     for (const l of locs) assert.doesNotThrow(() => new URL(l));
     assert.ok(!/payments|settings|login|admin|api/.test(xml));
     assert.equal((xml.match(/<url>/g) || []).length, (xml.match(/<\/url>/g) || []).length);
   });
 
-  it('dates only what is really dated: the terms and the privacy policy by their version', () => {
+  it('dates only what is really dated: the terms and the privacy policy by their version, the guides by when they were written', () => {
     const xml = sitemapXml(BASE);
     const lastmods = [...xml.matchAll(/<lastmod>([^<]+)<\/lastmod>/g)].map((m) => m[1]);
-    assert.deepEqual(lastmods, [TERMS_VERSION, TERMS_VERSION]);
+    assert.deepEqual(lastmods, [TERMS_VERSION, TERMS_VERSION, ...[...GUIDES.map((g) => g.updated)].sort().slice(-1), ...GUIDES.map((g) => g.updated)]);
     for (const d of lastmods) assert.match(d, /^\d{4}-\d{2}-\d{2}$/);
   });
 

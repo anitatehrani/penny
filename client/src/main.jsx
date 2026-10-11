@@ -27,6 +27,7 @@ import './design/legal.css';
 import './design/landing.css';
 import './design/import.css';
 import './design/budget.css';
+import './design/guides.css';
 
 // fetched only after signing in (below)
 const SignedIn = lazy(() => import('./SignedIn.jsx'));

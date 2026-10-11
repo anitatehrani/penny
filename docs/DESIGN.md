@@ -1141,3 +1141,28 @@ Search Console and Bing Webmaster verification (a DNS record only the site's own
 ### How it is tested
 
 `seo.test.js` (titles and descriptions of a showable length and all different, the page with and without its place, "do not index", the escaping, structured data, the no-script text equal to the home page's questions, the sitemap and robots.txt), `api-seo.test.js` (through the real server: robots.txt and the sitemap as a crawler asks, the headers on the API and on every app page, 404 for missing files, `HEAD`, files that exist), and `e2e/seo.e2e.cjs` (in a real browser as a stranger, with and without scripts: title, one main heading, descriptions, pictures with text and size, structured data, that the signed-in app is not downloaded, one picture of the top screenshot, the no-script text, page titles after moving between pages, the sitemap's pages, the picture for shared links, and that a signed-in person still gets the app).
+
+## 45. Guides: short articles that answer what people search for (defined before implementation)
+
+A site that only has an app and a home page is found only by its own name. People search for questions ("how do I plan a monthly budget", "can I afford it", "how do I import a bank statement"), and a page that answers one honestly is what a search engine can show them. So Penny has a small set of **guides** at `/guides`, each useful on its own, each saying how Penny helps only where Penny really does the thing.
+
+### The guides
+
+`server/src/content/guides.js` holds them as data: `how-to-plan-a-monthly-budget` (six steps and a worked example), `budgeting-as-a-couple` (three setups and how to choose), `can-i-afford-it` (checking the balance month by month, with an example), `import-a-bank-statement` (which file, what to check, privacy) and `track-subscriptions-and-recurring-bills`. Each has a title (at most 55 characters), a description (100 to 160), a date written, an introduction, sections made of paragraphs, lists, numbered steps and worked examples with made-up amounts, one closing section "How Penny helps", and related guides. The words are plain, for people from 15 to 90, and a test refuses the usual overselling: no promises, no invented statistics ("studies show", "x% of people"), no pressure, and Penny is not named before the closing section.
+
+### How they are made into pages (`server/src/lib/guidePages.js`)
+
+They are **written by the server as ordinary HTML, with no script**, not drawn by React: the whole text is in the page for people, screen readers and search engines, and the page is light (no script to download or run). They wear the stylesheet of the built app (taken from the built `index.html`; the pages are still complete without it) and the look of the terms and privacy pages, with `design/guides.css` for what a guide adds: the wordmark in both themes (two pictures, the one for the theme is shown), a worked example as a table with a caption, a call to try Penny (a sign-up button only while sign-ups are open) and the list of guides. Content is escaped; only **bold** and links to addresses on this site are allowed inside it.
+
+- `GET /guides` lists them; `GET /guides/:slug` is a guide (not case sensitive, a slash at the end is the same page). Anything else under `/guides/` answers **404** with a page that offers the real guides, marked "do not index" (it does not fall through to the app).
+- Each page has its own title ("Title · Penny"), description, canonical address, share tags (`og:type` article), `Article` and `BreadcrumbList` structured data (the author and publisher are the organisation "Penny", never an invented person) and no "do not index".
+- They are in `/sitemap.xml` (`SITEMAP_PAGES`), each dated by when it was written; the list is dated by the newest.
+- Links: the home page (top and footer), the terms and privacy pages and the contact page lead to them (plain links: they are server pages, not part of the app), and the home page's text for readers without scripts links to them.
+
+### Writing another
+
+Add an entry to `GUIDES` (a test checks the lengths, that the slug and title are unique, that every link goes to a page that exists, that examples say their amounts are made up, that Penny is described only with features the home page also claims, and that nothing overpromises). It appears in the list, the sitemap and `/guides/<slug>` by itself. Change `updated` when a guide changes in a way that matters.
+
+### How it is tested
+
+`guides.test.js` (the writing, the page, the structured data, escaping, sign-ups open and closed, the sitemap), `api-guides.test.js` (through the real server: the pages as a search engine asks, 404 for anything else under `/guides/`, the stylesheet and pictures they use, no dependence on a session, the sitemap's addresses all answer 200), and the browser checks in `e2e/seo.e2e.cjs` (without any script, titles and structured data, contrast in both themes, a phone with the table, every link leads somewhere, the way from the home page and back).
