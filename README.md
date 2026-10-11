@@ -146,6 +146,7 @@ npm run test:server   # API, security, migration and logic tests
 npm run test:client   # browser-side logic (password checklist vs server rules, formatting, fuzzy search, avatars, layout rules)
 npm run e2e           # drives a real Chrome/Edge through the interface (needs the app running and the demo data)
 cd e2e && npm run import   # the bank statement import in a real browser (starts the app on a throw-away database; needs `npm run build`)
+cd e2e && npm run seo      # what search engines and a stranger meet, and how much the home page downloads (throw-away database; needs `npm run build`)
 cd e2e && npm run budget   # the monthly budget in a real browser (throw-away database; needs `npm run build`)
 cd e2e && npm run ai       # AI answers in a real browser, against a pretend OpenRouter (throw-away database; needs `npm run build`)
 ```
@@ -327,6 +328,18 @@ The assistant normally answers a fixed set of questions from your own ledger, on
 **If no free model accepts that privacy setting**, `ai-check` says "policy". Free models are free partly because their providers may keep what they get. Setting `AI_DATA_COLLECTION=allow` lets them; that is a decision about your users' data, so make it knowingly (and say so on the privacy page). The other way out is a paid model, which Penny deliberately never uses.
 
 **Limits:** free models allow a limited number of questions for the whole OpenRouter account: 20 a minute and 50 a day, or 1,000 a day once the account has bought at least 10 credits (OpenRouter's rate limit page). Penny counts as well (`AI_DAILY_LIMIT`, default 40 for the site; `AI_PERSON_DAILY_LIMIT`, default 20), and past the limit, or when the service is down, the built-in answer is shown with a note. `AI_MODELS` names up to three other free models (the free list changes often; ids end in `:free`, or use `openrouter/free`). Anything that is not free is ignored. Answers can be wrong: they are labelled, and the figures should be checked.
+
+## Being found in search engines
+
+The site tells search engines what each public page is (the home page, the terms, the privacy policy and the contact page): its own title and description, a sitemap at `/sitemap.xml`, `/robots.txt`, structured data on the home page, and the home page's text even for readers who do not run scripts. The app and the sign-in pages are marked "do not index". The first visit is light: the signed-in app is only downloaded after signing in. Details: `docs/DESIGN.md` section 44. **None of this can promise a position**: a new site usually takes weeks to months to appear, and a general search such as "budget app" is very crowded. A search for "penny-budget.app" should work soon after Google has found the site.
+
+**What only the owner can do**
+
+1. **Google Search Console** (free): search.google.com/search-console, "Add property", choose **Domain** and enter `penny-budget.app`. Google shows a TXT record to add where the domain's DNS is managed; add it, wait a few minutes, press Verify. Then, under Sitemaps, submit `sitemap.xml`, and, under URL inspection, test `https://penny-budget.app/` and press "Request indexing". Do the same in **Bing Webmaster Tools** (it can import the property from Search Console).
+2. **Name who runs the site:** set `OPERATOR_NAME` (and optionally `CONTACT_EMAIL`) in the server's `.env`; the terms and the privacy policy then say who is behind Penny.
+3. **`www.`:** add a DNS record so `www.penny-budget.app` reaches the server (a CNAME to `penny-budget.app`) and add `www.{$DOMAIN}` redirecting to the main address in `deploy/Caddyfile` if you want both to work.
+4. **Links from other places** matter most: a few real mentions (your own profiles, communities where people talk about budgeting, app directories) count for more than any setting.
+5. **Pages people search for** (for example short guides on planning a monthly budget, or on budgeting as a couple) are what lets a site appear for more than its own name.
 
 ## The home page
 

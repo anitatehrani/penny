@@ -1114,3 +1114,29 @@ For a month: **spent** = paid expenses, **planned** = pending expenses dated in 
 ### How it is tested
 
 Server: `budget-logic.test.js` (the view, the pace, the states, the sentences, the calendar: leap years, the turn of a year, the first and last day), `api-budgets.test.js` (what is stored and how months carry, scope, fill, validation, who may see or change what, the alerts, the assistant, the data export), `api-budgets-edges.test.js` (the turn of a year, saves at the same moment, a category that changes kind, a person who left a shared budget, the database's own rules, alerts for zero budgets and paused alerts, the shared and personal answers, preferences), `api-viewas.test.js` (an admin looking at an account may read the budget and cannot change it), `api-ai.test.js` (the summary), and `client-parity.test.js` (the lists the browser and the server each keep must agree: dashboard widgets, pinnable menu items, notification kinds). Client: `budgetLogic.test.js` (the bar, the words of a state, a typed amount, the summary, the layout and menu). Browser: `e2e/budget.e2e.cjs` (the empty page, suggesting, changing, for one month only, a finished month, the dashboard and its month, the alert, the setting and that it is kept, the search box, the phone menu, the words on every bar, a phone and the dark theme).
+
+## 44. Being found by search engines, and the speed of the first visit (defined before implementation)
+
+Penny is one page that React draws, so on its own a search engine meets an empty page with the title "Penny". This makes the parts it reads first come from the server, and makes the first visit light. Nothing here promises a position in search results: that depends on the site's age, the links to it and the pages people look for (README, "Being found in search engines").
+
+### What the server sends (`server/src/lib/seo.js`)
+
+- **Public pages** (`PUBLIC_PAGES`): the home page, `/terms`, `/privacy` and `/contact`: the only pages that belong in a search engine. Each has its own title (at most 60 characters) and description (50 to 160), its own canonical address and `og:url`; "/terms/", a query or a fragment are the same page. The home page is titled "Penny: a personal budget with a forecast months ahead".
+- **Everything else** (the app, the sign-in pages, `/u/name`, any other address) gets the plain page with `<meta name="robots" content="noindex, nofollow">` **and** the header `X-Robots-Tag: noindex, nofollow` (the header works without running scripts), and so does everything under `/api`. The site's address is escaped wherever it is written into a page.
+- **`/robots.txt`** (made by the server so it carries the real address): everything may be read except `/api/`, and `Sitemap:` points to `/sitemap.xml`. The pages themselves are not disallowed, because a search engine must be able to read their "do not index" to obey it.
+- **`/sitemap.xml`**: the four public pages at the site's own address; `lastmod` only where a date is true (the terms and the privacy policy by `TERMS_VERSION`).
+- **The home page's text for readers without scripts:** the same message and the same questions and answers as `Landing.jsx` in a `<noscript>`, with the way to log in and the legal pages (a test keeps the questions and answers word for word equal), plus structured data (`WebSite` and `WebApplication`, a free finance app; JSON that cannot end its script early).
+- A missing script, style, picture or file answers **404** instead of the home page (search engines would take the home page for a real page there); a username with a dot in it (`/u/jane.doe`) is still a page.
+- If `index.html` loses a place the server fills (title, description, preview tags, head, root), `renderPage` says so (the tests fail); at run time the server logs it and falls back to the plain page rather than going down.
+
+### The first visit
+
+The signed-in app (every page, the assistant, the command palette, the providers) is a separate file, `SignedIn.jsx`, fetched only after signing in (`React.lazy` in `main.jsx`). A visitor to the home page, who may be a search engine, downloads about 250 KB of script instead of about 1,060 KB (83 KB instead of 315 KB compressed), and not the PDF reader either. The picture of the other theme (light or dark) is no longer fetched at the start. Page titles: the legal pages and the contact page name themselves in the tab (`LegalShell`), the home page and the app already did.
+
+### Not done here
+
+Search Console and Bing Webmaster verification (a DNS record only the site's owner can add), links from other sites, content pages, `www.` (a DNS record), and naming who runs the site (`OPERATOR_NAME`). See the README.
+
+### How it is tested
+
+`seo.test.js` (titles and descriptions of a showable length and all different, the page with and without its place, "do not index", the escaping, structured data, the no-script text equal to the home page's questions, the sitemap and robots.txt), `api-seo.test.js` (through the real server: robots.txt and the sitemap as a crawler asks, the headers on the API and on every app page, 404 for missing files, `HEAD`, files that exist), and `e2e/seo.e2e.cjs` (in a real browser as a stranger, with and without scripts: title, one main heading, descriptions, pictures with text and size, structured data, that the signed-in app is not downloaded, one picture of the top screenshot, the no-script text, page titles after moving between pages, the sitemap's pages, the picture for shared links, and that a signed-in person still gets the app).

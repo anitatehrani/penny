@@ -38,7 +38,7 @@ describe('the app is called Penny', () => {
   });
 
   it('uses it for the page title, package names and README heading', () => {
-    assert.match(read('client/index.html'), /<title>Penny<\/title>/);
+    assert.match(read('client/index.html'), /<title>Penny: [^<]+<\/title>/);
     assert.match(read('README.md'), /^# Penny\b/);
     for (const [file, name] of [['package.json', 'penny'], ['client/package.json', 'penny-client'], ['server/package.json', 'penny-server'], ['e2e/package.json', 'penny-e2e']]) {
       assert.equal(JSON.parse(read(file)).name, name, file);

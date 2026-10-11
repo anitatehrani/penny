@@ -10,7 +10,7 @@ import { chartPoints, monthLabels, projectBalance, smoothPath, summarizeProjecti
  * at "/" to anybody who is not signed in (signed-in people go straight to their dashboard). The screenshots are real pages of the demo account
  * in light and dark; the small cards are drawings of what Penny shows, in the same colours. Every claim is something Penny really does.
  */
-const TITLE = 'Penny: see your money months ahead';
+const TITLE = 'Penny: a personal budget with a forecast months ahead';
 
 const euro = (n) => new Intl.NumberFormat(undefined, { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n);
 
@@ -25,7 +25,8 @@ function Shot({ name, alt, priority = false }) {
         <span />
       </div>
       <img className="lp-shot lp-shot-light" src={`/landing/${name}-light.webp`} {...common} />
-      <img className="lp-shot lp-shot-dark" src={`/landing/${name}-dark.webp`} {...common} />
+      {/* the picture for the other theme is fetched only when it is shown, so the first view downloads one picture, not two */}
+      <img className="lp-shot lp-shot-dark" src={`/landing/${name}-dark.webp`} {...common} loading="lazy" fetchPriority="auto" />
     </figure>
   );
 }

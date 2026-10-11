@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Wordmark } from '../components/Logo.jsx';
 import { ThemeToggle } from '../components/ui.jsx';
@@ -15,6 +16,14 @@ const longDate = (version) => {
 
 export function LegalShell({ which, title, children }) {
   const { user, legal } = useAuth();
+  // the tab and the search result name the page (the server sends the same title in the page itself)
+  useEffect(() => {
+    const before = document.title;
+    document.title = `${title} · Penny`;
+    return () => {
+      document.title = before;
+    };
+  }, [title]);
   return (
     <div className="legal-page">
       <header className="legal-top">

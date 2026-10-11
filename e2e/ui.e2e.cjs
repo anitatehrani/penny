@@ -1198,7 +1198,8 @@ async function sessionFor(db, email) {
     await page.waitForSelector('.card-box .month-cal');
     eq(await page.$eval('.card-box .month-cal-cell.selected', (e) => e.dataset.month), CAL_NEXT, 'the next bill is chosen');
     const off = await page.$$eval('.card-box .month-cal-cell.off', (cells) => cells.map((c) => c.dataset.month));
-    truthy(off.every((m) => m < NOWM || m > plus(12)), 'only months before the purchase or more than a year after are greyed out');
+    // (this month itself is checked just below: it is greyed out once the card pay day has passed, which is the case from the 11th on)
+    truthy(off.every((m) => m <= NOWM || m > plus(12)), 'only months before the purchase or more than a year after are greyed out');
     truthy(off.some((m) => m < NOWM) || NOWM.endsWith('-01'), 'earlier months this year are greyed out');
     // this month is allowed only while the card pay day (the 10th) is still ahead; either way, the calendar says so
     const thisOff = await page.$eval(`.card-box [data-month="${NOWM}"]`, (e) => e.classList.contains('off'));
@@ -2326,7 +2327,7 @@ async function sessionFor(db, email) {
         truthy(links.includes('/login') && links.includes('/signup'), 'hero buttons: ' + links.join());
         const nav = await home.$$eval('.lp-nav a.btn', (a) => a.map((x) => x.getAttribute('href')));
         eq(nav.join(','), '/login,/signup', 'the top bar buttons');
-        eq(await home.title(), 'Penny: see your money months ahead', 'its own tab title');
+        eq(await home.title(), 'Penny: a personal budget with a forecast months ahead', 'its own tab title');
       });
       await check('it explains the features: a strip, a forecast to play with, eight feature cards, a tour, three steps, privacy, questions', async () => {
         truthy((await count(home, '.lp-marquee-track span')) >= 13, 'the strip of what Penny covers');

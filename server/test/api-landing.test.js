@@ -26,8 +26,9 @@ describe('the page that is served for every address', { skip: !built && 'the web
       assert.match(r.headers.get('content-type'), /text\/html/);
       assert.equal(r.headers.get('cache-control'), 'no-cache', 'the page itself is never kept: it names the files that change with each build');
       assert.match(r.text, /<meta property="og:image" content="https:\/\/budget\.example\/landing\/og\.png"/, url);
-      assert.match(r.text, /<meta property="og:url" content="https:\/\/budget\.example\/"/, url);
-      assert.match(r.text, /<meta name="description" content="Penny is a calm personal budget/, url);
+      // each public page names itself; every other address carries the home page's address (and is marked "do not index": see api-seo.test.js)
+      assert.ok(r.text.includes(`<meta property="og:url" content="https://budget.example${url === '/terms' ? '/terms' : '/'}" />`), url);
+      assert.match(r.text, url === '/terms' ? /<meta name="description" content="The terms for using Penny/ : /<meta name="description" content="Penny is a calm personal budget/, url);
       assert.match(r.text, /<meta name="twitter:card" content="summary_large_image"/);
       assert.ok(!r.text.includes('__APP_URL__'), 'no placeholder is left in what is sent');
     }

@@ -1,23 +1,13 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, useLocation } from 'react-router-dom';
-import App from './App.jsx';
-import { AssistantProvider } from './assistant/assistant.jsx';
-import { InsightsProvider } from './assistant/insights.jsx';
 import { AuthProvider, useAuth } from './auth.jsx';
-import { CommandProvider } from './command/command.jsx';
-import { AppProvider } from './context.jsx';
-import { NotificationsProvider } from './notifications.jsx';
 import { installNumberWheelGuard } from './numberInputs.js';
 import AuthPages from './pages/Auth.jsx';
 import { ResetPassword, Unsubscribe, VerifyEmail } from './pages/EmailLinks.jsx';
 import Contact from './pages/Contact.jsx';
 import Landing from './pages/Landing.jsx';
 import { Privacy, Terms } from './pages/Legal.jsx';
-import { PreferencesProvider } from './prefs.jsx';
-import { PresenceProvider } from './presence.jsx';
-import { QuickProvider } from './quick.jsx';
-import { useWorkspace, WorkspaceProvider } from './workspace.jsx';
 import './design/tokens.css';
 import './styles.css';
 import './auth.css';
@@ -38,23 +28,8 @@ import './design/landing.css';
 import './design/import.css';
 import './design/budget.css';
 
-/** Re-mounts the data layer whenever the open budget changes, so every page reloads its own data. */
-function Scoped() {
-  const { current } = useWorkspace();
-  return (
-    <AppProvider key={current.id}>
-      <QuickProvider>
-        <InsightsProvider>
-          <AssistantProvider>
-            <CommandProvider>
-              <App />
-            </CommandProvider>
-          </AssistantProvider>
-        </InsightsProvider>
-      </QuickProvider>
-    </AppProvider>
-  );
-}
+// fetched only after signing in (below)
+const SignedIn = lazy(() => import('./SignedIn.jsx'));
 
 function Root() {
   const { loading, user, error } = useAuth();
@@ -71,17 +46,12 @@ function Root() {
   if (error) return <div className="loading">Cannot reach the server: {error.message}</div>;
   // somebody who is not signed in sees the home page first; every other address goes to the sign-in pages
   if (!user) return pathname === '/' ? <Landing /> : <AuthPages />;
-  // key = user id, so switching accounts always starts from clean state.
+  // The app itself (every page, the assistant, the palette...) is a separate file that is fetched only after signing in, so a visitor to the home
+  // page, who may be a search engine, downloads the home page and nothing more (docs/DESIGN.md section 44).
   return (
-    <PreferencesProvider key={user.id}>
-      <WorkspaceProvider>
-        <PresenceProvider>
-          <NotificationsProvider>
-            <Scoped />
-          </NotificationsProvider>
-        </PresenceProvider>
-      </WorkspaceProvider>
-    </PreferencesProvider>
+    <Suspense fallback={<div className="loading">Loading…</div>}>
+      <SignedIn user={user} />
+    </Suspense>
   );
 }
 

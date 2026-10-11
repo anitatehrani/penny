@@ -38,6 +38,7 @@ import settings from './routes/settings.js';
 import shared from './routes/shared.js';
 import transactions from './routes/transactions.js';
 import workspaces from './routes/workspaces.js';
+import { escapeHtml, pageFor, renderPage, robotsTxt, sitemapXml } from './lib/seo.js';
 
 const app = express();
 app.disable('x-powered-by');
@@ -64,6 +65,7 @@ app.use(express.json({ limit: '100kb' }));
 // -> user-level routes (profile, people, groups) -> pick the active budget (membership checked) -> budget routes.
 app.use('/api', (_req, res, next) => {
   res.set('Cache-Control', 'no-store');
+  res.set('X-Robots-Tag', 'noindex, nofollow'); // the interface behind the pages is not for search engines
   next();
 });
 app.get(
@@ -83,15 +85,44 @@ app.use('/api', resolveWorkspace);
 for (const r of [settings, carryover, cardBills, safeToSpend, reconcile, transactions, importer, receipts, recurring, installments, debts, reports, shared, insights, budgets]) app.use('/api', r);
 app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found' }));
 
+// What search engines read first (docs/DESIGN.md section 44): robots.txt and the sitemap carry this site's real address.
+app.get('/robots.txt', (_req, res) => {
+  res.set('Cache-Control', 'public, max-age=3600');
+  res.type('text/plain').send(robotsTxt(appUrl()));
+});
+app.get('/sitemap.xml', (_req, res) => {
+  res.set('Cache-Control', 'public, max-age=3600');
+  res.type('application/xml').send(sitemapXml(appUrl()));
+});
+
 // Serve the built React app when present (npm run build).
 const dist = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../client/dist');
 if (fs.existsSync(dist)) {
   // The page itself goes through here (not through express.static) so the link-preview tags carry this site's real address.
   const indexHtml = fs.readFileSync(path.join(dist, 'index.html'), 'utf8');
+  // each public page gets its own title, description and address; every other address gets the plain page marked "do not index"
+  const pages = new Map();
+  const pageHtml = (pathname) => {
+    const key = pageFor(pathname)?.path ?? '*';
+    if (!pages.has(key)) {
+      try {
+        pages.set(key, renderPage(indexHtml, pathname, appUrl()));
+      } catch (e) {
+        console.error('seo: could not prepare the page for search engines:', e.message);
+        pages.set(key, indexHtml.replaceAll('__APP_URL__', escapeHtml(appUrl())));
+      }
+    }
+    return pages.get(key);
+  };
   app.use(express.static(dist, { index: false }));
-  app.get('*', (_req, res) => {
+  app.get('*', (req, res) => {
+    // a missing script, picture or file is "not found", not the home page (search engines would take it for a page)
+    if (!req.path.startsWith('/u/') && /\.(js|mjs|css|map|png|jpe?g|gif|webp|svg|ico|woff2?|ttf|json|webmanifest|xml|txt)$/i.test(req.path)) {
+      return res.status(404).type('text/plain').send('Not found');
+    }
     res.set('Cache-Control', 'no-cache');
-    res.type('html').send(indexHtml.replaceAll('__APP_URL__', appUrl()));
+    if (!pageFor(req.path)) res.set('X-Robots-Tag', 'noindex, nofollow');
+    res.type('html').send(pageHtml(req.path));
   });
 }
 
