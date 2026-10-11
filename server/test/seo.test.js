@@ -133,6 +133,8 @@ describe('what a reader without scripts sees', () => {
     const landing = fs.readFileSync(path.join(CLIENT, 'src/pages/Landing.jsx'), 'utf8');
     assert.match(landing, /No bank login, no ads/);
     assert.match(landing, /statement/i);
+    assert.match(landing, /Plan each month, category by category/);
+    assert.match(landing, /Can I set a budget for each category\?/);
   });
 });
 

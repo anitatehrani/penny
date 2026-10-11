@@ -359,6 +359,44 @@ function Bento() {
               </span>
             </div>
           </article>
+
+          <article className="lp-card lp-i lp-reveal">
+            <div className="lp-i-text">
+              <header>
+                <span className="lp-chipicon">
+                  <Icon name="target" size={18} />
+                </span>
+                <h3>Plan each month, category by category</h3>
+              </header>
+              <p>
+                Give every category an amount for the month, or let Penny suggest it from what you usually spend. You see how much is spent and how much is left, now and at the end of the month, in plain words,
+                and Penny warns you before a category runs over.
+              </p>
+            </div>
+            <div className="lp-budget" aria-hidden="true">
+              <div className="lp-bud-top">
+                <span>Left to spend</span>
+                <b>€412</b>
+                <small>€688 of €1,100 · 12 days left</small>
+              </div>
+              <ul className="lp-bud-list">
+                {[
+                  ['Groceries', 'On track', 'var(--lp-teal)', 62, '€248 of €400'],
+                  ['Dining out', 'Almost used up', 'var(--lp-amber)', 92, '€110 of €120'],
+                  ['Transport', 'Over budget', 'var(--lp-coral)', 100, '€96 of €80'],
+                ].map(([name, state, color, width, amounts]) => (
+                  <li key={name} style={{ '--c': color }}>
+                    <span>{name}</span>
+                    <em>{state}</em>
+                    <div className="lp-bud-bar">
+                      <i style={{ width: `${width}%` }} />
+                    </div>
+                    <small>{amounts}</small>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </article>
         </div>
       </div>
     </section>
@@ -388,6 +426,21 @@ const TOUR = [
     title: 'Everything you pay, in one calm list',
     text: 'Pending, paid and overdue are clear at a glance. Rent, salary and subscriptions repeat by themselves, weekly, monthly or yearly, with an end date if they have one.',
     points: ['Change one month, or every month still to come', 'Categories, search and filters', 'Attach a receipt to a payment', 'Past dates count as already paid'],
+  },
+  {
+    id: 'budget',
+    icon: 'target',
+    label: 'Budget',
+    shot: 'budget',
+    alt: 'The Monthly budget page: how much is left to spend this month, a bar of what is spent and planned, and sentences about which categories are over or heading over',
+    title: 'Know how each category is doing, before the month ends',
+    text: 'Give every category an amount for the month. Penny shows how much of it is spent and how much is left, now and at the end of the month, and says in plain words what needs a look.',
+    points: [
+      'Let Penny suggest the amounts from what you usually spend, then change any of them',
+      'A bar for each category, a pace to compare with, and an estimate of where the month will end',
+      'A warning in the app when a category is nearly used up, and again when it goes over',
+      'Change a budget from now on, or for one month only; past months keep theirs',
+    ],
   },
   {
     id: 'import',
@@ -488,7 +541,7 @@ function Tour() {
   );
 }
 
-const MARQUEE = ['Forecast', 'Recurring bills', 'Installments', 'Credit cards', 'Debts', 'Shared budgets', 'Bank statement import', 'Receipts', 'Alerts', 'Insights', 'Ask Penny', 'Any currency', 'Light and dark'];
+const MARQUEE = ['Forecast', 'Recurring bills', 'Installments', 'Credit cards', 'Debts', 'Shared budgets', 'Bank statement import', 'Monthly budget', 'Receipts', 'Alerts', 'Insights', 'Ask Penny', 'Any currency', 'Light and dark'];
 
 const STEPS = [
   { icon: 'plus', title: 'Add what you pay and earn', text: 'One-off payments, rent and salary that repeat, installments, money you owe and money owed to you. Enter it once, or import a bank statement.' },
@@ -507,6 +560,7 @@ const FAQ = [
   { q: 'Is Penny free?', a: 'Yes. You can sign up and use it without paying.' },
   { q: 'Does it connect to my bank?', a: 'No, on purpose, so Penny never sees your bank login. You enter payments yourself, set them to repeat, or import a statement file from your bank. When your real balance and Penny\'s drift apart, "Match my bank balance" fixes it in one step.' },
   { q: 'Can I import a bank statement?', a: 'Yes: a PDF or a spreadsheet file (CSV or Excel), from any bank. Penny works out the layout by itself (it reads English, Italian, German, French, Spanish, Portuguese and Dutch headings), suggests a category for each line and lets you check everything before it saves. The file is read in your browser and never uploaded, and one click undoes an import.' },
+  { q: 'Can I set a budget for each category?', a: 'Yes. Give each category an amount for the month, or let Penny suggest amounts from what you usually spend. Penny shows how much is spent and left, tells you which categories are heading over, and warns you in the app at 80% and when a category goes over. You can also look back at a finished month.' },
   { q: 'Who can see my data?', a: 'You, and the people you share a budget with, in that budget only. The person who runs the site sees account basics, not what your payments are or their amounts. They can look inside your account only to help you, with a written reason, and you are told when it happens.' },
   { q: 'Can I share a budget with my partner or family?', a: 'Yes. Make a shared budget and invite people you are connected with. You can also split single payments between people.' },
   { q: 'What if I want to leave?', a: 'Download everything as a file, then delete your account, both in Settings. Deleting is immediate and complete.' },
@@ -601,7 +655,7 @@ export default function Landing() {
               See your money <span className="lp-grad">months ahead</span>, not just where it went.
             </h1>
             <p className="lp-lead">
-              Penny turns your payments, recurring bills, installments and debts into one clear forecast. Bring in a bank statement instead of typing, and share a budget with the people you live with. No bank login, no ads, no selling your data.
+              Penny turns your payments, recurring bills, installments and debts into one clear forecast. Bring in a bank statement instead of typing, plan each month category by category, and share a budget with the people you live with. No bank login, no ads, no selling your data.
             </p>
             <div className="lp-cta">
               {signup}

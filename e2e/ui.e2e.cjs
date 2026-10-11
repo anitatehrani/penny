@@ -2329,14 +2329,14 @@ async function sessionFor(db, email) {
         eq(nav.join(','), '/login,/signup', 'the top bar buttons');
         eq(await home.title(), 'Penny: a personal budget with a forecast months ahead', 'its own tab title');
       });
-      await check('it explains the features: a strip, a forecast to play with, eight feature cards, a tour, three steps, privacy, questions', async () => {
-        truthy((await count(home, '.lp-marquee-track span')) >= 13, 'the strip of what Penny covers');
+      await check('it explains the features: a strip, a forecast to play with, nine feature cards, a tour, three steps, privacy, questions', async () => {
+        truthy((await count(home, '.lp-marquee-track span')) >= 14, 'the strip of what Penny covers');
         eq(await count(home, '.lp-demo'), 1, 'the forecast to play with');
-        eq(await count(home, '.lp-card'), 8, 'eight feature cards');
-        eq(await count(home, '.lp-tabs button'), 6, 'six pages in the tour');
+        eq(await count(home, '.lp-card'), 9, 'nine feature cards');
+        eq(await count(home, '.lp-tabs button'), 7, 'seven pages in the tour');
         eq(await count(home, '.lp-steps li'), 3, 'three steps');
         eq(await count(home, '.lp-privacy-grid li'), 4, 'four privacy promises');
-        eq(await count(home, '.lp-faq details'), 7, 'seven questions');
+        eq(await count(home, '.lp-faq details'), 8, 'eight questions');
         const cards = await home.$$eval('.lp-card h3', (h) => h.map((x) => x.textContent));
         truthy(cards.some((h) => /forecast/i.test(h)) && cards.some((h) => /Debts/.test(h)) && cards.some((h) => /together/i.test(h)) && cards.some((h) => /Ask Penny/.test(h)) && cards.some((h) => /bank statement/i.test(h)), 'forecast, debts, shared, assistant, statement import: ' + cards.join(' | '));
         await home.evaluate(() => document.querySelector('.lp-faq summary').click());
@@ -2381,6 +2381,18 @@ async function sessionFor(db, email) {
         truthy(/Can I import a bank statement/.test(body), 'a question about it');
         await clickText(home, /^Forecast$/, '.lp-tabs button');
       });
+      await check('the home page speaks of the monthly budget: a card, a tour tab with its own picture, a question, and nothing hidden from people who cannot see the picture', async () => {
+        const cards = await home.$$eval('.lp-card h3', (h) => h.map((x) => x.textContent));
+        truthy(cards.some((h) => /category by category/.test(h)), 'a card about planning each month');
+        truthy(/Monthly budget/.test(await home.$eval('.lp-marquee-track', (e) => e.textContent)), 'in the strip of what Penny covers');
+        await clickText(home, /^Budget$/, '.lp-tabs button');
+        await home.waitForFunction(() => /each category is doing/.test(document.querySelector('.lp-tour-text h3')?.textContent ?? ''));
+        truthy(await home.$eval('.lp-tour-panel .lp-shot-light', (i) => (i.getAttribute('src') || '').includes('budget-light.webp')), 'the budget picture');
+        truthy(await home.$eval('.lp-tour-panel .lp-shot-light', (i) => (i.getAttribute('alt') || '').length > 40), 'the picture is described');
+        truthy(/Can I set a budget for each category/.test(await home.$eval('body', (b) => b.textContent)), 'a question about it');
+        truthy(await home.$eval('.lp-card.lp-i .lp-budget', (e) => e.getAttribute('aria-hidden') === 'true'), 'the little drawing is decoration, the words say it');
+        await clickText(home, /^Forecast$/, '.lp-tabs button');
+      });
       await check('things fade in as they scroll into view, and everything has appeared by the end', async () => {
         await scrollThrough();
         await sleep(900);
@@ -2423,7 +2435,9 @@ async function sessionFor(db, email) {
         await home.goto(BASE + '/', { waitUntil: 'networkidle0' });
         eq(await home.$$eval('.lp-reveal', (els) => els.filter((e) => getComputedStyle(e).opacity !== '1').length), 0, 'every block is visible at once');
         eq(await home.$eval('.lp-marquee-track', (e) => getComputedStyle(e).animationName), 'none', 'the strip does not scroll');
-        eq(await home.$$eval('.lp-marquee-track span', (s) => s.filter((x) => getComputedStyle(x).display === 'none').length), 13, 'the repeated half is not shown');
+        // the strip is written twice so that it can scroll without a gap; standing still, only the first copy is shown (whatever the number of items)
+        const items = await home.$$eval('.lp-marquee-track span', (s) => ({ all: s.length, hidden: s.filter((x) => getComputedStyle(x).display === 'none').length }));
+        eq(items.hidden, items.all / 2, 'the repeated half is not shown');
         await home.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'no-preference' }]);
       });
       await check('on a phone nothing scrolls sideways and the top bar keeps its two buttons on one line each', async () => {

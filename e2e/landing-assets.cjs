@@ -5,7 +5,7 @@
  *   2. cd e2e && npm run landing        (APP_URL, DATABASE_URL and CHROME_PATH work as for the browser checks)
  *   3. rebuild the client (cd client && npx vite build)
  *
- * ONLY=import (or a comma list: dashboard,forecast,payments,installments,shared,debts,import,og) makes just those pictures and leaves the rest as they are.
+ * ONLY=import (or a comma list: dashboard,forecast,payments,installments,shared,debts,import,budget,og) makes just those pictures and leaves the rest as they are.
  *
  * It changes the demo account (a roomier opening balance so the first picture shows a healthy budget, and two made-up debts for the Debts
  * picture), so never run it against real data: it refuses unless the database name has "scratch" or "demo" in it, or FORCE=1 is set.
@@ -102,6 +102,19 @@ const want = (name) => !only.length || only.includes(name);
       await ctx.close();
     }
     fs.rmSync(file, { force: true });
+  }
+  // the monthly budget of the demo account, shaped so the picture shows the three things it says: one category over, one nearly used up, the rest comfortable
+  if (want('budget')) {
+    const month = new Date().toISOString().slice(0, 7);
+    await api('POST', '/budgets/fill', { month, source: 'typical', only_empty: false });
+    const view = await api('GET', `/budgets?month=${month}`);
+    const spending = view.lines.filter((l) => l.id !== null && l.spent > 0).sort((a, b) => b.spent - a.spent);
+    const set = (l, amount) => api('PUT', `/budgets/${l.id}`, { month, amount: Math.max(5, Math.ceil(amount / 5) * 5), scope: 'onward' });
+    if (spending[0]) await set(spending[0], spending[0].spent * 1.45);
+    if (spending[1]) await set(spending[1], spending[1].spent * 1.12);
+    if (spending[2]) await set(spending[2], spending[2].spent * 0.9);
+    for (const l of spending.slice(3)) await set(l, l.spent * 2.2 + 20);
+    for (const theme of ['light', 'dark']) await take('budget', '/budget', theme, personal);
   }
   if (want('debts')) {
   const laptop = await api('POST', '/debts', { name: 'Laptop from Sam', total_amount: 900, plan: 'monthly', first_due_date: '2026-11-05', installment_count: 6, count_in_budget: true });

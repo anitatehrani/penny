@@ -21,6 +21,7 @@ export const HOME_FAQ = [
   { q: "Is Penny free?", a: "Yes. You can sign up and use it without paying." },
   { q: "Does it connect to my bank?", a: "No, on purpose, so Penny never sees your bank login. You enter payments yourself, set them to repeat, or import a statement file from your bank. When your real balance and Penny's drift apart, \"Match my bank balance\" fixes it in one step." },
   { q: "Can I import a bank statement?", a: "Yes: a PDF or a spreadsheet file (CSV or Excel), from any bank. Penny works out the layout by itself (it reads English, Italian, German, French, Spanish, Portuguese and Dutch headings), suggests a category for each line and lets you check everything before it saves. The file is read in your browser and never uploaded, and one click undoes an import." },
+  { q: "Can I set a budget for each category?", a: "Yes. Give each category an amount for the month, or let Penny suggest amounts from what you usually spend. Penny shows how much is spent and left, tells you which categories are heading over, and warns you in the app at 80% and when a category goes over. You can also look back at a finished month." },
   { q: "Who can see my data?", a: "You, and the people you share a budget with, in that budget only. The person who runs the site sees account basics, not what your payments are or their amounts. They can look inside your account only to help you, with a written reason, and you are told when it happens." },
   { q: "Can I share a budget with my partner or family?", a: "Yes. Make a shared budget and invite people you are connected with. You can also split single payments between people." },
   { q: "What if I want to leave?", a: "Download everything as a file, then delete your account, both in Settings. Deleting is immediate and complete." },
@@ -31,6 +32,7 @@ const HOME_POINTS = [
   'A forecast that shows your balance month by month, so you see a tight month before you are in it.',
   'Payments, recurring bills, installments and debts in one place.',
   'Import a bank statement (PDF, CSV or Excel) from any bank instead of typing each payment.',
+  'A monthly budget for each category: how much is spent and left, and a warning before a category runs over.',
   'Share a budget with a partner or family, and split single payments.',
   'No bank login, no ads, and your data is yours to download or delete.',
 ];

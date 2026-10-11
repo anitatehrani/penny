@@ -39,7 +39,7 @@ describe('the page that is served for every address', { skip: !built && 'the web
     const og = await c.page('/landing/og.png');
     assert.equal(og.status, 200);
     assert.equal(og.headers.get('content-type'), 'image/png');
-    for (const f of ['dashboard', 'forecast', 'payments', 'import', 'installments', 'debts', 'shared']) {
+    for (const f of ['dashboard', 'forecast', 'payments', 'budget', 'import', 'installments', 'debts', 'shared']) {
       for (const theme of ['light', 'dark']) {
         const r = await c.page(`/landing/${f}-${theme}.webp`);
         assert.equal(r.status, 200, `${f}-${theme}`);

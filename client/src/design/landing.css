@@ -800,6 +800,97 @@
   font-variant-numeric: tabular-nums;
   color: var(--ink);
 }
+/* the monthly budget: a total, and a bar for a few categories, each with its state in words */
+.lp-i {
+  --c: var(--lp-amber);
+  grid-column: 1 / 13;
+  grid-row: 5;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  gap: 28px;
+  align-items: center;
+}
+.lp-i .lp-budget {
+  order: -1;
+}
+.lp-i-text > p {
+  margin: 14px 0 0;
+  line-height: 1.55;
+}
+.lp-budget {
+  display: grid;
+  gap: 12px;
+}
+.lp-bud-top {
+  display: grid;
+  gap: 2px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  font-size: var(--fs-2);
+  color: var(--ink-3);
+}
+.lp-bud-top b {
+  font-size: 2rem;
+  line-height: 1.1;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--pos);
+}
+.lp-bud-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+.lp-bud-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 12px;
+  align-items: center;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+  font-size: var(--fs-3);
+}
+.lp-bud-list li:first-child {
+  border-top: 0;
+}
+.lp-bud-list span {
+  font-weight: 600;
+}
+.lp-bud-list em {
+  font-style: normal;
+  font-size: var(--fs-1);
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--c) 18%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--c) 40%, var(--line));
+}
+.lp-bud-bar {
+  grid-column: 1 / -1;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--surface-2, var(--line));
+  overflow: hidden;
+}
+.lp-bud-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--c);
+}
+.lp-bud-list small {
+  grid-column: 1 / -1;
+  color: var(--ink-3);
+  font-size: var(--fs-2);
+  font-variant-numeric: tabular-nums;
+}
 .lp-mini-forecast {
   display: flex;
   flex-direction: column;
@@ -1612,18 +1703,24 @@
   .lp-e,
   .lp-f,
   .lp-g,
-  .lp-h {
+  .lp-h,
+  .lp-i {
     grid-column: auto;
     grid-row: auto;
   }
   .lp-a,
   .lp-b,
-  .lp-h {
+  .lp-h,
+  .lp-i {
     grid-column: 1 / -1;
   }
-  .lp-h {
+  .lp-h,
+  .lp-i {
     grid-template-columns: 1fr;
     gap: 20px;
+  }
+  .lp-i .lp-budget {
+    order: 0;
   }
   .lp-steps {
     grid-template-columns: 1fr;
