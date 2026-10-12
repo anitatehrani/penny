@@ -4,6 +4,9 @@ import { Icon } from '../components/ui.jsx';
 import { useApp } from '../context.jsx';
 import { usePrefs } from '../prefs.jsx';
 import { useQuick } from '../quick.jsx';
+import { catName } from '../categoryNames.js';
+import { villainCategory } from '../welcomeLogic.js';
+import WelcomeQuiz from './WelcomeQuiz.jsx';
 import { t } from '../i18n/translate.js';
 
 /** What a brand-new budget sees instead of empty widgets: a short checklist of what makes the dashboard come alive. */
@@ -12,6 +15,7 @@ export default function FirstRun({ rulesCount }) {
   const { openAddPayment } = useQuick();
   const { openAssistant } = useAssistant();
   const { prefs, setPrefs } = usePrefs();
+  const plain = prefs.tone === 'plain';
   const steps = [
     {
       id: 'balance',
@@ -64,14 +68,57 @@ export default function FirstRun({ rulesCount }) {
       ),
     },
   ];
+  // what the welcome questions found out about this person
+  const category = villainCategory(prefs.villain);
+  if (category) {
+    steps.push({
+      id: 'villain',
+      done: false,
+      title: t('Put a limit on {category}', { category: catName(category) }),
+      text: t('You called it your arch-enemy. Give it an amount for the month and Penny keeps an eye on it.'),
+      action: (
+        <Link className="btn sm" to="/budget">
+          {t('Set a limit')}
+        </Link>
+      ),
+    });
+  }
+  if (prefs.goals?.includes('debts')) {
+    steps.push({
+      id: 'debts',
+      done: false,
+      title: t('Write down what you owe'),
+      text: t('A friend, a shop, the dentist. Give it a plan and a progress bar, and it stops hiding in the back of your mind.'),
+      action: (
+        <Link className="btn sm" to="/debts">
+          {t('Add a debt')}
+        </Link>
+      ),
+    });
+  }
+  if (prefs.goals?.includes('together')) {
+    steps.push({
+      id: 'together',
+      done: false,
+      title: t('Invite the people you share money with'),
+      text: t('Connect with them first, then make a shared budget. Nobody sees your personal one.'),
+      action: (
+        <Link className="btn sm" to="/people">
+          {t('Find people')}
+        </Link>
+      ),
+    });
+  }
   const done = steps.filter((s) => s.done).length;
   return (
-    <section className="firstrun" aria-label={t('Getting started')}>
+    <>
+      {!prefs.welcome_done && <WelcomeQuiz firstTime />}
+      <section className="firstrun" aria-label={t('Getting started')}>
       <div className="firstrun-head">
         <div>
           <div className="eyebrow">{t('Getting started')}</div>
           <h2>{t('Welcome. Let’s make this budget yours.')}</h2>
-          <p className="muted">{t('Four small steps, no judgement. Your dashboard fills in as you go.')}</p>
+          <p className="muted">{(plain ? t('Four small steps. Your dashboard fills in as you go.') : t('Four small steps, no judgement. Your dashboard fills in as you go.'))}</p>
         </div>
         <div className="firstrun-progress" role="img" aria-label={t('{done} of {length} steps done', { done, length: steps.length })}>
           <span className="num">
@@ -96,6 +143,7 @@ export default function FirstRun({ rulesCount }) {
           </li>
         ))}
       </ol>
-    </section>
+      </section>
+    </>
   );
 }

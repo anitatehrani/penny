@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { api, setActiveWorkspace } from './api.js';
 import { useAuth } from './auth.jsx';
 import { useFetch } from './hooks.js';
+import { readPlain } from './tone.js';
 import { t } from './i18n/translate.js';
 
 const Ctx = createContext(null);
@@ -86,6 +87,6 @@ export function WorkspaceProvider({ children }) {
   );
 
   if (spaces.error) return <div className="loading">{t('Cannot reach the server: {message}', { message: spaces.error.message })}</div>;
-  if (!current) return <div className="loading">{t('Counting the pennies…')}</div>;
+  if (!current) return <div className="loading">{readPlain() ? t('Loading…') : t('Counting the pennies…')}</div>;
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

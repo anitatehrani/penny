@@ -10,6 +10,7 @@ import { useApp } from '../context.jsx';
 import { dateLabel, makeMoney, relativeDay, timeAgo, todayYMD } from '../format.js';
 import { useNotifications } from '../notifications.jsx';
 import { useWorkspace } from '../workspace.jsx';
+import { usePlain } from '../prefs.jsx';
 import { N_, localeOf, t, tn } from '../i18n/translate.js';
 
 const TABS = [
@@ -81,6 +82,7 @@ function Inbox() {
   const { notify } = useApp();
   const { reload: reloadBell, version } = useNotifications();
   const { switchTo, current } = useWorkspace();
+  const plain = usePlain();
   const navigate = useNavigate();
   const [filter, setFilter] = useState({ status: 'all', kind: '' });
   const [state, setState] = useState({ items: null, unread: 0, hasMore: false, error: null });
@@ -214,7 +216,7 @@ function Inbox() {
       </div>
 
       {state.items.length === 0 ? (
-        <Empty title={filter.status === 'unread' ? t('All caught up. Go do something fun.') : t('No notifications yet')}>
+        <Empty title={filter.status === 'unread' ? (plain ? t('You are all caught up') : t('All caught up. Go do something fun.')) : t('No notifications yet')}>
           {filter.status === 'unread' ? t('Nothing unread.') : t('Reminders for upcoming payments and requests from other people will show up here. You can choose what you get under Settings.')}
         </Empty>
       ) : (

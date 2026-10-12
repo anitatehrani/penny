@@ -4,7 +4,8 @@ import { DEFAULT_LAYOUT, WIDGETS as CLIENT_WIDGETS } from '../../client/src/pref
 import { ADMIN_NAV, MOBILE_PRIMARY, NAV } from '../../client/src/layout/nav.js';
 import { KIND_ICON } from '../../client/src/components/notifMeta.js';
 import { KIND_PREF, KINDS } from '../src/lib/notifications.js';
-import { ROUTES, WIDGETS } from '../src/routes/preferences.js';
+import { GOALS as CLIENT_GOALS, NUDGES as CLIENT_NUDGES, TONES as CLIENT_TONES, VILLAINS as CLIENT_VILLAINS } from '../../client/src/welcomeLogic.js';
+import { GOALS, NUDGES, ROUTES, TONES, VILLAINS, WIDGETS } from '../src/routes/preferences.js';
 
 // Lists that the server and the browser each keep their own copy of must say the same thing.
 describe('the browser and the server agree', () => {
@@ -12,6 +13,13 @@ describe('the browser and the server agree', () => {
     assert.deepEqual(CLIENT_WIDGETS, WIDGETS);
     assert.deepEqual([...DEFAULT_LAYOUT.order].sort(), [...WIDGETS].sort());
     assert.deepEqual(Object.keys(DEFAULT_LAYOUT.sizes).sort(), [...WIDGETS].sort());
+  });
+
+  it('on the answers to the welcome questions', () => {
+    assert.deepEqual(CLIENT_GOALS, GOALS);
+    assert.deepEqual(CLIENT_VILLAINS, VILLAINS);
+    assert.deepEqual(CLIENT_NUDGES, NUDGES);
+    assert.deepEqual(CLIENT_TONES, TONES);
   });
 
   it('on the menu items a person may pin: every item of the menu is accepted, and nothing else is', () => {

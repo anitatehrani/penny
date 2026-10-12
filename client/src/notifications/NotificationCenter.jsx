@@ -10,6 +10,7 @@ import { Icon, Skeleton } from '../components/ui.jsx';
 import { timeAgo } from '../format.js';
 import { useNotifications } from '../notifications.jsx';
 import { useWorkspace } from '../workspace.jsx';
+import { usePlain } from '../prefs.jsx';
 import { localeOf, t } from '../i18n/translate.js';
 
 const SHOW_FIRST = 3; // notifications per group before "Show more"
@@ -60,6 +61,7 @@ export default function NotificationCenter() {
 function CenterBody({ onClose, inSheet }) {
   const { unread, reload, version } = useNotifications();
   const { switchTo, current } = useWorkspace();
+  const plain = usePlain();
   const navigate = useNavigate();
   const [filter, setFilter] = useState('all');
   const [state, setState] = useState({ items: null, error: false });
@@ -172,7 +174,7 @@ function CenterBody({ onClose, inSheet }) {
             ))}
           </div>
         ) : groups.length === 0 ? (
-          <EmptyState art={filter === 'unread' ? 'calm' : 'bell'} title={filter === 'unread' ? t('All caught up. Go do something fun.') : t('Nothing here yet')} compact>
+          <EmptyState art={filter === 'unread' ? 'calm' : 'bell'} title={filter === 'unread' ? (plain ? t('You are all caught up') : t('All caught up. Go do something fun.')) : t('Nothing here yet')} compact>
             {filter === 'unread' ? t('No unread notifications. Nice.') : t('Payment reminders, warnings and insights will gather here.')}
           </EmptyState>
         ) : (

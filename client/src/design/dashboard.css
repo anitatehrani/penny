@@ -1002,6 +1002,103 @@
 }
 
 /* ---------- first run ---------- */
+/* the welcome questions: one at a time, above the checklist */
+.welcome {
+  max-width: 760px;
+  margin: var(--s-5) 0 0;
+  padding: var(--s-5);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-3);
+  background: var(--surface);
+  animation: rise-in var(--t-slow) var(--ease) both;
+}
+.pref-section .welcome {
+  margin: var(--s-4) 0 0;
+  max-width: none;
+}
+.welcome-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.welcome-body h2 {
+  margin: 0;
+  font-size: var(--fs-6);
+  letter-spacing: -0.02em;
+}
+.welcome-body p {
+  margin: 0;
+}
+.welcome-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+}
+.welcome-opt {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-2);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+.welcome-opt:hover {
+  border-color: var(--accent);
+}
+.welcome-opt.on {
+  border-color: var(--accent);
+  background: var(--accent-soft, var(--ok-bg));
+}
+.welcome-opt:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.welcome-mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  color: var(--accent);
+}
+.welcome-opt.on .welcome-mark {
+  border-color: var(--accent);
+}
+.welcome-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+  margin-top: var(--s-3);
+}
+.welcome-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.welcome-summary li {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--ink-2);
+}
+.welcome-summary svg {
+  flex: none;
+  color: var(--pos);
+}
+
 .firstrun {
   display: flex;
   flex-direction: column;

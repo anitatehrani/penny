@@ -6,6 +6,7 @@ import { useApp } from '../context.jsx';
 import { ACCENTS, usePrefs } from '../prefs.jsx';
 import AvatarPicker from './avatar/AvatarPicker.jsx';
 import { Avatar } from './Avatar.jsx';
+import WelcomeQuiz from '../dashboard/WelcomeQuiz.jsx';
 import { LanguagePicker } from './LanguageSwitch.jsx';
 import { Icon, Segmented, Switch, ThemeToggle } from './ui.jsx';
 import { t } from '../i18n/translate.js';
@@ -31,6 +32,7 @@ export default function AppearanceSettings() {
   const { notify } = useApp();
   const navigate = useNavigate();
   const [picking, setPicking] = useState(false);
+  const [quiz, setQuiz] = useState(false);
 
   async function setStatus(on) {
     try {
@@ -50,6 +52,17 @@ export default function AppearanceSettings() {
         </div>
         <Row label={t('Language')} hint={t('The language of the menus, messages and dates. It follows you to any device.')}>
           <LanguagePicker />
+        </Row>
+        <Row label={t('Penny’s voice')} hint={t('Straight-faced keeps the wording plain. Cheeky adds the odd joke in empty states, greetings and loading screens.')}>
+          <Segmented
+            label={t('Penny’s voice')}
+            value={prefs.tone}
+            onChange={(v) => setPrefs({ tone: v })}
+            options={[
+              { value: 'plain', label: t('Straight-faced') },
+              { value: 'cheeky', label: t('Cheeky') },
+            ]}
+          />
         </Row>
         <Row label={t('Theme')} hint={t('Light, dark, or follow your device.')}>
           <ThemeToggle />
@@ -89,6 +102,12 @@ export default function AppearanceSettings() {
             <Icon name="layout" size={16} /> {t('Customise dashboard')}
           </button>
         </Row>
+        <Row label={t('Welcome questions')} hint={t('Answer them again to update your alerts, your checklist and the wording.')}>
+          <button className="btn" onClick={() => setQuiz((q) => !q)} aria-expanded={quiz}>
+            {t('Answer again')}
+          </button>
+        </Row>
+        {quiz && <WelcomeQuiz onDone={() => setQuiz(false)} />}
         <Row label={t('Start again')} hint={t('Puts the widgets, sizes, pins, density and accent back to the defaults.')}>
           <button
             className="btn"

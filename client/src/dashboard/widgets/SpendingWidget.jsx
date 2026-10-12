@@ -5,6 +5,7 @@ import { Skeleton, Switch } from '../../components/ui.jsx';
 import { useApp } from '../../context.jsx';
 import { currentMonth, monthLabel } from '../../format.js';
 import { useQuick } from '../../quick.jsx';
+import { usePlain } from '../../prefs.jsx';
 import { Delta, Donut } from '../charts.jsx';
 import { t } from '../../i18n/translate.js';
 import { catName } from '../../categoryNames.js';
@@ -17,6 +18,7 @@ export default function SpendingWidget({ compare }) {
   const { money } = useApp();
   const navigate = useNavigate();
   const { openAddPayment } = useQuick();
+  const plain = usePlain();
   const [active, setActive] = useState(null);
   const [showPrev, setShowPrev] = useState(true);
 
@@ -24,7 +26,7 @@ export default function SpendingWidget({ compare }) {
   const items = compare.categories.filter((c) => c.current > 0);
   if (items.length === 0) {
     return (
-      <EmptyState art="chart" title={compare.month === currentMonth() ? t('No spending recorded this month') : t('No spending recorded for {monthLabel}', { monthLabel: monthLabel(compare.month) })} action={<button className="btn sm" onClick={() => openAddPayment()}>{t('Add a payment')}</button>}>
+      <EmptyState art="chart" title={compare.month === currentMonth() ? (plain ? t('No spending recorded this month') : t('No spending recorded this month. Your wallet is feeling smug.')) : t('No spending recorded for {monthLabel}', { monthLabel: monthLabel(compare.month) })} action={<button className="btn sm" onClick={() => openAddPayment()}>{t('Add a payment')}</button>}>
         {t('Once you add expenses, you will see which categories take the most.')}
       </EmptyState>
     );

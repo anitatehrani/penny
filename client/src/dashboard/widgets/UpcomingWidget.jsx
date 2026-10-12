@@ -6,6 +6,7 @@ import TransactionForm from '../../components/TransactionForm.jsx';
 import { useApp } from '../../context.jsx';
 import { useQuick } from '../../quick.jsx';
 import PaymentRow from '../PaymentRow.jsx';
+import { usePlain } from '../../prefs.jsx';
 import { t, tn } from '../../i18n/translate.js';
 
 const FIRST = 5;
@@ -13,6 +14,7 @@ const FIRST = 5;
 /** What has to be paid soon: overdue first, then the next two weeks. Expands when there is more. */
 export default function UpcomingWidget({ summary }) {
   const { money } = useApp();
+  const plain = usePlain();
   const { bump, openAddPayment } = useQuick();
   const [editing, setEditing] = useState(null);
   const [expanded, setExpanded] = useState(false);
@@ -22,7 +24,7 @@ export default function UpcomingWidget({ summary }) {
 
   if (rows.length === 0) {
     return (
-      <EmptyState art="calm" title={t('Nothing due for two weeks. Enjoy the quiet.')} action={<button className="btn sm" onClick={() => openAddPayment()}>{t('Add a payment')}</button>}>
+      <EmptyState art="calm" title={plain ? t('Nothing due in the next two weeks') : t('Nothing due for two weeks. Enjoy the quiet.')} action={<button className="btn sm" onClick={() => openAddPayment()}>{t('Add a payment')}</button>}>
         {t('When you add a payment with a date, it will appear here.')}
       </EmptyState>
     );

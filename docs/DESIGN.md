@@ -1208,3 +1208,28 @@ The app sends its language with every request (`X-Language`); the server's own d
 - The Italian was written and checked by the assistant only. A native speaker should read it, above all the terms, the privacy policy and the guides.
 - The pictures of the app on the home page are English screenshots.
 - CSV export headings and the text of a reply to a contact message stay English.
+
+## 47. A lighter voice, and a few questions for somebody new
+
+Two small things to make Penny less formal without making it less clear.
+
+### Playful wording in a few low-stakes places
+
+Researched first: Mailchimp's own style guide says forced humour is worse than none and to keep a straight face when unsure; Monzo's says a pinch, never at the reader's cost; Cleo's edgy voice has been criticised when it touched people's money and feelings; Mint's overspending alerts were read as scolding. So the jokes live only where nothing is at stake: an empty notification list, nothing due for two weeks, no spending this month, the greeting after midnight, the page loading screen, the welcome checklist, and a few lines on the home page and in its FAQ. They are never in the wording about debts, overdue payments, a balance below zero, a budget that went over, errors, deleting data or the legal pages. The Italian is written as its own joke, not translated.
+
+Each playful line sits next to its plain version in the code (`plain ? t('…') : t('…')`), so a person who prefers no jokes gets the plain one. `prefs.tone` is `plain` or `cheeky` (the default); Settings → Look and feel has "Penny's voice". `usePlain()` in `prefs.jsx` is the hook; the loading screen, which appears before the preferences have arrived, reads a copy kept in localStorage (`tone.js`). The FAQ answers on the home page are repeated in `server/src/lib/seo.js` (they are also in the page the search engines read), so a change to one is a change to both. The home page itself is public and has no preference to follow, so its jokes are always on.
+
+### The welcome questions
+
+Right after sign-up, a new budget (the dashboard with nothing in it yet) shows a card above the checklist: four light questions, one at a time, each skippable, with a wrap-up that says what will happen. `client/src/dashboard/WelcomeQuiz.jsx`; the rules are in `client/src/welcomeLogic.js` and tested without a browser.
+
+| Question | Answers | What it changes |
+|---|---|---|
+| What brought you here? (any number) | see balance ahead, spending, bills, debts, sharing, a pile of statements | The dashboard order: greeting and insights stay on top, then the widgets for those goals (`layoutForGoals`). Debts and sharing also add a step to the checklist. |
+| How should Penny talk to you? | straight-faced, a little cheeky | `prefs.tone`, as above. |
+| How should Penny tap your shoulder? | only when close, weekly summary plus a few days ahead, early and often | The notification settings the server already has: `lead_days` 1, 3 or 7, and the weekly summary (`nudgeSettings`). |
+| Which category is your budget's arch-enemy? | dining, subscriptions, groceries, transport, none | `prefs.villain`: the checklist gets "Put a limit on {category}", linking to the monthly budget. |
+
+Everything is kept in the account preferences (`welcome_done`, `goals`, `tone`, `nudge`, `villain`; `server/src/routes/preferences.js`, with the lists mirrored in the client and checked by `server/test/client-parity.test.js`), so it follows the person to another device. Skipping, or finishing with no answers, only sets `welcome_done`: nothing else is changed and the questions do not come back. Accounts that already have payments never see the card; they can answer the questions at any time under Settings → Look and feel → "Welcome questions", where the dashboard order is left as the person made it.
+
+Tests: `server/test/api-welcome.test.js`, `client/test/welcome-logic.test.js`, and `e2e/welcome.e2e.cjs` (new account answers everything, skips, phone width, Italian browser).

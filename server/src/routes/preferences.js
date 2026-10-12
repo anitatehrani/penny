@@ -9,6 +9,11 @@ const router = Router();
 
 export const WIDGETS = ['hero', 'insights', 'upcoming', 'spending', 'budget', 'recurring', 'paying', 'outlook'];
 export const ROUTES = ['dashboard', 'payments', 'budget', 'recurring', 'installments', 'debts', 'forecast', 'people', 'settings'];
+// What the welcome questions find out (client/src/welcomeLogic.js keeps the same lists; a test makes sure they match).
+export const GOALS = ['forecast', 'budget', 'bills', 'debts', 'together', 'import'];
+export const VILLAINS = ['dining', 'subscriptions', 'groceries', 'transport', 'none'];
+export const NUDGES = ['urgent', 'weekly', 'early'];
+export const TONES = ['plain', 'cheeky'];
 const widget = z.enum(WIDGETS);
 
 const schema = z
@@ -28,6 +33,11 @@ const schema = z
     avatar_style: z.enum(['photo', 'initials', 'generated', 'illustrated']),
     assistant_intro_seen: z.boolean(),
     language: z.enum(['en', 'it']),
+    welcome_done: z.boolean(),
+    goals: z.array(z.enum(GOALS)).max(GOALS.length).refine((a) => new Set(a).size === a.length, 'no duplicates'),
+    tone: z.enum(TONES),
+    nudge: z.enum(NUDGES),
+    villain: z.enum(VILLAINS),
     collapsed: z.array(widget).max(WIDGETS.length).refine((a) => new Set(a).size === a.length, 'no duplicates'),
   })
   .partial()

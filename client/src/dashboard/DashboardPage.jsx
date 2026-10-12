@@ -38,9 +38,9 @@ const TITLES = {
   get paying() { return t('Paying off'); },
   get outlook() { return t('Cash flow'); },
 };
-const greeting = () => {
+const greeting = (plain) => {
   const h = new Date().getHours();
-  return h < 5 ? t('Still up? Respect.') : h < 12 ? t('Good morning') : h < 18 ? t('Good afternoon') : t('Good evening');
+  return h < 5 ? (plain ? t('Still up') : t('Still up? Respect.')) : h < 12 ? t('Good morning') : h < 18 ? t('Good afternoon') : t('Good evening');
 };
 
 function DashboardSkeleton({ bare }) {
@@ -97,7 +97,8 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const { isGroup, current } = useWorkspace();
   const { version, openAddPayment } = useQuick();
-  const { layout, setPrefs, ready } = usePrefs();
+  const { layout, prefs, setPrefs, ready } = usePrefs();
+  const plain = prefs.tone === 'plain';
   const { data: insightData } = useInsights();
   const [params, setParams] = useSearchParams();
   const [edit, setEdit] = useState(params.get('customize') === '1');
@@ -235,7 +236,7 @@ export default function DashboardPage() {
         <Avatar user={user} size={44} showStatus={false} />
         <div className="dash-title">
           <h1>
-            {greeting()}, {user.name.split(' ')[0]}
+            {greeting(plain)}, {user.name.split(' ')[0]}
           </h1>
           <p className="muted">{isGroup ? t('{name} · the group’s shared money', { name: current.name }) : new Date().toLocaleDateString(localeOf(), { weekday: 'long', day: 'numeric', month: 'long' })}</p>
         </div>

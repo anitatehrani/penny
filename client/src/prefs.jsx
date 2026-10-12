@@ -3,6 +3,7 @@ import { api } from './api.js';
 import { useAuth } from './auth.jsx';
 import { DEFAULT_LAYOUT, normalizeLayout, WIDGETS } from './prefsLogic.js';
 import { N_, t } from './i18n/translate.js';
+import { writeTone } from './tone.js';
 
 export { DEFAULT_LAYOUT, normalizeLayout, WIDGETS };
 
@@ -19,10 +20,12 @@ export const ACCENTS = [
   ['rose', N_('Rose')],
   ['graphite', N_('Graphite')],
 ];
-const DEFAULTS = { density: 'comfortable', accent: 'blue', sidebar_collapsed: false, favorites: [], avatar_style: 'photo', assistant_intro_seen: false };
+const DEFAULTS = { density: 'comfortable', accent: 'blue', sidebar_collapsed: false, favorites: [], avatar_style: 'photo', assistant_intro_seen: false, tone: 'cheeky', welcome_done: false, goals: [] };
 
 const Ctx = createContext({ prefs: DEFAULTS, layout: DEFAULT_LAYOUT, setPrefs: () => {}, resetPrefs: () => {}, ready: true });
 export const usePrefs = () => useContext(Ctx);
+/** True when the person asked Penny to keep a straight face: the playful wording gives way to the plain wording. */
+export const usePlain = () => useContext(Ctx).prefs.tone === 'plain';
 
 const cacheKey = (id) => `prefs:${id}`;
 const readCache = (id) => {
@@ -66,6 +69,7 @@ export function PreferencesProvider({ children }) {
 
   const prefs = useMemo(() => ({ ...DEFAULTS, ...data }), [data]);
   const layout = useMemo(() => normalizeLayout(data.layout), [data.layout]);
+  useEffect(() => writeTone(prefs.tone), [prefs.tone]);
 
   // data attributes the tokens read
   useEffect(() => {

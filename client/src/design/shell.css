@@ -462,6 +462,9 @@ html {
 .lang-quick {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  flex: none;
+  min-width: 36px;
   gap: 6px;
   height: 36px;
   padding: 0 10px;
