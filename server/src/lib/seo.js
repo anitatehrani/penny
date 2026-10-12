@@ -20,14 +20,14 @@ export const PUBLIC_PAGES = [
 
 /** The same questions and answers as the home page (client/src/pages/Landing.jsx; a test keeps the two equal). */
 export const HOME_FAQ = [
-  { q: N_("Is Penny free?"), a: N_("Yes. You can sign up and use it without paying.") },
+  { q: N_("Is Penny free?"), a: N_("Yes. You can sign up and use it without paying. A budget app that doesn't cost money, imagine that.") },
   { q: N_("Does it connect to my bank?"), a: N_("No, on purpose, so Penny never sees your bank login. You enter payments yourself, set them to repeat, or import a statement file from your bank. When your real balance and Penny's drift apart, \"Match my bank balance\" fixes it in one step.") },
   { q: N_("Can I import a bank statement?"), a: N_("Yes: a PDF or a spreadsheet file (CSV or Excel), from any bank. Penny works out the layout by itself (it reads English, Italian, German, French, Spanish, Portuguese and Dutch headings), suggests a category for each line and lets you check everything before it saves. The file is read in your browser and never uploaded, and one click undoes an import.") },
   { q: N_("Can I set a budget for each category?"), a: N_("Yes. Give each category an amount for the month, or let Penny suggest amounts from what you usually spend. Penny shows how much is spent and left, tells you which categories are heading over, and warns you in the app at 80% and when a category goes over. You can also look back at a finished month.") },
   { q: N_("Who can see my data?"), a: N_("You, and the people you share a budget with, in that budget only. The person who runs the site sees account basics, not what your payments are or their amounts. They can look inside your account only to help you, with a written reason, and you are told when it happens.") },
   { q: N_("Can I share a budget with my partner or family?"), a: N_("Yes. Make a shared budget and invite people you are connected with. You can also split single payments between people.") },
-  { q: N_("What if I want to leave?"), a: N_("Download everything as a file, then delete your account, both in Settings. Deleting is immediate and complete.") },
-  { q: N_("Does it work on my phone?"), a: N_("Yes. It runs in your phone's browser and can be added to your home screen.") },
+  { q: N_("What if I want to leave?"), a: N_("No hard feelings. Download everything as a file, then delete your account, both in Settings. Deleting is immediate and complete.") },
+  { q: N_("Does it work on my phone?"), a: N_("Yes. It runs in your phone's browser and can be added to your home screen, so your balance is one thumb away.") },
 ];
 
 const HOME_POINTS = [

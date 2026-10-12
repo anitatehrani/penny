@@ -64,7 +64,7 @@ function ForecastDemo({ signupsOpen }) {
       <div className="lp-wrap">
         <p className="lp-eyebrow lp-center lp-reveal">{t('Try it')}</p>
         <h2 className="lp-reveal">{t('Bend a year, see where it lands')}</h2>
-        <p className="lp-sub lp-reveal">{t('Move the sliders. This is the idea behind Penny\'s forecast, with your own payments in place of these numbers.')}</p>
+        <p className="lp-sub lp-reveal">{t('Go on, buy the big thing. Move the sliders and see what it does to your year. This is the idea behind Penny\'s forecast, with your own payments in place of these numbers.')}</p>
         <div className="lp-demo lp-reveal">
           <div className="lp-demo-controls">
             {SLIDERS.map((s) => (
@@ -558,14 +558,14 @@ const PRIVACY = [
 ];
 
 const FAQ = [
-  { get q() { return t('Is Penny free?'); }, get a() { return t('Yes. You can sign up and use it without paying.'); } },
+  { get q() { return t('Is Penny free?'); }, get a() { return t('Yes. You can sign up and use it without paying. A budget app that doesn\'t cost money, imagine that.'); } },
   { get q() { return t('Does it connect to my bank?'); }, get a() { return t('No, on purpose, so Penny never sees your bank login. You enter payments yourself, set them to repeat, or import a statement file from your bank. When your real balance and Penny\'s drift apart, "Match my bank balance" fixes it in one step.'); } },
   { get q() { return t('Can I import a bank statement?'); }, get a() { return t('Yes: a PDF or a spreadsheet file (CSV or Excel), from any bank. Penny works out the layout by itself (it reads English, Italian, German, French, Spanish, Portuguese and Dutch headings), suggests a category for each line and lets you check everything before it saves. The file is read in your browser and never uploaded, and one click undoes an import.'); } },
   { get q() { return t('Can I set a budget for each category?'); }, get a() { return t('Yes. Give each category an amount for the month, or let Penny suggest amounts from what you usually spend. Penny shows how much is spent and left, tells you which categories are heading over, and warns you in the app at 80% and when a category goes over. You can also look back at a finished month.'); } },
   { get q() { return t('Who can see my data?'); }, get a() { return t('You, and the people you share a budget with, in that budget only. The person who runs the site sees account basics, not what your payments are or their amounts. They can look inside your account only to help you, with a written reason, and you are told when it happens.'); } },
   { get q() { return t('Can I share a budget with my partner or family?'); }, get a() { return t('Yes. Make a shared budget and invite people you are connected with. You can also split single payments between people.'); } },
-  { get q() { return t('What if I want to leave?'); }, get a() { return t('Download everything as a file, then delete your account, both in Settings. Deleting is immediate and complete.'); } },
-  { get q() { return t('Does it work on my phone?'); }, get a() { return t('Yes. It runs in your phone\'s browser and can be added to your home screen.'); } },
+  { get q() { return t('What if I want to leave?'); }, get a() { return t('No hard feelings. Download everything as a file, then delete your account, both in Settings. Deleting is immediate and complete.'); } },
+  { get q() { return t('Does it work on my phone?'); }, get a() { return t('Yes. It runs in your phone\'s browser and can be added to your home screen, so your balance is one thumb away.'); } },
 ];
 
 export default function Landing() {
@@ -790,7 +790,7 @@ export default function Landing() {
         <section className="lp-final">
           <div className="lp-wrap lp-reveal">
             <h2>{t('Ready to see what is ahead?')}</h2>
-            <p>{signupsOpen ? t('Make an account in a minute, and add your first payment.') : t('Sign-ups are closed for now. If you already have an account, log in.')}</p>
+            <p>{signupsOpen ? t('Make an account in a minute, and add your first payment. Your coffee will still be hot.') : t('Sign-ups are closed for now. If you already have an account, log in.')}</p>
             <div className="lp-cta lp-cta-center">
               {signupsOpen && (
                 <Link className="btn lp-big lp-white" to="/signup">
