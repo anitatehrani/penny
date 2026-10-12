@@ -214,7 +214,7 @@ function Inbox() {
       </div>
 
       {state.items.length === 0 ? (
-        <Empty title={filter.status === 'unread' ? t('You are all caught up') : t('No notifications yet')}>
+        <Empty title={filter.status === 'unread' ? t('All caught up. Go do something fun.') : t('No notifications yet')}>
           {filter.status === 'unread' ? t('Nothing unread.') : t('Reminders for upcoming payments and requests from other people will show up here. You can choose what you get under Settings.')}
         </Empty>
       ) : (

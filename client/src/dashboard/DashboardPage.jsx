@@ -40,7 +40,7 @@ const TITLES = {
 };
 const greeting = () => {
   const h = new Date().getHours();
-  return h < 5 ? t('Still up') : h < 12 ? t('Good morning') : h < 18 ? t('Good afternoon') : t('Good evening');
+  return h < 5 ? t('Still up? Respect.') : h < 12 ? t('Good morning') : h < 18 ? t('Good afternoon') : t('Good evening');
 };
 
 function DashboardSkeleton({ bare }) {

@@ -55,7 +55,7 @@ function Root() {
   if (!loading && !error && pathOnly === '/terms') return <Terms />;
   if (!loading && !error && pathOnly === '/privacy') return <Privacy />;
   if (!loading && !error && pathOnly === '/contact') return <Contact />;
-  if (loading) return <div className="loading">{t('Loading…')}</div>;
+  if (loading) return <div className="loading">{t('Counting the pennies…')}</div>;
   if (error) return <div className="loading">{t('Cannot reach the server: {message}', { message: error.message })}</div>;
   // somebody who is not signed in sees the home page first; every other address goes to the sign-in pages
   if (!user) return pathOnly === '/' ? <Landing /> : <AuthPages />;
@@ -64,7 +64,7 @@ function Root() {
   // The app itself (every page, the assistant, the palette...) is a separate file that is fetched only after signing in, so a visitor to the home
   // page, who may be a search engine, downloads the home page and nothing more (docs/DESIGN.md section 44).
   return (
-    <Suspense fallback={<div className="loading">{t('Loading…')}</div>}>
+    <Suspense fallback={<div className="loading">{t('Counting the pennies…')}</div>}>
       <SignedIn user={user} />
     </Suspense>
   );

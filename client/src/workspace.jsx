@@ -86,6 +86,6 @@ export function WorkspaceProvider({ children }) {
   );
 
   if (spaces.error) return <div className="loading">{t('Cannot reach the server: {message}', { message: spaces.error.message })}</div>;
-  if (!current) return <div className="loading">{t('Loading…')}</div>;
+  if (!current) return <div className="loading">{t('Counting the pennies…')}</div>;
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

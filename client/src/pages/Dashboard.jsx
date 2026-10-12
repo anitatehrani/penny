@@ -84,7 +84,7 @@ function DashboardSkeleton() {
 
 const greeting = () => {
   const h = new Date().getHours();
-  return h < 5 ? t('Still up') : h < 12 ? t('Good morning') : h < 18 ? t('Good afternoon') : t('Good evening');
+  return h < 5 ? t('Still up? Respect.') : h < 12 ? t('Good morning') : h < 18 ? t('Good afternoon') : t('Good evening');
 };
 
 export default function Dashboard() {
@@ -255,7 +255,7 @@ export default function Dashboard() {
             <span className="muted">{monthLabel(month, { month: 'long' })}</span>
           </div>
           {s.byCategory.length === 0 ? (
-            <Empty icon="trend" title={t('No expenses yet')}>{t('Add a payment to see where the money goes.')}</Empty>
+            <Empty icon="trend" title={t('No expenses yet. Your wallet is feeling smug.')}>{t('Add a payment to see where the money goes.')}</Empty>
           ) : (
             <ul className="bars">
               {s.byCategory.map((c) => (

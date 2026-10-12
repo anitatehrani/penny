@@ -22,7 +22,7 @@ export default function UpcomingWidget({ summary }) {
 
   if (rows.length === 0) {
     return (
-      <EmptyState art="calm" title={t('Nothing due in the next two weeks')} action={<button className="btn sm" onClick={() => openAddPayment()}>{t('Add a payment')}</button>}>
+      <EmptyState art="calm" title={t('Nothing due for two weeks. Enjoy the quiet.')} action={<button className="btn sm" onClick={() => openAddPayment()}>{t('Add a payment')}</button>}>
         {t('When you add a payment with a date, it will appear here.')}
       </EmptyState>
     );

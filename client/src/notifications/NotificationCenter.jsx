@@ -172,7 +172,7 @@ function CenterBody({ onClose, inSheet }) {
             ))}
           </div>
         ) : groups.length === 0 ? (
-          <EmptyState art={filter === 'unread' ? 'calm' : 'bell'} title={filter === 'unread' ? t('You are all caught up') : t('Nothing here yet')} compact>
+          <EmptyState art={filter === 'unread' ? 'calm' : 'bell'} title={filter === 'unread' ? t('All caught up. Go do something fun.') : t('Nothing here yet')} compact>
             {filter === 'unread' ? t('No unread notifications. Nice.') : t('Payment reminders, warnings and insights will gather here.')}
           </EmptyState>
         ) : (

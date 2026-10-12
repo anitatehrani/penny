@@ -71,7 +71,7 @@ export default function FirstRun({ rulesCount }) {
         <div>
           <div className="eyebrow">{t('Getting started')}</div>
           <h2>{t('Welcome. Let’s make this budget yours.')}</h2>
-          <p className="muted">{t('Four small steps. Your dashboard fills in as you go.')}</p>
+          <p className="muted">{t('Four small steps, no judgement. Your dashboard fills in as you go.')}</p>
         </div>
         <div className="firstrun-progress" role="img" aria-label={t('{done} of {length} steps done', { done, length: steps.length })}>
           <span className="num">
