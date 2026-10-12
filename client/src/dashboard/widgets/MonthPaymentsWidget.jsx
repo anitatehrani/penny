@@ -8,6 +8,8 @@ import { byListDate, monthTotals } from '../../cardLogic.js';
 import { useApp } from '../../context.jsx';
 import { monthLabel } from '../../format.js';
 import { useQuick } from '../../quick.jsx';
+import { t, tn } from '../../i18n/translate.js';
+import { tRich } from '../../i18n/react.jsx';
 
 const FIRST = 8;
 
@@ -28,23 +30,23 @@ export default function MonthPaymentsWidget({ month, rows }) {
 
   if (sorted.length === 0) {
     return (
-      <EmptyState art="calm" title={`Nothing recorded for ${name}`} action={<button className="btn sm" onClick={() => openAddPayment()}>Add a payment</button>}>
-        Payments dated in this month will be listed here.
+      <EmptyState art="calm" title={t('Nothing recorded for {name}', { name })} action={<button className="btn sm" onClick={() => openAddPayment()}>{t('Add a payment')}</button>}>
+        {t('Payments dated in this month will be listed here.')}
       </EmptyState>
     );
   }
   return (
     <>
       <p className="widget-lead">
-        <span className="num">{money(totals.expenses)}</span> out, <span className="num">{money(totals.income)}</span> in · {sorted.length} payment{sorted.length === 1 ? '' : 's'}
+        {tRich('{out} out, {incoming} in · {count}', { out: <span className="num">{money(totals.expenses)}</span>, incoming: <span className="num">{money(totals.income)}</span>, count: tn(sorted.length, '{n} payment', '{n} payments') })}
         {totals.boughtCredit > 0 && (
           <span className="muted">
             {' '}
-            · <span className="num">{money(totals.boughtCredit)}</span> bought with credit card
+            {tRich('· {span} bought with credit card', { span: <span className="num">{money(totals.boughtCredit)}</span> })}
           </span>
         )}
       </p>
-      <div className="tx-list" aria-label={`Payments in ${name}`}>
+      <div className="tx-list" aria-label={t('Payments in {name}', { name })}>
         {shown.map((tx) => (
           <TxRow key={tx.id} tx={tx} compact onChange={bump} onEdit={setEditing} />
         ))}
@@ -52,16 +54,16 @@ export default function MonthPaymentsWidget({ month, rows }) {
       <div className="widget-foot">
         {sorted.length > FIRST && (
           <button className="link-quiet" onClick={() => setExpanded((e) => !e)} aria-expanded={expanded}>
-            {expanded ? 'Show fewer' : `Show ${sorted.length - FIRST} more`}
+            {expanded ? t('Show fewer') : t('Show {value} more', { value: sorted.length - FIRST })}
           </button>
         )}
         <span className="spacer" />
         <Link to={`/payments?month=${month}`} className="link-quiet">
-          Open in Payments
+          {t('Open in Payments')}
         </Link>
       </div>
       {editing && (
-        <Modal title="Edit payment" onClose={() => setEditing(null)}>
+        <Modal title={t('Edit payment')} onClose={() => setEditing(null)}>
           <TransactionForm
             initial={editing}
             onCancel={() => setEditing(null)}

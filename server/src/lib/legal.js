@@ -7,8 +7,8 @@
 export const TERMS_VERSION = '2026-10-10';
 
 const clean = (v) => {
-  const t = String(v ?? '').trim();
-  return t || null;
+  const tt = String(v ?? '').trim();
+  return tt || null;
 };
 
 /** Who runs this site and how to reach them, shown on the two pages. Set OPERATOR_NAME and CONTACT_EMAIL in .env. */

@@ -20,12 +20,12 @@ export function AnimatedNumber({ value, format, duration = 420 }) {
     const start = performance.now();
     const origin = from.current;
     const tick = (now) => {
-      const t = Math.min(1, (now - start) / duration);
-      const eased = 1 - (1 - t) ** 3;
+      const tt = Math.min(1, (now - start) / duration);
+      const eased = 1 - (1 - tt) ** 3;
       const v = origin + (value - origin) * eased;
       from.current = v;
       setShown(v);
-      if (t < 1) frame.current = requestAnimationFrame(tick);
+      if (tt < 1) frame.current = requestAnimationFrame(tick);
     };
     frame.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame.current);

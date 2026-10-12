@@ -12,6 +12,7 @@ import { layoutLoose, layoutPdf, gridsFromTables } from './pdfTable.js';
 import { MAX_PDF_BYTES, readPdfWords } from './pdf.js';
 import { isOle, isZip, readXlsx } from './xlsx.js';
 import { currencyIn } from './values.js';
+import { t } from '../i18n/translate.js';
 
 export const MAX_ROWS = 3000;
 
@@ -26,12 +27,12 @@ const startsWithPdf = (b) => {
  */
 export async function openStatement(bytes, { pdfjs, password } = {}) {
   const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-  if (!b.length) throw new ImportError('empty', 'That file is empty.');
+  if (!b.length) throw new ImportError('empty', t('That file is empty.'));
   if (startsWithPdf(b)) {
-    if (b.length > MAX_PDF_BYTES) throw new ImportError('toobig', 'That PDF is larger than 15 MB. Choose a shorter period, or download the statement from your bank as a spreadsheet instead.');
+    if (b.length > MAX_PDF_BYTES) throw new ImportError('toobig', t('That PDF is larger than 15 MB. Choose a shorter period, or download the statement from your bank as a spreadsheet instead.'));
     const pages = await readPdfWords(b, { pdfjs, password });
     if (!pages.some((p) => p.items.length)) {
-      throw new ImportError('scan', 'This PDF has no text in it: it is probably a scan, a photo of paper. Penny cannot read pictures. Download the statement again from the website or app of your bank, as a PDF the bank makes or as a spreadsheet.');
+      throw new ImportError('scan', t('This PDF has no text in it: it is probably a scan, a photo of paper. Penny cannot read pictures. Download the statement again from the website or app of your bank, as a PDF the bank makes or as a spreadsheet.'));
     }
     const found = layoutPdf(pages);
     let tables = found.tables;
@@ -40,7 +41,7 @@ export async function openStatement(bytes, { pdfjs, password } = {}) {
       if (loose) tables = [loose];
     }
     if (!tables.length) {
-      throw new ImportError('notable', 'Penny could not find a list of payments in this PDF. If your bank also offers the statement as a spreadsheet, that is the more reliable way.');
+      throw new ImportError('notable', t('Penny could not find a list of payments in this PDF. If your bank also offers the statement as a spreadsheet, that is the more reliable way.'));
     }
     // the words near the top of the first page (the currency of the statement) are all that is read outside the tables
     const header = found.lines[0]?.slice(0, 12).map((l) => l.text).join(' ') ?? '';
@@ -48,9 +49,9 @@ export async function openStatement(bytes, { pdfjs, password } = {}) {
   }
   if (isZip(b)) return { kind: 'xlsx', grids: readXlsx(b) };
   if (isOle(b)) {
-    throw new ImportError('oldexcel', 'That is an old kind of spreadsheet file (.xls). Open it in Excel, choose Save As, pick the newer Excel format (.xlsx), and then choose that file here.');
+    throw new ImportError('oldexcel', t('That is an old kind of spreadsheet file (.xls). Open it in Excel, choose Save As, pick the newer Excel format (.xlsx), and then choose that file here.'));
   }
-  if (b.length > MAX_TEXT_BYTES) throw new ImportError('toobig', 'That file is larger than 12 MB.');
+  if (b.length > MAX_TEXT_BYTES) throw new ImportError('toobig', t('That file is larger than 12 MB.'));
   const text = decodeText(b);
   if (looksLikeHtmlTable(text)) return { kind: 'html', grids: [readHtmlTable(text)] };
   return { kind: 'csv', grids: [readDelimited(text)] };
@@ -122,7 +123,7 @@ export function interpret(opened, { overrides = {}, saved = new Map(), hint = {}
   }
   const currency = [...currencies].sort((a, b) => b[1] - a[1])[0]?.[0] ?? currencyIn(opened.hintText ?? '') ?? null;
   const tooMany = rows.length > MAX_ROWS;
-  if (tooMany) notes.push(`This file has ${rows.length} lines; Penny imports up to ${MAX_ROWS} at a time. Choose a shorter period.`);
+  if (tooMany) notes.push(t('This file has {length} lines; Penny imports up to {MAX_ROWS} at a time. Choose a shorter period.', { length: rows.length, MAX_ROWS }));
   // each table has its own running balance (the account and a pocket are different balances)
   const check = { checked: 0, agree: 0 };
   for (const section of sections) {

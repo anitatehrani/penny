@@ -1,5 +1,6 @@
 import { useId, useState } from 'react';
 import { passwordChecks } from '../passwordRules.js';
+import { t } from '../i18n/translate.js';
 
 const EYE = 'M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12zM12 15a3 3 0 100-6 3 3 0 000 6z';
 const EYE_OFF = 'M3 3l18 18M10.6 6.1A9.8 9.8 0 0112 6c6.4 0 10 6 10 6a17 17 0 01-3.2 3.8M6.5 7.6C3.9 9.3 2 12 2 12s3.6 6 10 6c1.5 0 2.9-.3 4.1-.8M9.9 9.9a3 3 0 004.2 4.2';
@@ -25,7 +26,7 @@ export default function PasswordField({ label, value, onChange, autoComplete, sh
           maxLength={128}
           aria-describedby={showRules ? `${id}-rules` : undefined}
         />
-        <button type="button" className="pw-toggle" onClick={() => setVisible((v) => !v)} aria-label={visible ? 'Hide password' : 'Show password'} aria-pressed={visible}>
+        <button type="button" className="pw-toggle" onClick={() => setVisible((v) => !v)} aria-label={visible ? t('Hide password') : t('Show password')} aria-pressed={visible}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d={visible ? EYE_OFF : EYE} />
           </svg>
@@ -41,7 +42,7 @@ export default function PasswordField({ label, value, onChange, autoComplete, sh
               </svg>
               <span>
                 {c.label}
-                <span className="sr-only">{c.ok ? ' — met' : ' — not met yet'}</span>
+                <span className="sr-only">{c.ok ? t(' — met') : t(' — not met yet')}</span>
               </span>
             </li>
           ))}

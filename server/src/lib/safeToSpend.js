@@ -23,7 +23,7 @@ export function safeToSpend({ today, balanceCents, bufferCents = 0, pending }) {
   const until = next ? addDays(next.date, -1) : monthEnd(today.slice(0, 7));
   const days = Math.max(1, daysBetween(today, until) + 1);
   const due = pending.filter((p) => p.type === 'expense' && p.date <= until);
-  const billsCents = due.reduce((t, p) => t + p.cents, 0);
+  const billsCents = due.reduce((tt, p) => tt + p.cents, 0);
   const buffer = Math.max(0, bufferCents);
   const availableCents = balanceCents - billsCents - buffer;
   const perDay = availableCents > 0 ? Math.floor(availableCents / days) : 0;

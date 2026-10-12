@@ -1,3 +1,4 @@
+import { getLanguage, t } from './i18n/translate.js';
 // Which budget (personal or a shared group) requests are about. Set by the WorkspaceProvider.
 let activeWorkspace = null;
 export const setActiveWorkspace = (id) => {
@@ -7,6 +8,7 @@ export const workspaceQuery = () => (activeWorkspace ? `ws=${activeWorkspace}` :
 
 async function send(method, url, { body, rawBody, headers = {}, workspace } = {}) {
   const h = { ...headers };
+  h['X-Language'] = getLanguage(); // what the server writes (answers, alerts, messages) comes back in this language
   if (body !== undefined) h['Content-Type'] = 'application/json';
   const ws = workspace ?? activeWorkspace;
   if (ws && !url.startsWith('/auth/')) h['X-Workspace'] = String(ws);
@@ -21,7 +23,7 @@ async function send(method, url, { body, rawBody, headers = {}, workspace } = {}
   if (!res.ok) {
     // A 401 on a data request means the session ended: let the app show the sign-in page.
     if (res.status === 401 && !url.startsWith('/auth/')) window.dispatchEvent(new Event('auth:expired'));
-    const err = new Error(data.error || `Request failed (${res.status})`);
+    const err = new Error(data.error || t('Request failed ({status})', { status: res.status }));
     err.status = res.status;
     err.problems = data.problems;
     err.code = data.code;

@@ -25,25 +25,27 @@ import PayingOffWidget from './widgets/PayingOffWidget.jsx';
 import RecurringWidget from './widgets/RecurringWidget.jsx';
 import SpendingWidget from './widgets/SpendingWidget.jsx';
 import UpcomingWidget from './widgets/UpcomingWidget.jsx';
+import { localeOf, t } from '../i18n/translate.js';
+import { tRich } from '../i18n/react.jsx';
 
 const TITLES = {
-  hero: 'Balance',
-  insights: 'Insights',
-  upcoming: 'Coming up',
-  spending: 'Spending',
-  budget: 'Monthly budget',
-  recurring: 'Recurring',
-  paying: 'Paying off',
-  outlook: 'Cash flow',
+  get hero() { return t('Balance'); },
+  get insights() { return t('Insights'); },
+  get upcoming() { return t('Coming up'); },
+  get spending() { return t('Spending'); },
+  get budget() { return t('Monthly budget'); },
+  get recurring() { return t('Recurring'); },
+  get paying() { return t('Paying off'); },
+  get outlook() { return t('Cash flow'); },
 };
 const greeting = () => {
   const h = new Date().getHours();
-  return h < 5 ? 'Still up' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+  return h < 5 ? t('Still up') : h < 12 ? t('Good morning') : h < 18 ? t('Good afternoon') : t('Good evening');
 };
 
 function DashboardSkeleton({ bare }) {
   return (
-    <div className={bare ? undefined : 'dash'} aria-busy="true" aria-label="Loading your dashboard" role="status">
+    <div className={bare ? undefined : 'dash'} aria-busy="true" aria-label={t('Loading your dashboard')} role="status">
       <div className="dash-grid">
         <div className="widget size-l">
           <div className="hero hero-l">
@@ -151,7 +153,7 @@ export default function DashboardPage() {
   const size = (id, s) => save({ sizes: { ...layout.sizes, [id]: s } });
   const reset = () => setPrefs({ layout: { order: WIDGETS.slice(), hidden: [], sizes: { hero: 'l', insights: 'l', upcoming: 'm', spending: 'm', budget: 'm', recurring: 'm', paying: 'm', outlook: 'm' } }, collapsed: [] });
 
-  if (summary.error && !summary.data) return <ErrorState error={summary.error} onRetry={summary.reload} title="The dashboard did not load" />;
+  if (summary.error && !summary.data) return <ErrorState error={summary.error} onRetry={summary.reload} title={t('The dashboard did not load')} />;
   if (!summary.data || !ready) return <DashboardSkeleton />;
 
   const s = summary.data;
@@ -184,41 +186,41 @@ export default function DashboardPage() {
         );
       case 'upcoming':
         return monthView ? (
-          <WidgetFrame key={id} {...common} eyebrow={monthLabel(month)} title="Payments this month">
+          <WidgetFrame key={id} {...common} eyebrow={monthLabel(month)} title={t('Payments this month')}>
             <MonthPaymentsWidget month={month} rows={monthRows.data} />
           </WidgetFrame>
         ) : (
-          <WidgetFrame key={id} {...common} eyebrow="Next 14 days" title="Coming up">
+          <WidgetFrame key={id} {...common} eyebrow={t('Next 14 days')} title={t('Coming up')}>
             <UpcomingWidget summary={s} />
           </WidgetFrame>
         );
       case 'spending':
         return (
-          <WidgetFrame key={id} {...common} eyebrow={monthView ? monthLabel(month) : 'This month'} title="Where the money goes">
+          <WidgetFrame key={id} {...common} eyebrow={monthView ? monthLabel(month) : t('This month')} title={t('Where the money goes')}>
             <SpendingWidget compare={monthView ? compare : insightData?.compare} />
           </WidgetFrame>
         );
       case 'budget':
         return (
-          <WidgetFrame key={id} {...common} eyebrow={monthLabel(month)} title="Monthly budget">
+          <WidgetFrame key={id} {...common} eyebrow={monthLabel(month)} title={t('Monthly budget')}>
             <BudgetWidget month={month} version={version} />
           </WidgetFrame>
         );
       case 'recurring':
         return (
-          <WidgetFrame key={id} {...common} eyebrow="Commitments" title="Recurring">
+          <WidgetFrame key={id} {...common} eyebrow={t('Commitments')} title={t('Recurring')}>
             <RecurringWidget rules={rules.data} />
           </WidgetFrame>
         );
       case 'paying':
         return (
-          <WidgetFrame key={id} {...common} eyebrow="Debts and plans" title="Paying off">
+          <WidgetFrame key={id} {...common} eyebrow={t('Debts and plans')} title={t('Paying off')}>
             <PayingOffWidget debts={debts.data} plans={plans.data} />
           </WidgetFrame>
         );
       case 'outlook':
         return (
-          <WidgetFrame key={id} {...common} eyebrow={monthView ? `Around ${monthLabel(month)}` : 'Past 4 months · next 3'} title="Cash flow">
+          <WidgetFrame key={id} {...common} eyebrow={monthView ? t('Around {monthLabel}', { monthLabel: monthLabel(month) }) : t('Past 4 months · next 3')} title={t('Cash flow')}>
             <CashFlowWidget forecast={forecast.data} month={monthView ? month : undefined} />
           </WidgetFrame>
         );
@@ -235,14 +237,14 @@ export default function DashboardPage() {
           <h1>
             {greeting()}, {user.name.split(' ')[0]}
           </h1>
-          <p className="muted">{isGroup ? `${current.name} · the group’s shared money` : new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+          <p className="muted">{isGroup ? t('{name} · the group’s shared money', { name: current.name }) : new Date().toLocaleDateString(localeOf(), { weekday: 'long', day: 'numeric', month: 'long' })}</p>
         </div>
         <div className="dash-actions">
           <button className={`btn${edit ? ' primary-soft' : ' ghost'}`} onClick={() => setEdit((e) => !e)} aria-pressed={edit}>
-            <Icon name="layout" size={16} /> {edit ? 'Done' : 'Customise'}
+            <Icon name="layout" size={16} /> {edit ? t('Done') : t('Customise')}
           </button>
           <button className="btn primary add-btn" onClick={() => openAddPayment()}>
-            <Icon name="plus" /> Add payment
+            <Icon name="plus" /> {t('Add payment')}
           </button>
         </div>
       </header>
@@ -252,20 +254,19 @@ export default function DashboardPage() {
           <MonthNav month={month} onChange={setMonth} min={bounds.min} max={bounds.max} />
           {browsing && (
             <p className="month-note muted" role="status">
-              Showing <strong>{monthLabel(month)}</strong>
-              {month > today ? ', a month still to come, so figures are expected' : ''}. Coming up, spending and cash flow follow the month; insights are about today.
+              {tRich(month > today ? 'Showing {month}, a month still to come, so figures are expected. Coming up, spending and cash flow follow the month; insights are about today.' : 'Showing {month}. Coming up, spending and cash flow follow the month; insights are about today.', { month: <strong>{monthLabel(month)}</strong> })}
             </p>
           )}
         </div>
       )}
 
       {edit && (
-        <div className="customize-bar" role="region" aria-label="Customise dashboard">
+        <div className="customize-bar" role="region" aria-label={t('Customise dashboard')}>
           <p>
-            <strong>Customising.</strong> Move, resize or hide widgets. It saves as you go and only changes your own dashboard.
+            <strong>{t('Customising.')}</strong> {t('Move, resize or hide widgets. It saves as you go and only changes your own dashboard.')}
           </p>
           <button className="btn sm" onClick={reset}>
-            Reset layout
+            {t('Reset layout')}
           </button>
         </div>
       )}
@@ -277,8 +278,8 @@ export default function DashboardPage() {
       )}
 
       {edit && hidden.length > 0 && (
-        <div className="hidden-widgets" role="region" aria-label="Hidden widgets">
-          <span className="eyebrow">Hidden</span>
+        <div className="hidden-widgets" role="region" aria-label={t('Hidden widgets')}>
+          <span className="eyebrow">{t('Hidden')}</span>
           {hidden.map((id) => (
             <button key={id} className="chip" onClick={() => show(id)}>
               <Icon name="plus" size={12} /> {TITLES[id]}

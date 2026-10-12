@@ -22,8 +22,8 @@ export function searchWords(question) {
 
 /** A payment name as it may leave the server: numbers taken out, one line, short, no quote marks that could end the text early. */
 export function safeName(s, max = 48) {
-  const t = redact(s).replace(/["“”]/g, "'").replace(/[\r\n\t]+/g, ' ').slice(0, max).trim();
-  return t || '(no name)';
+  const tt = redact(s).replace(/["“”]/g, "'").replace(/[\r\n\t]+/g, ' ').slice(0, max).trim();
+  return tt || '(no name)';
 }
 
 /**
@@ -168,14 +168,14 @@ const BUDGET_WORDS = { over: 'over budget', 'heading-over': 'on track to go over
 /** The monthly budget (budget.js): what each category may use, what is spent and planned, and where the month is heading. */
 function budgetLines(v, money) {
   if (!v?.budgetedCount) return [];
-  const t = v.totals;
+  const tt = v.totals;
   const when = v.phase === 'past' ? 'finished' : v.phase === 'future' ? 'still to come' : `day ${v.day} of ${v.days}`;
   const out = ['', `Monthly budget for ${monthName(v.month, { year: true })} (${when}). The person decides how much each category may use in a month:`];
-  out.push(`- In all: budget ${money(t.budget)}, spent ${money(t.spent)}, still planned ${money(t.planned)}, left ${money(t.left)}${v.phase === 'current' ? `, expected by month end ${money(t.expected)}` : ''}.`);
+  out.push(`- In all: budget ${money(tt.budget)}, spent ${money(tt.spent)}, still planned ${money(tt.planned)}, left ${money(tt.left)}${v.phase === 'current' ? `, expected by month end ${money(tt.expected)}` : ''}.`);
   for (const l of v.lines.filter((x) => x.budget !== null)) {
     out.push(`- ${safeName(l.name, 40)}: budget ${money(l.budget)}, spent ${money(l.spent)}, still planned ${money(l.planned)}, left ${money(l.left)}; ${BUDGET_WORDS[l.status] ?? l.status}${v.phase === 'current' ? `, expected by month end ${money(l.expected)}` : ''}`);
   }
-  if (t.unbudgetedSpent > 0) out.push(`- Spent in categories with no budget: ${money(t.unbudgetedSpent)}.`);
+  if (tt.unbudgetedSpent > 0) out.push(`- Spent in categories with no budget: ${money(tt.unbudgetedSpent)}.`);
   return out;
 }
 
@@ -185,7 +185,7 @@ export function buildFactSheet(facts, extras = { biggest: [], latest: [], matche
   const cur = facts.currency || 'USD';
   const money = makeMoney(cur);
   const weekday = new Date(`${facts.today}T12:00:00Z`).toLocaleDateString('en', { weekday: 'long', timeZone: 'UTC' });
-  const t = facts.totals;
+  const tt = facts.totals;
   const b = facts.balance;
   const lines = [];
   lines.push(`Today is ${weekday} ${facts.today}. The budget's currency is ${cur}; every amount below is in ${cur}.`);
@@ -204,9 +204,9 @@ export function buildFactSheet(facts, extras = { biggest: [], latest: [], matche
   }
   lines.push('');
   lines.push(`This month (${monthName(facts.month, { year: true })}), day ${facts.dayOfMonth} of ${facts.daysInMonth}:`);
-  lines.push(`- Spending: ${money(t.expenseCur)} in total (${money(t.expensePaidCur)} already paid, ${t.paidCount} payments). By the same day last month: ${money(t.mtdExpensePrev)}; this month so far: ${money(t.mtdExpenseCur)}.`);
-  lines.push(`- Income: ${money(t.incomeCur)} expected, ${money(t.incomePaidCur)} already received.`);
-  lines.push(`Last month (${monthName(facts.prevMonth, { year: true })}): spending ${money(t.expensePrev)}, income ${money(t.incomePrev)}.`);
+  lines.push(`- Spending: ${money(tt.expenseCur)} in total (${money(tt.expensePaidCur)} already paid, ${tt.paidCount} payments). By the same day last month: ${money(tt.mtdExpensePrev)}; this month so far: ${money(tt.mtdExpenseCur)}.`);
+  lines.push(`- Income: ${money(tt.incomeCur)} expected, ${money(tt.incomePaidCur)} already received.`);
+  lines.push(`Last month (${monthName(facts.prevMonth, { year: true })}): spending ${money(tt.expensePrev)}, income ${money(tt.incomePrev)}.`);
 
   if (months.some((m) => m.expenses || m.income)) {
     lines.push('');

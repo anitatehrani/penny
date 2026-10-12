@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { LanguageLinks } from '../components/LanguageSwitch.jsx';
 import GoogleButton from '../components/GoogleButton.jsx';
 import { Wordmark } from '../components/Logo.jsx';
 import PasswordField from '../components/PasswordField.jsx';
@@ -8,24 +9,28 @@ import { api } from '../api.js';
 import { useAuth } from '../auth.jsx';
 import { useUsernameCheck } from '../hooks.js';
 import { passwordOk } from '../passwordRules.js';
+import { t } from '../i18n/translate.js';
+import { tRich, useLocalPath } from '../i18n/react.jsx';
 
 export function Shell({ title, subtitle, children, footer }) {
+  const to = useLocalPath();
   return (
     <main className="auth-page">
       <div className="auth-theme">
+        <LanguageLinks />
         <ThemeToggle compact />
       </div>
       <div className="auth-card">
-        <Link to="/" className="auth-brand">
+        <Link to={to('/')} className="auth-brand">
           <Wordmark height={30} />
-          <span className="sr-only">Penny</span>
+          <span className="sr-only">{t('Penny')}</span>
         </Link>
         <h1>{title}</h1>
         <p className="muted">{subtitle}</p>
         {children}
         <p className="auth-footer">{footer}</p>
         <p className="auth-legal">
-          <Link to="/terms">Terms</Link> · <Link to="/privacy">Privacy</Link> · <Link to="/contact">Contact</Link>
+          <Link to={to('/terms')}>{t('Terms')}</Link> · <Link to={to('/privacy')}>{t('Privacy')}</Link> · <Link to={to('/contact')}>{t('Contact')}</Link>
         </p>
       </div>
     </main>
@@ -34,6 +39,7 @@ export function Shell({ title, subtitle, children, footer }) {
 
 /** The tick box for the two documents: a card with a proper checkbox, so it is easy to see and to hit, also on a phone. */
 function ConsentCheck({ checked, onChange }) {
+  const to = useLocalPath();
   return (
     <label className={`consent-card${checked ? ' on' : ''}`}>
       <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
@@ -43,14 +49,18 @@ function ConsentCheck({ checked, onChange }) {
         </svg>
       </span>
       <span className="consent-text">
-        I agree to the{' '}
-        <a href="/terms" target="_blank" rel="noopener noreferrer">
-          Terms of use
-        </a>{' '}
-        and the{' '}
-        <a href="/privacy" target="_blank" rel="noopener noreferrer">
-          Privacy policy
-        </a>
+        {tRich('I agree to the {terms} and the {privacy}', {
+          terms: (
+            <a href={to('/terms')} target="_blank" rel="noopener noreferrer">
+              {t('Terms of use')}
+            </a>
+          ),
+          privacy: (
+            <a href={to('/privacy')} target="_blank" rel="noopener noreferrer">
+              {t('Privacy policy')}
+            </a>
+          ),
+        })}
       </span>
     </label>
   );
@@ -60,17 +70,17 @@ function ConsentCheck({ checked, onChange }) {
 function GoogleTermsPrompt({ onAccept, onCancel, busy }) {
   const [agree, setAgree] = useState(false);
   return (
-    <div className="banner" role="group" aria-label="Accept the terms to create your account">
+    <div className="banner" role="group" aria-label={t('Accept the terms to create your account')}>
       <Icon name="shield" />
       <div>
-        <p>There is no Penny account for this Google account yet. To create one, please accept the terms.</p>
+        <p>{t('There is no Penny account for this Google account yet. To create one, please accept the terms.')}</p>
         <ConsentCheck checked={agree} onChange={setAgree} />
         <div className="form-actions left">
           <button type="button" className="btn primary" disabled={!agree || busy} onClick={onAccept}>
-            {busy ? 'Creating…' : 'Create my account'}
+            {busy ? t('Creating…') : t('Create my account')}
           </button>
           <button type="button" className="btn" onClick={onCancel}>
-            Cancel
+            {t('Cancel')}
           </button>
         </div>
       </div>
@@ -81,13 +91,13 @@ function GoogleTermsPrompt({ onAccept, onCancel, busy }) {
 function GoogleSection({ onError, text, acceptTerms = false, onNeedTerms }) {
   const { googleClientId, loginWithGoogle } = useAuth();
   if (!googleClientId) {
-    return <p className="field-hint auth-hint">Google sign-in is not set up on this server yet. See the README ("Google sign-in") to enable it.</p>;
+    return <p className="field-hint auth-hint">{t('Google sign-in is not set up on this server yet. See the README ("Google sign-in") to enable it.')}</p>;
   }
   return (
     <>
       <GoogleButton clientId={googleClientId} text={text} onCredential={(c) => loginWithGoogle(c, acceptTerms).catch((e) => (e.code === 'terms_required' && onNeedTerms ? onNeedTerms(c) : onError(e.message)))} onError={(e) => onError(e.message)} />
       <div className="divider">
-        <span>or use your email</span>
+        <span>{t('or use your email')}</span>
       </div>
     </>
   );
@@ -133,7 +143,7 @@ function Login() {
   }
 
   return (
-    <Shell title="Welcome back" subtitle="Sign in to see your budget." footer={signupsOpen ? <>New here? <Link to="/signup">Create an account</Link></> : <>Sign-ups are closed for now.</>}>
+    <Shell title={t('Welcome back')} subtitle={t('Sign in to see your budget.')} footer={signupsOpen ? <>{t('New here?')} <Link to="/signup">{t('Create an account')}</Link></> : <>{t('Sign-ups are closed for now.')}</>}>
       <GoogleSection text="signin_with" onError={(m) => setError(new Error(m))} onNeedTerms={setPendingGoogle} />
       {pendingGoogle && (
         <GoogleTermsPrompt
@@ -153,17 +163,17 @@ function Login() {
       )}
       <form onSubmit={submit} className="form" noValidate={false}>
         <ErrorList error={error} />
-        <Field label="Email or username">
-          <input type="text" value={identifier} onChange={(e) => setIdentifier(e.target.value)} autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder="you@example.com or @username" required autoFocus={!googleClientId} />
+        <Field label={t('Email or username')}>
+          <input type="text" value={identifier} onChange={(e) => setIdentifier(e.target.value)} autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder={t('you@example.com or @username')} required autoFocus={!googleClientId} />
         </Field>
-        <PasswordField label="Password" value={password} onChange={setPassword} autoComplete="current-password" />
+        <PasswordField label={t('Password')} value={password} onChange={setPassword} autoComplete="current-password" />
         {passwordResetAvailable && (
           <p className="auth-forgot">
-            <Link to="/forgot-password">Forgot your password?</Link>
+            <Link to="/forgot-password">{t('Forgot your password?')}</Link>
           </p>
         )}
         <button className="btn primary wide" disabled={busy}>
-          {busy ? 'Signing in…' : 'Sign in'}
+          {busy ? t('Signing in…') : t('Sign in')}
         </button>
       </form>
     </Shell>
@@ -191,35 +201,35 @@ function ForgotPassword() {
     setBusy(false);
   }
 
-  const back = <>Remembered it? <Link to="/login">Back to sign in</Link></>;
+  const back = <>{t('Remembered it?')} <Link to="/login">{t('Back to sign in')}</Link></>;
   if (!passwordResetAvailable) {
     return (
-      <Shell title="Reset your password" subtitle="This is not available yet." footer={back}>
-        <p className="muted">Password reset by e-mail is not set up on this server. Ask the person who runs Penny to reset it for you.</p>
+      <Shell title={t('Reset your password')} subtitle={t('This is not available yet.')} footer={back}>
+        <p className="muted">{t('Password reset by e-mail is not set up on this server. Ask the person who runs Penny to reset it for you.')}</p>
       </Shell>
     );
   }
   if (sent) {
     return (
-      <Shell title="Check your e-mail" subtitle="Almost there." footer={back}>
+      <Shell title={t('Check your e-mail')} subtitle={t('Almost there.')} footer={back}>
         <div className="banner ok" role="status">
           <Icon name="check" />
           <div>
-            If an account uses <strong>{address.trim().toLowerCase()}</strong>, an e-mail with a link is on its way. The link works once and expires in an hour. It can take a few minutes, and it may land in spam.
+            {tRich('If an account uses {bold}, an e-mail with a link is on its way. The link works once and expires in an hour. It can take a few minutes, and it may land in spam.', { bold: <strong>{address.trim().toLowerCase()}</strong> })}
           </div>
         </div>
       </Shell>
     );
   }
   return (
-    <Shell title="Reset your password" subtitle="Enter the e-mail address of your account and we will send you a link." footer={back}>
+    <Shell title={t('Reset your password')} subtitle={t('Enter the e-mail address of your account and we will send you a link.')} footer={back}>
       <form onSubmit={submit} className="form">
         <ErrorList error={error} />
-        <Field label="Email">
+        <Field label={t('Email')}>
           <input type="email" value={address} onChange={(e) => setAddress(e.target.value)} autoComplete="email" autoCapitalize="none" autoCorrect="off" spellCheck={false} required autoFocus />
         </Field>
         <button className="btn primary wide" disabled={busy || !address.trim()}>
-          {busy ? 'Sending…' : 'Send me a link'}
+          {busy ? t('Sending…') : t('Send me a link')}
         </button>
       </form>
     </Shell>
@@ -252,8 +262,8 @@ function Signup() {
 
   async function submit(e) {
     e.preventDefault();
-    if (!valid) return setError(new Error('Please choose a password that meets all the requirements below.'));
-    if (confirm !== password) return setError(new Error('The two passwords do not match.'));
+    if (!valid) return setError(new Error(t('Please choose a password that meets all the requirements below.')));
+    if (confirm !== password) return setError(new Error(t('The two passwords do not match.')));
     setBusy(true);
     setError(null);
     try {
@@ -266,13 +276,13 @@ function Signup() {
 
   if (!signupsOpen) {
     return (
-      <Shell title="Sign-ups are closed" subtitle="New accounts cannot be made right now." footer={<>Already have an account? <Link to="/login">Sign in</Link></>}>
-        <p className="muted">Penny is not taking new people yet. If you were invited, ask the person who invited you.</p>
+      <Shell title={t('Sign-ups are closed')} subtitle={t('New accounts cannot be made right now.')} footer={<>{t('Already have an account?')} <Link to="/login">{t('Sign in')}</Link></>}>
+        <p className="muted">{t('Penny is not taking new people yet. If you were invited, ask the person who invited you.')}</p>
       </Shell>
     );
   }
   return (
-    <Shell title="Create your account" subtitle="Keep your payments, plans and forecast in one private place." footer={<>Already have an account? <Link to="/login">Sign in</Link></>}>
+    <Shell title={t('Create your account')} subtitle={t('Keep your payments, plans and forecast in one private place.')} footer={<>{t('Already have an account?')} <Link to="/login">{t('Sign in')}</Link></>}>
       <GoogleSection text="signup_with" acceptTerms={accepted} onError={(m) => setError(new Error(m))} onNeedTerms={setPendingGoogle} />
       {pendingGoogle && (
         <GoogleTermsPrompt
@@ -292,15 +302,15 @@ function Signup() {
       )}
       <form onSubmit={submit} className="form">
         <ErrorList error={error} />
-        <Field label="Your name">
+        <Field label={t('Your name')}>
           <input value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" required maxLength={80} autoFocus={!googleClientId} />
         </Field>
-        <Field label="Email">
+        <Field label={t('Email')}>
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} onBlur={suggestUsername} autoComplete="email" required />
         </Field>
         <Field
-          label="Username"
-          hint={check.checking ? 'Checking…' : !check.available && username ? check.reason : 'How friends and family find you. Letters, numbers, dots and underscores.'}
+          label={t('Username')}
+          hint={check.checking ? t('Checking…') : !check.available && username ? check.reason : t('How friends and family find you. Letters, numbers, dots and underscores.')}
         >
           <div className="prefixed">
             <span aria-hidden="true">@</span>
@@ -315,20 +325,20 @@ function Signup() {
             />
           </div>
         </Field>
-        <Field label="Phone number (optional)" hint="International format, e.g. +49 170 1234567. Lets people who know your number find you.">
+        <Field label={t('Phone number (optional)')} hint={t('International format, e.g. +49 170 1234567. Lets people who know your number find you.')}>
           <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+49 170 1234567" autoComplete="tel" maxLength={40} />
         </Field>
-        <PasswordField label="Password" value={password} onChange={setPassword} autoComplete="new-password" showRules context={{ email, name, username }} />
+        <PasswordField label={t('Password')} value={password} onChange={setPassword} autoComplete="new-password" showRules context={{ email, name, username }} />
         <PasswordField
-          label="Confirm password"
+          label={t('Confirm password')}
           value={confirm}
           onChange={setConfirm}
           autoComplete="new-password"
-          hint={mismatch ? 'The passwords do not match yet.' : undefined}
+          hint={mismatch ? t('The passwords do not match yet.') : undefined}
         />
         <ConsentCheck checked={accepted} onChange={setAccepted} />
         <button className="btn primary wide" disabled={busy || !accepted || !valid || confirm !== password || !username || !check.available || check.checking}>
-          {busy ? 'Creating account…' : 'Create account'}
+          {busy ? t('Creating account…') : t('Create account')}
         </button>
       </form>
     </Shell>

@@ -13,6 +13,8 @@ import { Field, Icon, Modal, Segmented } from '../components/ui.jsx';
 import { useApp } from '../context.jsx';
 import { useNotifications } from '../notifications.jsx';
 import { useWorkspace } from '../workspace.jsx';
+import { N_, localeOf, t, tn } from '../i18n/translate.js';
+import { catName } from '../categoryNames.js';
 
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'CHF', 'SEK', 'NOK', 'DKK', 'PLN', 'CZK', 'HUF', 'RON', 'TRY', 'AED', 'SAR', 'EGP', 'INR', 'JPY', 'CNY', 'AUD', 'NZD', 'CAD', 'MXN', 'BRL', 'ZAR'];
 
@@ -40,28 +42,28 @@ function CategoryForm({ initial, onSaved, onCancel }) {
   return (
     <form onSubmit={submit} className="form">
       <Segmented
-        label="Kind"
+        label={t('Kind')}
         value={kind}
         onChange={setKind}
         options={[
-          { value: 'expense', label: 'Expense', tone: 'expense' },
-          { value: 'income', label: 'Income', tone: 'income' },
+          { value: 'expense', label: t('Expense'), tone: 'expense' },
+          { value: 'income', label: t('Income'), tone: 'income' },
         ]}
       />
       <div className="form-grid">
-        <Field label="Name">
+        <Field label={t('Name')}>
           <input value={name} onChange={(e) => setName(e.target.value)} required maxLength={60} />
         </Field>
-        <Field label="Color">
+        <Field label={t('Color')}>
           <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="color-input" />
         </Field>
       </div>
       <div className="form-actions">
         <button type="button" className="btn" onClick={onCancel}>
-          Cancel
+          {t('Cancel')}
         </button>
         <button type="submit" className="btn primary" disabled={saving}>
-          Save
+          {t('Save')}
         </button>
       </div>
     </form>
@@ -69,10 +71,10 @@ function CategoryForm({ initial, onSaved, onCancel }) {
 }
 
 const TABS = [
-  ['general', 'Budget', 'gear'],
-  ['account', 'Account', 'user'],
-  ['notifications', 'Notifications', 'bell'],
-  ['appearance', 'Appearance', 'palette'],
+  ['general', N_('Budget'), 'gear'],
+  ['account', N_('Account'), 'user'],
+  ['notifications', N_('Notifications'), 'bell'],
+  ['appearance', N_('Appearance'), 'palette'],
 ];
 
 export default function Settings() {
@@ -87,7 +89,7 @@ export default function Settings() {
   const [cardDay, setCardDay] = useState(String(settings.card_pay_day ?? 10));
   const [carryOver, setCarryOver] = useState(settings.carry_over ?? true);
   const backups = useFetch(() => api.get('/backups/status'), []);
-  const backup = backupLine(backups.data, (iso) => new Date(iso).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }));
+  const backup = backupLine(backups.data, (iso) => new Date(iso).toLocaleString(localeOf(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }));
   const [buffer, setBuffer] = useState(String(settings.min_balance ?? 0));
   const [editingCat, setEditingCat] = useState(null);
   const [catAlerts, setCatAlerts] = useState({}); // category id -> 'on' | 'off' (my own choices; missing = follow default)
@@ -126,7 +128,7 @@ export default function Settings() {
     try {
       await api.put('/settings', { opening_balance: Number(opening), currency, card_pay_day: Number(cardDay), carry_over: carryOver, min_balance: Number(buffer) || 0 });
       reloadSettings();
-      notify('Settings saved');
+      notify(t('Settings saved'));
     } catch (err) {
       notify(err.message, 'error');
     }
@@ -134,8 +136,8 @@ export default function Settings() {
 
   async function removeCategory(c) {
     const msg = c.usage_count
-      ? `Delete "${c.name}"? ${c.usage_count} payment(s) will become uncategorized.`
-      : `Delete "${c.name}"?`;
+      ? t('Delete "{name}"? {usage_count} payment(s) will become uncategorized.', { name: catName(c.name), usage_count: c.usage_count })
+      : t('Delete "{name}"?', { name: catName(c.name) });
     if (!window.confirm(msg)) return;
     try {
       await api.del(`/categories/${c.id}`);
@@ -146,8 +148,8 @@ export default function Settings() {
   }
 
   const groups = [
-    ['expense', 'Expense categories'],
-    ['income', 'Income categories'],
+    ['expense', t('Expense categories')],
+    ['income', t('Income categories')],
   ];
   const currencies = CURRENCIES.includes(currency) ? CURRENCIES : [currency, ...CURRENCIES];
 
@@ -155,18 +157,18 @@ export default function Settings() {
     <>
       <header className="page-head">
         <div>
-          <h1>Settings</h1>
+          <h1>{t('Settings')}</h1>
           <p className="muted">
-            {isGroup ? `Starting balance, currency and categories of the shared budget “${current.name}”. Anyone in the group can change these.` : 'Your budget, your account and how you are notified.'}
+            {isGroup ? t('Starting balance, currency and categories of the shared budget “{name}”. Anyone in the group can change these.', { name: current.name }) : t('Your budget, your account and how you are notified.')}
           </p>
         </div>
       </header>
 
-      <div className="tabs" role="tablist" aria-label="Settings sections">
+      <div className="tabs" role="tablist" aria-label={t('Settings sections')}>
         {TABS.map(([id, label, icon]) => (
           <button key={id} role="tab" id={`set-${id}`} aria-selected={tab === id} aria-controls="set-panel" className={tab === id ? 'active' : ''} onClick={() => setParams(id === 'general' ? {} : { tab: id }, { replace: true })}>
-            <Icon name={icon} size={16} /> {label}
-            {id === 'notifications' && unread > 0 && <span className="tab-badge" aria-label={`${unread} unread`}>{unread > 99 ? '99+' : unread}</span>}
+            <Icon name={icon} size={16} /> {t(label)}
+            {id === 'notifications' && unread > 0 && <span className="tab-badge" aria-label={t('{unread} unread', { unread })}>{unread > 99 ? '99+' : unread}</span>}
           </button>
         ))}
       </div>
@@ -184,40 +186,38 @@ export default function Settings() {
       <>
       <section className="card">
         <div className="card-head">
-          <h2>Balance, currency &amp; credit card</h2>
+          <h2>{t('Balance, currency & credit card')}</h2>
         </div>
         <form onSubmit={save} className="form">
           <div className="form-grid">
-            <Field label="Starting balance" hint="What you had before your first recorded payment. Can be negative (e.g. an overdraft).">
+            <Field label={t('Starting balance')} hint={t('What you had before your first recorded payment. Can be negative (e.g. an overdraft).')}>
               <input type="number" step="0.01" inputMode="decimal" value={opening} onChange={(e) => setOpening(e.target.value)} required />
             </Field>
-            <Field label="Currency">
-              <Select label="Currency" value={currency} onChange={setCurrency} options={currencies.map((c) => ({ value: c, label: c }))} />
+            <Field label={t('Currency')}>
+              <Select label={t('Currency')} value={currency} onChange={setCurrency} options={currencies.map((c) => ({ value: c, label: c }))} />
             </Field>
           </div>
           <div className="form-grid">
-            <Field label="Credit card pay day" hint="The day of the month you pay your credit card bill (1 to 28). A purchase made with the card counts on this day of the month you choose.">
+            <Field label={t('Credit card pay day')} hint={t('The day of the month you pay your credit card bill (1 to 28). A purchase made with the card counts on this day of the month you choose.')}>
               <input type="number" min="1" max="28" step="1" inputMode="numeric" value={cardDay} onChange={(e) => setCardDay(e.target.value)} required />
             </Field>
           </div>
-          <Field label="Safety buffer" hint="The balance you do not want to go below. Warnings, the balance card and the forecast use it instead of zero. Leave it at 0 to be warned only below zero.">
+          <Field label={t('Safety buffer')} hint={t('The balance you do not want to go below. Warnings, the balance card and the forecast use it instead of zero. Leave it at 0 to be warned only below zero.')}>
             <input type="number" step="0.01" min="0" inputMode="decimal" value={buffer} onChange={(e) => setBuffer(e.target.value)} placeholder="0.00" />
           </Field>
           <div className="split-box">
             <label className="check">
               <input type="checkbox" checked={carryOver} onChange={(e) => setCarryOver(e.target.checked)} />
               <span>
-                Carry what is left over into the next month
+                {t('Carry what is left over into the next month')}
                 <span className="muted block small">
-                  {carryOver
-                    ? 'The Payments page starts each month with a line for the money left from earlier months, and counts it in that month’s income and net. It is not a payment, so your balance is unchanged.'
-                    : 'Each month on the Payments page starts from nothing. Your balance and forecast still include everything.'}
+                  {carryOver ? t('The Payments page starts each month with a line for the money left from earlier months, and counts it in that month’s income and net. It is not a payment, so your balance is unchanged.') : t('Each month on the Payments page starts from nothing. Your balance and forecast still include everything.')}
                 </span>
               </span>
             </label>
           </div>
           <div className="form-actions left">
-            <button className="btn primary">Save</button>
+            <button className="btn primary">{t('Save')}</button>
           </div>
         </form>
       </section>
@@ -225,14 +225,13 @@ export default function Settings() {
       {backup && (
         <section className="card" aria-labelledby="backups-title">
           <div className="card-head">
-            <h2 id="backups-title">Backups</h2>
+            <h2 id="backups-title">{t('Backups')}</h2>
           </div>
           <p className={`backup-line ${backup.tone}`} role={backup.tone === 'warn' ? 'alert' : undefined}>
             {backup.text}
           </p>
           <p className="muted small">
-            Penny copies the whole database once a day to a backups folder next to the app. A backup on the same disk does not help if the disk fails, so keep a
-            second copy somewhere else, such as another drive or a synced folder (see the README).
+            {t('Penny copies the whole database once a day to a backups folder next to the app. A backup on the same disk does not help if the disk fails, so keep a second copy somewhere else, such as another drive or a synced folder (see the README).')}
           </p>
         </section>
       )}
@@ -243,7 +242,7 @@ export default function Settings() {
             <h2>{title}</h2>
             {kind === 'expense' && (
               <button className="btn sm" onClick={() => setEditingCat({})}>
-                <Icon name="plus" size={14} /> New category
+                <Icon name="plus" size={14} /> {t('New category')}
               </button>
             )}
           </div>
@@ -254,27 +253,27 @@ export default function Settings() {
                 <li key={c.id}>
                   <span className="cat">
                     <span className="dot big" style={{ background: c.color }} />
-                    {c.name}
+                    {catName(c.name)}
                   </span>
-                  <span className="muted small">{c.usage_count} payment{c.usage_count === 1 ? '' : 's'}</span>
-                  <span className="cat-alert" title="Payment alerts for this category (only for you)">
+                  <span className="muted small">{tn(c.usage_count, '{n} payment', '{n} payments')}</span>
+                  <span className="cat-alert" title={t('Payment alerts for this category (only for you)')}>
                     <Select
                       variant="inline"
-                      label={`Alerts for ${c.name}`}
+                      label={t('Alerts for {name}', { name: catName(c.name) })}
                       value={catAlerts[c.id] ?? 'default'}
                       onChange={(v) => setCategoryAlert(c, v)}
                       options={[
-                        { value: 'default', label: 'Alerts: default' },
-                        { value: 'on', label: 'Alerts: always' },
-                        { value: 'off', label: 'Alerts: never' },
+                        { value: 'default', label: t('Alerts: default') },
+                        { value: 'on', label: t('Alerts: always') },
+                        { value: 'off', label: t('Alerts: never') },
                       ]}
                     />
                   </span>
                   <span className="row-actions">
-                    <button className="btn icon ghost" onClick={() => setEditingCat(c)} aria-label={`Edit ${c.name}`}>
+                    <button className="btn icon ghost" onClick={() => setEditingCat(c)} aria-label={t('Edit {name}', { name: catName(c.name) })}>
                       <Icon name="edit" />
                     </button>
-                    <button className="btn icon ghost danger-hover" onClick={() => removeCategory(c)} aria-label={`Delete ${c.name}`}>
+                    <button className="btn icon ghost danger-hover" onClick={() => removeCategory(c)} aria-label={t('Delete {name}', { name: catName(c.name) })}>
                       <Icon name="trash" />
                     </button>
                   </span>
@@ -283,7 +282,7 @@ export default function Settings() {
           </ul>
           {kind === 'income' && (
             <button className="btn sm" onClick={() => setEditingCat({ kind: 'income' })}>
-              <Icon name="plus" size={14} /> New income category
+              <Icon name="plus" size={14} /> {t('New income category')}
             </button>
           )}
         </section>
@@ -291,18 +290,18 @@ export default function Settings() {
 
       <section className="card">
         <div className="card-head">
-          <h2>Export your payments</h2>
+          <h2>{t('Export your payments')}</h2>
         </div>
-        <p className="muted">Save all your payments in one file. It opens like a spreadsheet, in Excel, Numbers or Google Sheets, so you can keep it or look at it on a computer.</p>
+        <p className="muted">{t('Save all your payments in one file. It opens like a spreadsheet, in Excel, Numbers or Google Sheets, so you can keep it or look at it on a computer.')}</p>
         <a className="btn" href={`/api/transactions/export.csv?status=&ws=${current.id}`}>
-          <Icon name="download" /> Export all payments
+          <Icon name="download" /> {t('Export all payments')}
         </a>
       </section>
 
       {ai.status?.configured && (
         <section className="card" aria-labelledby="ai-title">
           <div className="card-head">
-            <h2 id="ai-title">Assistant: AI answers</h2>
+            <h2 id="ai-title">{t('Assistant: AI answers')}</h2>
           </div>
           <AiAnswersCard ai={ai} full bare />
         </section>
@@ -313,7 +312,7 @@ export default function Settings() {
       </div>
 
       {editingCat && (
-        <Modal title={editingCat.id ? 'Edit category' : 'New category'} onClose={() => setEditingCat(null)}>
+        <Modal title={editingCat.id ? t('Edit category') : t('New category')} onClose={() => setEditingCat(null)}>
           <CategoryForm
             initial={editingCat}
             onCancel={() => setEditingCat(null)}

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useSta
 import { createPortal } from 'react-dom';
 import { filterOptions, groupOptions, labelOf, moveHighlight } from '../../filterLogic.js';
 import { Avatar, Icon } from '../ui.jsx';
+import { t } from '../../i18n/translate.js';
 
 /**
  * A filter dropdown: a button that shows what is chosen and opens a list in a popup. With many options the list has a search box
@@ -161,7 +162,7 @@ export default function FilterSelect({ label, value, onChange, options, icon, se
             id={`${id}-pop`}
             className="filter-pop"
             role="dialog"
-            aria-label={`${label} options`}
+            aria-label={t('{label} options', { label })}
             style={pos ? { '--pop-left': `${pos.left}px`, '--pop-width': `${pos.width}px`, '--pop-top': pos.top != null ? `${pos.top}px` : 'auto', '--pop-bottom': pos.bottom != null ? `${pos.bottom}px` : 'auto', '--pop-max': `${pos.maxHeight}px` } : undefined}
             onKeyDown={onKeyDown}
           >
@@ -176,8 +177,8 @@ export default function FilterSelect({ label, value, onChange, options, icon, se
                   aria-controls={`${id}-list`}
                   aria-activedescendant={listProps['aria-activedescendant']}
                   aria-autocomplete="list"
-                  aria-label={searchLabel ?? `Search ${label.toLowerCase()}`}
-                  placeholder={searchLabel ?? `Search ${label.toLowerCase()}…`}
+                  aria-label={searchLabel ?? t('Search {toLowerCase}', { toLowerCase: label.toLowerCase() })}
+                  placeholder={searchLabel ?? t('Search {toLowerCase}…', { toLowerCase: label.toLowerCase() })}
                   autoComplete="off"
                   spellCheck="false"
                   value={term}
@@ -187,7 +188,7 @@ export default function FilterSelect({ label, value, onChange, options, icon, se
             )}
             {shown.length === 0 && (
               <div className="filter-none" role="status">
-                Nothing matches “{term.trim()}”
+                {t('Nothing matches “{trim}”', { trim: term.trim() })}
               </div>
             )}
             <div className="filter-list" ref={searchable ? undefined : field} tabIndex={searchable ? undefined : 0} hidden={shown.length === 0} {...listProps}>

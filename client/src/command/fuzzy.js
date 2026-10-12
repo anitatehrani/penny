@@ -8,21 +8,21 @@ const isWordStart = (text, i) => i === 0 || !/[a-z0-9]/i.test(text[i - 1]);
 export function fuzzyMatch(query, text) {
   const q = query.toLowerCase().replace(/\s+/g, '');
   if (!q) return { score: 0, indexes: [] };
-  const t = text.toLowerCase();
-  if (q.length > t.length) return null;
+  const tt = text.toLowerCase();
+  if (q.length > tt.length) return null;
 
   // best[i][j]: best score with q[i] matched at t[j]; from[i][j]: where q[i-1] was matched
   const n = q.length;
-  const m = t.length;
+  const m = tt.length;
   const best = Array.from({ length: n }, () => new Array(m).fill(-Infinity));
   const from = Array.from({ length: n }, () => new Array(m).fill(-1));
   for (let j = 0; j < m; j++) {
-    if (t[j] !== q[0]) continue;
+    if (tt[j] !== q[0]) continue;
     best[0][j] = 10 + (isWordStart(text, j) ? 8 : 0) + (j === 0 ? 6 : 0) - Math.min(j, 12) * 0.3;
   }
   for (let i = 1; i < n; i++) {
     for (let j = i; j < m; j++) {
-      if (t[j] !== q[i]) continue;
+      if (tt[j] !== q[i]) continue;
       for (let k = i - 1; k < j; k++) {
         if (best[i - 1][k] === -Infinity) continue;
         const gap = j - k - 1;

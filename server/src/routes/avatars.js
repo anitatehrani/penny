@@ -3,6 +3,7 @@ import { query } from '../db.js';
 import { publicUser } from '../lib/auth.js';
 import { HttpError, idParam, wrap } from '../lib/http.js';
 import { AVATAR_MAX_BYTES, AVATAR_TYPES, detectType } from '../lib/images.js';
+import { t } from '../lib/i18n.js';
 
 const router = Router();
 
@@ -14,9 +15,9 @@ router.put(
   raw,
   wrap(async (req, res) => {
     const buf = req.body;
-    if (!Buffer.isBuffer(buf) || !buf.length) throw new HttpError(415, 'Send the picture as a JPEG, PNG or WebP image.');
+    if (!Buffer.isBuffer(buf) || !buf.length) throw new HttpError(415, t('Send the picture as a JPEG, PNG or WebP image.'));
     const mime = detectType(buf);
-    if (!AVATAR_TYPES.includes(mime)) throw new HttpError(415, 'That file is not a JPEG, PNG or WebP image.');
+    if (!AVATAR_TYPES.includes(mime)) throw new HttpError(415, t('That file is not a JPEG, PNG or WebP image.'));
     await query(
       `INSERT INTO user_avatars (user_id, mime, data, updated_at) VALUES ($1, $2, $3, now())
        ON CONFLICT (user_id) DO UPDATE SET mime = EXCLUDED.mime, data = EXCLUDED.data, updated_at = now()`,
@@ -59,7 +60,7 @@ router.get(
                     WHERE (t.user_id = $1 AND p.user_id = $2) OR (t.user_id = $2 AND p.user_id = $1)))`,
       [owner, me],
     );
-    if (!rows[0]) throw new HttpError(404, 'No picture.');
+    if (!rows[0]) throw new HttpError(404, t('No picture.'));
     res.set({
       'Content-Type': rows[0].mime,
       'Cache-Control': 'private, max-age=31536000, immutable', // the URL carries a version, so this is safe

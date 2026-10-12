@@ -5,6 +5,7 @@ import { categoryId, HttpError, idParam, money, note, text, wrap, ymd } from '..
 import { assertOwnCategory } from '../lib/ownership.js';
 import { usernameField } from '../lib/profile.js';
 import { installmentDates, splitInstallments } from '../lib/schedule.js';
+import { t } from '../lib/i18n.js';
 
 const router = Router();
 
@@ -30,43 +31,43 @@ const createSchema = z
   })
   .refine((p) => p.charged_on || !p.purchase_amount, {
     path: ['purchase_amount'],
-    message: 'only applies to a credit card purchase',
+    get message() { return t('only applies to a credit card purchase'); },
   })
   .refine((p) => !p.charged_on || p.charged_on <= p.first_due_date, {
     path: ['charged_on'],
-    message: 'cannot be after the first card bill',
+    get message() { return t('cannot be after the first card bill'); },
   })
   .refine((p) => !p.charged_on || (p.installment_count >= 2 && p.installment_count <= 36), {
     path: ['installment_count'],
-    message: 'a card purchase can be paid in 2 to 36 installments',
+    get message() { return t('a card purchase can be paid in 2 to 36 installments'); },
   })
   .refine((p) => !p.dates || p.dates.length === p.installment_count, {
     path: ['dates'],
-    message: 'needs one date for each installment',
+    get message() { return t('needs one date for each installment'); },
   })
   .refine((p) => !p.dates || p.dates.every((d, i) => i === 0 || d > p.dates[i - 1]), {
     path: ['dates'],
-    message: 'must go forward, one installment after the other',
+    get message() { return t('must go forward, one installment after the other'); },
   })
   .refine((p) => !p.dates || p.dates[0] === p.first_due_date, {
     path: ['dates'],
-    message: 'the first date must be the first due date',
+    get message() { return t('the first date must be the first due date'); },
   })
   .refine((p) => p.amounts || p.total_amount || p.installment_amount, {
     path: ['total_amount'],
-    message: 'provide a total amount or an amount per installment',
+    get message() { return t('provide a total amount or an amount per installment'); },
   })
   .refine((p) => !p.amounts || (!p.total_amount && !p.installment_amount), {
     path: ['amounts'],
-    message: 'give either the amounts or a total / amount per installment, not both',
+    get message() { return t('give either the amounts or a total / amount per installment, not both'); },
   })
   .refine((p) => !p.amounts || p.amounts.length === p.installment_count, {
     path: ['amounts'],
-    message: 'needs one amount for each installment',
+    get message() { return t('needs one amount for each installment'); },
   })
   .refine((p) => p.paid_count <= p.installment_count, {
     path: ['paid_count'],
-    message: 'cannot exceed the number of installments',
+    get message() { return t('cannot exceed the number of installments'); },
   });
 
 const updateSchema = z.object({ description: text(150), category_id: categoryId, note });
@@ -118,17 +119,17 @@ router.post(
         `SELECT u.id FROM users u JOIN workspace_members m ON m.user_id = u.id AND m.workspace_id = $1 WHERE lower(u.username) = $2`,
         [ws, p.paid_by],
       );
-      if (!rows[0]) throw new HttpError(400, `@${p.paid_by} is not a member of this budget.`);
+      if (!rows[0]) throw new HttpError(400, t('@{paid_by} is not a member of this budget.', { paid_by: p.paid_by }));
       memberId = rows[0].id;
     }
     const listed = p.amounts?.map((a) => Math.round(a * 100));
     const totalCents = listed
-      ? listed.reduce((t, a) => t + a, 0)
+      ? listed.reduce((tt, a) => tt + a, 0)
       : p.total_amount
         ? Math.round(p.total_amount * 100)
         : Math.round(p.installment_amount * 100) * p.installment_count;
     if (p.charged_on && p.purchase_amount && Math.round(p.purchase_amount * 100) > totalCents) {
-      throw new HttpError(400, 'The installments add up to less than the price. Interest can only add to it.');
+      throw new HttpError(400, t('The installments add up to less than the price. Interest can only add to it.'));
     }
     const amounts = listed ?? splitInstallments(totalCents, p.installment_count);
     const dates = p.dates ?? installmentDates(p.first_due_date, p.installment_count);
@@ -168,7 +169,7 @@ router.put(
        WHERE id = $4 AND workspace_id = $5 RETURNING installment_count`,
       [p.description, p.category_id ?? null, p.note || null, id, req.workspace.id],
     );
-    if (!rows[0]) throw new HttpError(404, 'Installment plan not found');
+    if (!rows[0]) throw new HttpError(404, t('Installment plan not found'));
     await query(
       `UPDATE transactions
        SET description = $1 || ' (' || installment_no || '/' || $2::int || ')', category_id = $3, note = $4, updated_at = now()
@@ -185,7 +186,7 @@ router.delete(
     const id = idParam(req);
     await withTransaction(async (client) => {
       const owned = await client.query('SELECT 1 FROM installment_plans WHERE id = $1 AND workspace_id = $2', [id, req.workspace.id]);
-      if (!owned.rowCount) throw new HttpError(404, 'Installment plan not found');
+      if (!owned.rowCount) throw new HttpError(404, t('Installment plan not found'));
       // Unpaid installments disappear with the plan; paid ones remain as history.
       await client.query(
         `DELETE FROM transactions WHERE installment_plan_id = $1 AND status IN ('pending', 'skipped')`,

@@ -6,6 +6,8 @@
 // no guess at all is marked "none". Income is never given an expense category.
 
 import { BANK_MAP, EXPENSE_FOR, INCOME_FOR, INDEX, LABELS, normalize } from './merchants.js';
+import { catName } from './categoryNames.js';
+import { t } from './i18n.js';
 
 // ---------------------------------------------------------------------------------------------------------------------------------
 // The merchant behind a description
@@ -20,7 +22,7 @@ const STOP = new Set(['il', 'lo', 'la', 'le', 'gli', 'di', 'da', 'del', 'della',
 const PLACES = new Set(['milano', 'roma', 'torino', 'napoli', 'genova', 'firenze', 'bologna', 'palermo', 'bari', 'catania', 'venezia', 'verona', 'padova', 'trieste', 'brescia', 'parma', 'modena', 'livorno', 'pisa', 'cagliari', 'perugia', 'trento', 'bolzano', 'paris', 'london', 'dublin', 'berlin', 'munich', 'madrid', 'barcelona', 'lisbon', 'amsterdam', 'brussels', 'vienna', 'zurich', 'luxembourg', 'copenhagen', 'stockholm', 'oslo', 'helsinki', 'warsaw', 'prague', 'budapest', 'athens', 'italia', 'italy', 'france', 'germany', 'spain', 'ireland', 'sanvincenzo', 'san', 'santa', 'santo']);
 
 // a piece after a star with no real word in it (a code such as p478c2, or only digits) belongs to the payment service, not the shop
-const looksLikeId = (seg) => !seg.split(/[^a-z0-9]+/i).some((t) => /^[a-z]{3,}$/i.test(t));
+const looksLikeId = (seg) => !seg.split(/[^a-z0-9]+/i).some((tt) => /^[a-z]{3,}$/i.test(tt));
 
 /** The words that name the merchant of a description: "Paypal *spotify*p478c2" is "spotify", "Pagamento POS ESSELUNGA MILANO 0123" is "esselunga milano". */
 export function merchantWords(description) {
@@ -33,7 +35,7 @@ export function merchantWords(description) {
   }
   return normalize(s)
     .split(' ')
-    .filter((t) => t.length > 1 && !/\d/.test(t) && !STOP.has(t) && !NOISE.has(t));
+    .filter((tt) => tt.length > 1 && !/\d/.test(tt) && !STOP.has(tt) && !NOISE.has(tt));
 }
 
 /** A description without the payment service in front of the star: "Klarna* Flix SE Paris" is "Flix SE Paris". Unchanged when there is no star. */
@@ -125,7 +127,7 @@ export function matchKnown(text) {
     }
   }
   for (const st of INDEX.stems) {
-    if (tokens.some((t) => t.startsWith(st.stem))) consider({ label: st.label, strength: st.weak ? 0.55 : 0.78, via: 'word', len: st.stem.length });
+    if (tokens.some((tt) => tt.startsWith(st.stem))) consider({ label: st.label, strength: st.weak ? 0.55 : 0.78, via: 'word', len: st.stem.length });
   }
   return best;
 }
@@ -197,19 +199,19 @@ export function suggest(line, categories, memory) {
   // the shop behind a payment service counts before the service itself ("Klarna* Flix" is a bus, not "shopping on Klarna")
   const behind = withoutProcessors(line.description);
   const known = (behind !== line.description ? matchKnown(`${behind} ${line.note ?? ''}`) : null) ?? matchKnown(text);
-  const out = { merchant, brand: known?.via === 'brand' && known.strength >= 0.9 ? known.name : null, category: null, source: null, confidence: 0, review: 'none', reason: 'Penny has no idea what this is. Pick a category.', transfer: false };
+  const out = { merchant, brand: known?.via === 'brand' && known.strength >= 0.9 ? known.name : null, category: null, source: null, confidence: 0, review: 'none', reason: t('Penny has no idea what this is. Pick a category.'), transfer: false };
 
   const learned = words.length ? memory.learned(type, words) : null;
   const byId = (id) => categories.find((c) => c.id === id && c.kind === type);
   if (learned && byId(learned.category_id)) {
     const c = byId(learned.category_id);
-    return { ...out, category: { id: c.id, name: c.name, kind: c.kind }, source: 'learned', confidence: 0.98, review: null, reason: `You chose ${c.name} for ${merchant || 'this'} before.` };
+    return { ...out, category: { id: c.id, name: c.name, kind: c.kind }, source: 'learned', confidence: 0.98, review: null, reason: merchant ? t('You chose {name} for {merchant} before.', { name: catName(c.name), merchant }) : t('You chose {name} for this before.', { name: catName(c.name) }) };
   }
   const seen = words.length ? memory.seen(type, words) : null;
   if (seen && byId(seen.category_id) && seen.share >= 0.6) {
     const c = byId(seen.category_id);
     const sure = seen.count >= 2 && seen.share >= 0.8;
-    return { ...out, category: { id: c.id, name: c.name, kind: c.kind }, source: 'history', confidence: sure ? 0.9 : 0.78, review: sure ? null : 'check', reason: `${seen.count} of your earlier payments to ${merchant} are in ${c.name}.` };
+    return { ...out, category: { id: c.id, name: c.name, kind: c.kind }, source: 'history', confidence: sure ? 0.9 : 0.78, review: sure ? null : 'check', reason: t('{count} of your earlier payments to {merchant} are in {name}.', { count: seen.count, merchant, name: catName(c.name) }) };
   }
 
   // the built-in knowledge, and what the bank calls it
@@ -220,37 +222,37 @@ export function suggest(line, categories, memory) {
   const bank = bankLabel(line.bank_category);
   if (known) {
     [label, conf, via] = [known.label, known.strength, 'known'];
-    why = known.via === 'brand' ? `${known.name} is usually ${LABELS[known.label]?.name ?? known.label}.` : `Looks like ${LABELS[known.label]?.name ?? known.label}.`;
+    why = known.via === 'brand' ? t('{name} is usually {value}.', { name: known.name, value: catName(LABELS[known.label]?.name ?? known.label) }) : t('Looks like {value}.', { value: catName(LABELS[known.label]?.name ?? known.label) });
   }
   if (bank) {
     const bankConf = 0.72;
     if (!label) {
       [label, conf, via] = [bank, bankConf, 'bank'];
-      why = `The bank calls this "${line.bank_category}".`;
+      why = t('The bank calls this "{bank_category}".', { bank_category: line.bank_category });
     } else if (bank === label) {
       conf = Math.min(0.97, conf + 0.08);
-      why += ` The bank agrees ("${line.bank_category}").`;
+      why += t(' The bank agrees ("{bank_category}").', { bank_category: line.bank_category });
     } else if (known.strength < 0.9) {
       [label, conf, via] = [bank, bankConf, 'bank'];
-      why = `The bank calls this "${line.bank_category}".`;
+      why = t('The bank calls this "{bank_category}".', { bank_category: line.bank_category });
       conf -= 0.1;
     } else {
       conf -= 0.2; // a well-known name that the bank files differently: keep the name, but look
-      why += ` The bank files it as "${line.bank_category}".`;
+      why += t(' The bank files it as "{bank_category}".', { bank_category: line.bank_category });
     }
   }
   if (!label) return out;
   const fit = fitLabel(label, type);
   if (fit.changed) {
     conf = Math.min(conf, 0.6);
-    why = type === 'income' ? 'Money came in from a place you usually spend at: a refund?' : 'Money went out where income is expected.';
+    why = type === 'income' ? t('Money came in from a place you usually spend at: a refund?') : t('Money went out where income is expected.');
   }
   const category = resolveCategory(fit.label, type, categories);
   if (!category) return out;
   const transfer = fit.label === 'transfers';
   // transfers are real movements of the balance but easy to get wrong: always worth a look
   const review = conf < SURE || transfer ? 'check' : null;
-  return { ...out, category, source: via, confidence: Math.round(conf * 100) / 100, review, reason: transfer ? 'Looks like a transfer between accounts or to a person. Check it, and leave it out if it is your own money moving.' : why, transfer };
+  return { ...out, category, source: via, confidence: Math.round(conf * 100) / 100, review, reason: transfer ? t('Looks like a transfer between accounts or to a person. Check it, and leave it out if it is your own money moving.') : why, transfer };
 }
 
 export { nameOf };

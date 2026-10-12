@@ -3,6 +3,7 @@ import { HttpError } from './http.js';
 import { TERMS_VERSION } from './legal.js';
 import { generateUsername } from './profile.js';
 import { SIGNUPS_CLOSED, signupsOpen } from './signups.js';
+import { t } from './i18n.js';
 
 const DEFAULT_CATEGORIES = [
   ['Salary', 'income', '#1baf7a'],
@@ -92,8 +93,8 @@ export function createUser({ email, name, username, phone = null, passwordHash =
  * An existing password account is never silently taken over by a Google login.
  */
 export async function signInWithGoogleProfile(profile, { query, acceptTerms = false }) {
-  if (!profile?.sub || !profile.email) throw new HttpError(400, 'Google did not return an email address.');
-  if (!profile.email_verified) throw new HttpError(400, 'Your Google email address is not verified.');
+  if (!profile?.sub || !profile.email) throw new HttpError(400, t('Google did not return an email address.'));
+  if (!profile.email_verified) throw new HttpError(400, t('Your Google email address is not verified.'));
   const email = profile.email.trim().toLowerCase();
 
   const byGoogle = await query('SELECT * FROM users WHERE google_id = $1', [profile.sub]);
@@ -106,13 +107,13 @@ export async function signInWithGoogleProfile(profile, { query, acceptTerms = fa
   if (byEmail.rows[0]) {
     throw new HttpError(
       409,
-      'An account with this email already exists. Sign in with your password, then connect Google from Settings.',
+      t('An account with this email already exists. Sign in with your password, then connect Google from Settings.'),
     );
   }
 
-  if (!signupsOpen()) throw new HttpError(403, SIGNUPS_CLOSED); // signing in is fine, a new account is not
+  if (!signupsOpen()) throw new HttpError(403, t(SIGNUPS_CLOSED)); // signing in is fine, a new account is not
   // A new account needs the terms accepted first. The page asks and tries again with the same Google answer.
-  if (!acceptTerms) throw new HttpError(400, 'Please accept the terms and the privacy policy to create your account.', 'terms_required');
+  if (!acceptTerms) throw new HttpError(400, t('Please accept the terms and the privacy policy to create your account.'), 'terms_required');
   const user = await createUser({
     termsAccepted: true,
     email,

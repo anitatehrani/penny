@@ -2,6 +2,7 @@
 // is chosen. Scripting, scripts in forms and eval are off, nothing is fetched from the network, and the file is not sent anywhere.
 
 import { ImportError } from './errors.js';
+import { t } from '../i18n/translate.js';
 
 export const MAX_PDF_BYTES = 15 * 1024 * 1024;
 export const MAX_PDF_PAGES = 60;
@@ -19,8 +20,8 @@ export async function loadPdfjs() {
  * with code 'password'.
  */
 export async function readPdfWords(bytes, { pdfjs, password } = {}) {
-  if (!pdfjs) throw new Error('readPdfWords needs the PDF library');
-  if (bytes.byteLength > MAX_PDF_BYTES) throw new ImportError('toobig', 'That PDF is larger than 15 MB. Choose a shorter period, or download the statement from your bank as a spreadsheet instead.');
+  if (!pdfjs) throw new Error(t('readPdfWords needs the PDF library'));
+  if (bytes.byteLength > MAX_PDF_BYTES) throw new ImportError('toobig', t('That PDF is larger than 15 MB. Choose a shorter period, or download the statement from your bank as a spreadsheet instead.'));
   const task = pdfjs.getDocument({
     data: new Uint8Array(bytes), // a copy: the reader takes ownership of what it is given
     password,
@@ -38,13 +39,13 @@ export async function readPdfWords(bytes, { pdfjs, password } = {}) {
     doc = await task.promise;
   } catch (e) {
     if (e?.name === 'PasswordException') {
-      throw new ImportError('password', e.code === 2 ? 'That password is not right.' : 'This PDF is protected with a password.', { wrong: e.code === 2 });
+      throw new ImportError('password', e.code === 2 ? t('That password is not right.') : t('This PDF is protected with a password.'), { wrong: e.code === 2 });
     }
-    if (e?.name === 'InvalidPDFException' || e?.name === 'FormatError') throw new ImportError('unreadable', 'That file does not look like a PDF Penny can open.');
-    throw new ImportError('unreadable', 'Penny could not open that PDF.');
+    if (e?.name === 'InvalidPDFException' || e?.name === 'FormatError') throw new ImportError('unreadable', t('That file does not look like a PDF Penny can open.'));
+    throw new ImportError('unreadable', t('Penny could not open that PDF.'));
   }
   try {
-    if (doc.numPages > MAX_PDF_PAGES) throw new ImportError('toobig', `That PDF has ${doc.numPages} pages. Penny reads up to ${MAX_PDF_PAGES}: pick a shorter period.`);
+    if (doc.numPages > MAX_PDF_PAGES) throw new ImportError('toobig', t('That PDF has {numPages} pages. Penny reads up to {MAX_PDF_PAGES}: pick a shorter period.', { numPages: doc.numPages, MAX_PDF_PAGES }));
     const pages = [];
     for (let n = 1; n <= doc.numPages; n++) {
       const page = await doc.getPage(n);
@@ -53,10 +54,10 @@ export async function readPdfWords(bytes, { pdfjs, password } = {}) {
       const items = [];
       for (const it of content.items) {
         if (typeof it.str !== 'string' || !it.str.trim()) continue;
-        const t = pdfjs.Util.transform(vp.transform, it.transform);
-        const size = Math.hypot(t[2], t[3]) || Math.abs(it.height) || 8;
-        if (Math.abs(t[1]) > 0.2 * size || Math.abs(t[2]) > 1.2 * size) continue; // sideways text is not a table cell
-        items.push({ str: it.str, x: t[4], y: t[5], w: it.width * (vp.scale || 1), h: size });
+        const tt = pdfjs.Util.transform(vp.transform, it.transform);
+        const size = Math.hypot(tt[2], tt[3]) || Math.abs(it.height) || 8;
+        if (Math.abs(tt[1]) > 0.2 * size || Math.abs(tt[2]) > 1.2 * size) continue; // sideways text is not a table cell
+        items.push({ str: it.str, x: tt[4], y: tt[5], w: it.width * (vp.scale || 1), h: size });
       }
       pages.push({ width: vp.width, height: vp.height, items });
       page.cleanup();

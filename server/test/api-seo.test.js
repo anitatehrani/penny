@@ -37,7 +37,8 @@ describe('robots.txt and the sitemap', () => {
     assert.match(r.headers.get('content-type'), /^application\/xml/);
     assert.match(r.headers.get('cache-control'), /max-age/);
     const xml = await r.text();
-    assert.deepEqual([...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]), [`${SITE}/`, `${SITE}/terms`, `${SITE}/privacy`, `${SITE}/contact`, `${SITE}/guides`, ...GUIDES.map((g) => `${SITE}/guides/${g.slug}`)]);
+    assert.deepEqual([...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]), ['/', '/terms', '/privacy', '/contact', '/guides', ...GUIDES.map((g) => `/guides/${g.slug}`)].flatMap((p) => [p === '/' ? `${SITE}/` : `${SITE}${p}`, `${SITE}/it${p === '/' ? '' : p}`]));
+    assert.ok(xml.includes('hreflang="it"') && xml.includes('hreflang="x-default"'), 'each page names its other language');
     assert.ok(!xml.includes('<html'), 'not the app page');
   });
 

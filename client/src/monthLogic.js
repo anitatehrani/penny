@@ -1,4 +1,5 @@
 import { addMonthsYM } from './format.js';
+import { t } from './i18n/translate.js';
 
 // Everything about months that the calendar and the dashboard's month view need, as plain functions. A month is "YYYY-MM".
 
@@ -21,9 +22,9 @@ export const clampYM = (ym, min, max) => (min && ym < min ? min : max && ym > ma
  * Whether a month can be picked, and if not why (shown as a tooltip and read out).
  * `min` and `max` bound the range; `allowed` (a list) limits it to those months.
  */
-export function monthChoice(ym, { min, max, allowed, notAllowedReason = 'Not available' } = {}) {
-  if (min && ym < min) return { ok: false, reason: 'Too far back' };
-  if (max && ym > max) return { ok: false, reason: 'Too far ahead' };
+export function monthChoice(ym, { min, max, allowed, notAllowedReason = t('Not available') } = {}) {
+  if (min && ym < min) return { ok: false, reason: t('Too far back') };
+  if (max && ym > max) return { ok: false, reason: t('Too far ahead') };
   if (allowed && !allowed.includes(ym)) return { ok: false, reason: notAllowedReason };
   return { ok: true };
 }
@@ -104,7 +105,7 @@ export function compareFromSummaries(current, previous, month) {
     if (!seen.has(key)) categories.push({ category_id: c.category_id ?? null, name: c.name, color: c.color, current: 0, previous: c.total });
   }
   categories.sort((a, b) => b.current - a.current || b.previous - a.previous);
-  const sum = (list) => Math.round(list.reduce((t, c) => t + Math.round(c.total * 100), 0)) / 100;
+  const sum = (list) => Math.round(list.reduce((tt, c) => tt + Math.round(c.total * 100), 0)) / 100;
   return {
     month,
     prevMonth: addMonthsYM(month, -1),

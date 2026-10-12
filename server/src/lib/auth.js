@@ -3,6 +3,7 @@ import { query } from '../db.js';
 import { record } from './audit.js';
 import { HttpError } from './http.js';
 import { TERMS_VERSION } from './legal.js';
+import { t } from './i18n.js';
 
 export const COOKIE_NAME = 'sid';
 /** How long an admin's "view as" lasts (docs/DESIGN.md section 33). After that the session is the admin's own again. */
@@ -139,14 +140,14 @@ export function impersonationGuard(req, _res, next) {
   if (!imp || ['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
   const path = req.baseUrl + req.path;
   if (ACTING_ALWAYS.includes(path)) return next();
-  if (imp.read_only) return next(new HttpError(403, 'You are viewing this account in read-only mode, so nothing can be changed. Exit to go back to your own account.'));
-  if (!ACTING_WRITES.some((p) => path === p || path.startsWith(`${p}/`))) return next(new HttpError(403, 'That cannot be done while viewing as someone else.'));
+  if (imp.read_only) return next(new HttpError(403, t('You are viewing this account in read-only mode, so nothing can be changed. Exit to go back to your own account.')));
+  if (!ACTING_WRITES.some((p) => path === p || path.startsWith(`${p}/`))) return next(new HttpError(403, t('That cannot be done while viewing as someone else.')));
   record('admin_acted_as', { req, userId: req.user.id, actorId: req.admin.id, detail: `${req.method} ${path}` });
   next();
 }
 
 export function requireAuth(req, _res, next) {
-  if (!req.user) return next(new HttpError(401, 'Please sign in.'));
+  if (!req.user) return next(new HttpError(401, t('Please sign in.')));
   next();
 }
 
@@ -155,7 +156,7 @@ export function requireAuth(req, _res, next) {
  * does not announce itself. Being an admin is a column that only the command line sets.
  */
 export function requireAdmin(req, _res, next) {
-  if (!req.user?.is_admin) return next(new HttpError(404, 'Not found'));
+  if (!req.user?.is_admin) return next(new HttpError(404, t('Not found')));
   next();
 }
 
@@ -168,11 +169,11 @@ export function sameOriginOnly(req, _res, next) {
     try {
       host = new URL(origin).host;
     } catch {
-      return next(new HttpError(403, 'Bad origin.'));
+      return next(new HttpError(403, t('Bad origin.')));
     }
-    if (host !== req.headers.host) return next(new HttpError(403, 'Cross-site request blocked.'));
+    if (host !== req.headers.host) return next(new HttpError(403, t('Cross-site request blocked.')));
   } else if (req.headers['sec-fetch-site'] === 'cross-site') {
-    return next(new HttpError(403, 'Cross-site request blocked.'));
+    return next(new HttpError(403, t('Cross-site request blocked.')));
   }
   next();
 }

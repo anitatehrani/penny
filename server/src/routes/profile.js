@@ -4,6 +4,7 @@ import { query } from '../db.js';
 import { publicUser } from '../lib/auth.js';
 import { HttpError, wrap } from '../lib/http.js';
 import { phoneField, usernameField } from '../lib/profile.js';
+import { t } from '../lib/i18n.js';
 
 const router = Router();
 
@@ -31,8 +32,8 @@ router.put(
       res.json({ user: publicUser(rows[0]) });
     } catch (err) {
       if (err.code === '23505') {
-        if (/username/.test(err.constraint ?? '')) throw new HttpError(409, 'That username is taken.');
-        if (/phone/.test(err.constraint ?? '')) throw new HttpError(409, 'That phone number is already used by another account.');
+        if (/username/.test(err.constraint ?? '')) throw new HttpError(409, t('That username is taken.'));
+        if (/phone/.test(err.constraint ?? '')) throw new HttpError(409, t('That phone number is already used by another account.'));
       }
       throw err;
     }

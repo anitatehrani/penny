@@ -10,6 +10,9 @@ import { useApp } from '../context.jsx';
 import { currentMonth, monthLabel } from '../format.js';
 import { useFetch } from '../hooks.js';
 import { useWorkspace } from '../workspace.jsx';
+import { localeOf, t, tn } from '../i18n/translate.js';
+import { tRich } from '../i18n/react.jsx';
+import { catName } from '../categoryNames.js';
 
 function Stat({ icon, label, value, sub, tone, children, hero, delay = 0 }) {
   return (
@@ -39,7 +42,7 @@ function Meter({ done, total, label }) {
 
 function DashboardSkeleton() {
   return (
-    <div aria-busy="true" aria-label="Loading your dashboard" role="status">
+    <div aria-busy="true" aria-label={t('Loading your dashboard')} role="status">
       <div className="dash-head">
         <Skeleton w={44} h={44} r="50%" />
         <div className="skel-col">
@@ -81,7 +84,7 @@ function DashboardSkeleton() {
 
 const greeting = () => {
   const h = new Date().getHours();
-  return h < 5 ? 'Still up' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+  return h < 5 ? t('Still up') : h < 12 ? t('Good morning') : h < 18 ? t('Good afternoon') : t('Good evening');
 };
 
 export default function Dashboard() {
@@ -101,7 +104,7 @@ export default function Dashboard() {
   if (summary.error) return <ErrorBox error={summary.error} />;
   if (!summary.data) return <DashboardSkeleton />;
   const s = summary.data;
-  const t = s.totals;
+  const tt = s.totals;
   const negNow = s.balance < 0;
   const firstNeg = forecast.data?.insights.firstNegativeMonth;
   const topCategory = s.byCategory[0]?.total || 1;
@@ -109,7 +112,7 @@ export default function Dashboard() {
   return (
     <>
       <header className="dash-head">
-        <Link to="/profile" className="dash-avatar" aria-label="Your profile" title="Your profile">
+        <Link to="/profile" className="dash-avatar" aria-label={t('Your profile')} title={t('Your profile')}>
           <Avatar user={user} size={44} />
         </Link>
         <div className="dash-title">
@@ -117,11 +120,11 @@ export default function Dashboard() {
             {greeting()}, {user.name.split(' ')[0]}
           </h1>
           <p className="muted">
-            {isGroup ? `${current.name} · shared money of the group` : new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}
+            {isGroup ? t('{name} · shared money of the group', { name: current.name }) : new Date().toLocaleDateString(localeOf(), { weekday: 'long', day: 'numeric', month: 'long' })}
           </p>
         </div>
         <button className="btn primary add-btn" onClick={() => setAdding(true)}>
-          <Icon name="plus" /> Add payment
+          <Icon name="plus" /> {t('Add payment')}
         </button>
       </header>
 
@@ -129,8 +132,7 @@ export default function Dashboard() {
         <div className="banner danger" role="alert">
           <Icon name="alert" />
           <div>
-            <strong>Your balance is negative right now ({money(s.balance)}).</strong> Record any income you have received, or check the
-            starting balance in <Link to="/settings">Settings</Link>.
+            <strong>{t('Your balance is negative right now ({money}).', { money: money(s.balance) })}</strong> {tRich('Record any income you have received, or check the starting balance in {link}.', { link: <Link to="/settings">{t('Settings')}</Link> })}
           </div>
         </div>
       )}
@@ -139,9 +141,9 @@ export default function Dashboard() {
           <Icon name="alert" />
           <div>
             <strong>
-              Projected to go negative in {monthLabel(firstNeg.month)} ({money(firstNeg.balance)}).
+              {t('Projected to go negative in {monthLabel} ({money}).', { monthLabel: monthLabel(firstNeg.month), money: money(firstNeg.balance) })}
             </strong>{' '}
-            See the <Link to="/forecast">forecast</Link> for details.
+            {tRich('See the {link} for details.', { link: <Link to="/forecast">{t('forecast')}</Link> })}
           </div>
         </div>
       )}
@@ -150,50 +152,50 @@ export default function Dashboard() {
           <Icon name="alert" />
           <div>
             <strong>
-              {s.overdue.count} overdue payment{s.overdue.count > 1 ? 's' : ''}
-              {s.overdue.expenseTotal > 0 && ` · ${money(s.overdue.expenseTotal)} to pay`}.
+              {tn(s.overdue.count, '{n} overdue payment', '{n} overdue payments')}
+              {s.overdue.expenseTotal > 0 && ` · ${t('{amount} to pay', { amount: money(s.overdue.expenseTotal) })}`}.
             </strong>{' '}
-            Mark them as paid below once settled.
+            {t('Mark them as paid below once settled.')}
           </div>
         </div>
       )}
 
-      <section className="stats" aria-label="This month at a glance">
+      <section className="stats" aria-label={t('This month at a glance')}>
         <Stat
           hero
           icon="card"
-          label={isGroup ? 'Our balance today' : 'Balance today'}
+          label={isGroup ? t('Our balance today') : t('Balance today')}
           value={money(s.balance)}
           tone={negNow ? 'neg' : ''}
-          sub={`Projected end of ${monthLabel(month, { month: 'long' })}: ${money(s.projectedMonthEnd)}`}
+          sub={t('Projected end of {monthLabel}: {money}', { monthLabel: monthLabel(month, { month: 'long' }), money: money(s.projectedMonthEnd) })}
           delay={0}
         >
           {forecast.data && <Sparkline months={forecast.data.months} />}
         </Stat>
         <Stat
           icon="download"
-          label={isGroup ? 'Combined income' : 'Income this month'}
-          value={money(t.incomePaid + t.incomePending)}
-          sub={`${money(t.incomePaid)} received · ${money(t.incomePending)} expected`}
+          label={isGroup ? t('Combined income') : t('Income this month')}
+          value={money(tt.incomePaid + tt.incomePending)}
+          sub={t('{money} received · {money2} expected', { money: money(tt.incomePaid), money2: money(tt.incomePending) })}
           delay={60}
         >
-          <Meter done={t.incomePaid} total={t.incomePaid + t.incomePending} label="Income received" />
+          <Meter done={tt.incomePaid} total={tt.incomePaid + tt.incomePending} label={t('Income received')} />
         </Stat>
         <Stat
           icon="upload"
-          label={isGroup ? 'Shared expenses' : 'Expenses this month'}
-          value={money(t.expensePaid + t.expensePending)}
-          sub={`${money(t.expensePaid)} paid · ${money(t.expensePending)} still to pay`}
+          label={isGroup ? t('Shared expenses') : t('Expenses this month')}
+          value={money(tt.expensePaid + tt.expensePending)}
+          sub={t('{money} paid · {money2} still to pay', { money: money(tt.expensePaid), money2: money(tt.expensePending) })}
           delay={120}
         >
-          <Meter done={t.expensePaid} total={t.expensePaid + t.expensePending} label="Expenses paid" />
+          <Meter done={tt.expensePaid} total={tt.expensePaid + tt.expensePending} label={t('Expenses paid')} />
         </Stat>
       </section>
 
       {isGroup && s.byMember.length > 0 && (
         <section className="card">
           <div className="card-head">
-            <h2>Who contributes</h2>
+            <h2>{t('Who contributes')}</h2>
             <span className="muted">{monthLabel(month, { month: 'long' })}</span>
           </div>
           <ul className="members-bars">
@@ -206,18 +208,18 @@ export default function Dashboard() {
                 <li key={m.username}>
                   <div className="member-head">
                     <Avatar user={m} size={28} />
-                    <strong>{m.username === user.username ? `${m.name} (you)` : m.name}</strong>
-                    {totalIncome > 0 && <span className="badge">{share}% of income</span>}
+                    <strong>{m.username === user.username ? t('{name} (you)', { name: m.name }) : m.name}</strong>
+                    {totalIncome > 0 && <span className="badge">{t('{share}% of income', { share })}</span>}
                   </div>
                   <div className="member-bar">
-                    <span className="muted small">Brings in</span>
+                    <span className="muted small">{t('Brings in')}</span>
                     <div className="bar-track">
                       <div className="bar-solid income" style={{ width: `${(m.income / maxIncome) * 100}%` }} />
                     </div>
                     <span className="num">{money(m.income)}</span>
                   </div>
                   <div className="member-bar">
-                    <span className="muted small">Pays</span>
+                    <span className="muted small">{t('Pays')}</span>
                     <div className="bar-track">
                       <div className="bar-solid expense" style={{ width: `${(m.expenses / maxExpense) * 100}%` }} />
                     </div>
@@ -233,11 +235,11 @@ export default function Dashboard() {
       <div className="two-col">
         <section className="card">
           <div className="card-head">
-            <h2>Due in the next 14 days</h2>
-            <Link to="/payments">All payments</Link>
+            <h2>{t('Due in the next 14 days')}</h2>
+            <Link to="/payments">{t('All payments')}</Link>
           </div>
           {s.overdue.items.length === 0 && s.upcoming.length === 0 ? (
-            <Empty icon="check" title="Nothing due">No pending payments in the next two weeks.</Empty>
+            <Empty icon="check" title={t('Nothing due')}>{t('No pending payments in the next two weeks.')}</Empty>
           ) : (
             <div className="tx-list">
               {[...s.overdue.items, ...s.upcoming].map((tx) => (
@@ -249,11 +251,11 @@ export default function Dashboard() {
 
         <section className="card">
           <div className="card-head">
-            <h2>Spending by category</h2>
+            <h2>{t('Spending by category')}</h2>
             <span className="muted">{monthLabel(month, { month: 'long' })}</span>
           </div>
           {s.byCategory.length === 0 ? (
-            <Empty icon="trend" title="No expenses yet">Add a payment to see where the money goes.</Empty>
+            <Empty icon="trend" title={t('No expenses yet')}>{t('Add a payment to see where the money goes.')}</Empty>
           ) : (
             <ul className="bars">
               {s.byCategory.map((c) => (
@@ -261,11 +263,11 @@ export default function Dashboard() {
                   <div className="bar-head">
                     <span className="cat">
                       <span className="dot" style={{ background: c.color }} />
-                      {c.name}
+                      {catName(c.name)}
                     </span>
                     <span className="num">{money(c.total)}</span>
                   </div>
-                  <div className="bar-track" title={`${money(c.paid)} paid of ${money(c.total)}`}>
+                  <div className="bar-track" title={t('{money} paid of {money2}', { money: money(c.paid), money2: money(c.total) })}>
                     <div className="bar-fill" style={{ width: `${(c.total / topCategory) * 100}%` }}>
                       <div className="bar-rest" style={{ background: c.color }} />
                       <div className="bar-paid" style={{ width: `${(c.paid / c.total) * 100}%`, background: c.color }} />
@@ -280,14 +282,14 @@ export default function Dashboard() {
 
       <section className="card">
         <div className="card-head">
-          <h2>Balance outlook</h2>
-          <Link to="/forecast">Full forecast</Link>
+          <h2>{t('Balance outlook')}</h2>
+          <Link to="/forecast">{t('Full forecast')}</Link>
         </div>
         {forecast.data ? <BalanceChart months={forecast.data.months} height={240} /> : <Skeleton w="100%" h={240} r={8} />}
       </section>
 
       {adding && (
-        <Modal title="Add payment" onClose={() => setAdding(false)}>
+        <Modal title={t('Add payment')} onClose={() => setAdding(false)}>
           <TransactionForm
             onCancel={() => setAdding(false)}
             onSaved={() => {

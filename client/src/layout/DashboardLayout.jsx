@@ -12,6 +12,8 @@ import Sidebar from './Sidebar.jsx';
 import TopBar from './TopBar.jsx';
 import { AvatarStack } from '../components/ui.jsx';
 import { useAuth } from '../auth.jsx';
+import { t } from '../i18n/translate.js';
+import { tRich } from '../i18n/react.jsx';
 
 /**
  * The frame around every page: sidebar (collapsible), top bar, the page itself, and the bottom bar on phones.
@@ -25,14 +27,14 @@ export default function DashboardLayout({ children }) {
   const collapsed = prefs.sidebar_collapsed;
 
   useEffect(() => {
-    document.title = `${titleFor(pathname)} · Penny`;
+    document.title = t('{titleFor} · Penny', { titleFor: titleFor(pathname) });
   }, [pathname]);
 
   const others = members.filter((m) => m.username !== user.username);
   return (
     <div className={`shell${collapsed ? ' is-collapsed' : ''}`}>
       <a className="skip-link" href="#main">
-        Skip to content
+        {t('Skip to content')}
       </a>
       <Sidebar collapsed={collapsed} onToggle={() => setPrefs({ sidebar_collapsed: !collapsed })} />
       <div className="shell-main">
@@ -45,10 +47,10 @@ export default function DashboardLayout({ children }) {
             <div className="group-ribbon" role="status">
               <Icon name="users" size={16} />
               <span>
-                Shared budget <strong>{current.name}</strong>. Everything here is shared with
+                {tRich('Shared budget {bold}. Everything here is shared with', { bold: <strong>{current.name}</strong> })}
               </span>
               <AvatarStack people={others} size={22} limit={5} />
-              <span className="muted">{others.map((m) => m.name.split(' ')[0]).join(', ') || 'nobody else yet'}</span>
+              <span className="muted">{others.map((m) => m.name.split(' ')[0]).join(', ') || t('nobody else yet')}</span>
             </div>
           )}
           {children}

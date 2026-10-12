@@ -1,18 +1,21 @@
 import { useEffect, useId, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { LanguageLinks } from '../components/LanguageSwitch.jsx';
 import { Wordmark } from '../components/Logo.jsx';
 import { Icon, ThemeToggle } from '../components/ui.jsx';
 import { useAuth } from '../auth.jsx';
 import { chartPoints, monthLabels, projectBalance, smoothPath, summarizeProjection } from '../landingLogic.js';
+import { N_, localeOf, t } from '../i18n/translate.js';
+import { tRich, useLocalPath } from '../i18n/react.jsx';
 
 /**
  * The page a visitor sees first (docs/DESIGN.md section 37): what Penny is, what it does, something to play with, and a way in. Public, shown
  * at "/" to anybody who is not signed in (signed-in people go straight to their dashboard). The screenshots are real pages of the demo account
  * in light and dark; the small cards are drawings of what Penny shows, in the same colours. Every claim is something Penny really does.
  */
-const TITLE = 'Penny: a personal budget with a forecast months ahead';
+const TITLE = N_('Penny: a personal budget with a forecast months ahead');
 
-const euro = (n) => new Intl.NumberFormat(undefined, { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n);
+const euro = (n) => new Intl.NumberFormat(localeOf(), { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n);
 
 /** A product screenshot in a window frame; the dark and light versions swap with the theme (see landing.css). */
 function Shot({ name, alt, priority = false }) {
@@ -35,11 +38,11 @@ function Shot({ name, alt, priority = false }) {
 // Something to play with: a small forecast the visitor can bend
 // ---------------------------------------------------------------------------------------------------------------------------------
 const SLIDERS = [
-  { key: 'start', label: 'In the bank today', min: 0, max: 10000, step: 100 },
-  { key: 'income', label: 'Coming in each month', min: 500, max: 6000, step: 100 },
-  { key: 'bills', label: 'Bills each month', hint: 'rent, subscriptions, installments', min: 300, max: 4500, step: 100 },
-  { key: 'spending', label: 'Everyday spending', hint: 'food, transport, fun', min: 0, max: 2500, step: 50 },
-  { key: 'purchase', label: 'One big purchase', min: 0, max: 6000, step: 100 },
+  { key: 'start', get label() { return t('In the bank today'); }, min: 0, max: 10000, step: 100 },
+  { key: 'income', get label() { return t('Coming in each month'); }, min: 500, max: 6000, step: 100 },
+  { key: 'bills', get label() { return t('Bills each month'); }, get hint() { return t('rent, subscriptions, installments'); }, min: 300, max: 4500, step: 100 },
+  { key: 'spending', get label() { return t('Everyday spending'); }, get hint() { return t('food, transport, fun'); }, min: 0, max: 2500, step: 50 },
+  { key: 'purchase', get label() { return t('One big purchase'); }, min: 0, max: 6000, step: 100 },
 ];
 
 function ForecastDemo({ signupsOpen }) {
@@ -59,9 +62,9 @@ function ForecastDemo({ signupsOpen }) {
   return (
     <section id="try" className="lp-section">
       <div className="lp-wrap">
-        <p className="lp-eyebrow lp-center lp-reveal">Try it</p>
-        <h2 className="lp-reveal">Bend a year, see where it lands</h2>
-        <p className="lp-sub lp-reveal">Move the sliders. This is the idea behind Penny&apos;s forecast, with your own payments in place of these numbers.</p>
+        <p className="lp-eyebrow lp-center lp-reveal">{t('Try it')}</p>
+        <h2 className="lp-reveal">{t('Bend a year, see where it lands')}</h2>
+        <p className="lp-sub lp-reveal">{t('Move the sliders. This is the idea behind Penny\'s forecast, with your own payments in place of these numbers.')}</p>
         <div className="lp-demo lp-reveal">
           <div className="lp-demo-controls">
             {SLIDERS.map((s) => (
@@ -78,7 +81,7 @@ function ForecastDemo({ signupsOpen }) {
             ))}
             <label className="lp-slider">
               <span className="lp-slider-top">
-                <span>…in month</span>
+                <span>{t('…in month')}</span>
                 <output>{labels[v.purchaseMonth]}</output>
               </span>
               <input type="range" min={1} max={12} step={1} value={v.purchaseMonth} onChange={set('purchaseMonth')} style={{ '--fill': `${((v.purchaseMonth - 1) / 11) * 100}%` }} />
@@ -91,16 +94,16 @@ function ForecastDemo({ signupsOpen }) {
               <span>
                 {sum.dips ? (
                   <>
-                    You would go below zero in <strong>{labels[sum.firstNegative]}</strong> (lowest {euro(sum.lowest)}). Penny warns you well before.
+                    {tRich('You would go below zero in {bold} (lowest {euro}). Penny warns you well before.', { euro: euro(sum.lowest), bold: <strong>{labels[sum.firstNegative]}</strong> })}
                   </>
                 ) : (
                   <>
-                    No dip ahead. Lowest point <strong>{euro(sum.lowest)}</strong>{sum.lowestIndex ? <> in {labels[sum.lowestIndex]}</> : ' is today'}.
+                    {t('No dip ahead. Lowest point')} <strong>{euro(sum.lowest)}</strong>{sum.lowestIndex ? <> {t('in {value}', { value: labels[sum.lowestIndex] })}</> : t(' is today')}.
                   </>
                 )}
               </span>
             </div>
-            <svg viewBox={`0 0 ${W} ${H}`} className="lp-chart" role="img" aria-label={`A twelve month forecast. It ends at ${euro(sum.end)}, and its lowest point is ${euro(sum.lowest)}.`}>
+            <svg viewBox={`0 0 ${W} ${H}`} className="lp-chart" role="img" aria-label={t('A twelve month forecast. It ends at {euro}, and its lowest point is {euro2}.', { euro: euro(sum.end), euro2: euro(sum.lowest) })}>
               <defs>
                 <linearGradient id={`${id}-fill`} x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="var(--accent)" stopOpacity="0.32" />
@@ -136,15 +139,15 @@ function ForecastDemo({ signupsOpen }) {
             </svg>
             <div className="lp-demo-foot">
               <span>
-                In 12 months: <strong>{euro(sum.end)}</strong>
+                {t('In 12 months:')} <strong>{euro(sum.end)}</strong>
               </span>
               {signupsOpen ? (
                 <Link className="btn primary" to="/signup">
-                  Do it with your own numbers
+                  {t('Do it with your own numbers')}
                 </Link>
               ) : (
                 <Link className="btn primary" to="/login">
-                  Log in
+                  {t('Log in')}
                 </Link>
               )}
             </div>
@@ -163,23 +166,23 @@ function Bento() {
   return (
     <section id="features" className="lp-section lp-tint">
       <div className="lp-wrap">
-        <p className="lp-eyebrow lp-center lp-reveal">What is inside</p>
-        <h2 className="lp-reveal">Everything money asks of you, in one calm place</h2>
+        <p className="lp-eyebrow lp-center lp-reveal">{t('What is inside')}</p>
+        <h2 className="lp-reveal">{t('Everything money asks of you, in one calm place')}</h2>
         <div className="lp-bento">
           <article className="lp-card lp-a lp-reveal">
             <header>
               <span className="lp-chipicon">
                 <Icon name="trend" size={18} />
               </span>
-              <h3>A forecast you can trust</h3>
+              <h3>{t('A forecast you can trust')}</h3>
             </header>
-            <p>Built from what is pending, what repeats and what is in installments. Up to two years ahead, with a warning before the balance dips below zero.</p>
+            <p>{t('Built from what is pending, what repeats and what is in installments. Up to two years ahead, with a warning before the balance dips below zero.')}</p>
             <div className="lp-mini-forecast" aria-hidden="true">
               <div className="lp-bignum">
                 €4,222<small>.57</small>
               </div>
               <span className="lp-ok">
-                <Icon name="check" size={14} /> No dip ahead, lowest €4,262 in February
+                <Icon name="check" size={14} /> {t('No dip ahead, lowest €4,262 in February')}
               </span>
               <svg viewBox="0 0 266 90" preserveAspectRatio="none">
                 <defs>
@@ -199,18 +202,18 @@ function Bento() {
               <span className="lp-chipicon">
                 <Icon name="bell" size={18} />
               </span>
-              <h3>Alerts that arrive in time</h3>
+              <h3>{t('Alerts that arrive in time')}</h3>
             </header>
-            <p>In the app, and by e-mail if you want. Before a bill is due, when something is overdue, when the balance is heading down.</p>
+            <p>{t('In the app, and by e-mail if you want. Before a bill is due, when something is overdue, when the balance is heading down.')}</p>
             <ul className="lp-notes" aria-hidden="true">
               <li>
-                <i className="warn" /> Rent is due in 3 days <small>€780</small>
+                <i className="warn" /> {t('Rent is due in 3 days')} <small>€780</small>
               </li>
               <li>
-                <i className="bad" /> One overdue payment <small>€124</small>
+                <i className="bad" /> {t('One overdue payment')} <small>€124</small>
               </li>
               <li>
-                <i className="ok" /> 11% less spent than last month
+                <i className="ok" /> {t('11% less spent than last month')}
               </li>
             </ul>
           </article>
@@ -220,14 +223,14 @@ function Bento() {
               <span className="lp-chipicon">
                 <Icon name="users" size={18} />
               </span>
-              <h3>Budget together</h3>
+              <h3>{t('Budget together')}</h3>
             </header>
-            <p>A shared budget with your partner, family or flatmates. Nobody sees your personal one.</p>
+            <p>{t('A shared budget with your partner, family or flatmates. Nobody sees your personal one.')}</p>
             <div className="lp-people" aria-hidden="true">
               <span style={{ '--h': 215 }}>A</span>
               <span style={{ '--h': 150 }}>S</span>
               <span style={{ '--h': 320 }}>M</span>
-              <em>Home · 3 people</em>
+              <em>{t('Home · 3 people')}</em>
             </div>
           </article>
 
@@ -236,20 +239,20 @@ function Bento() {
               <span className="lp-chipicon">
                 <Icon name="debt" size={18} />
               </span>
-              <h3>Debts, both ways</h3>
+              <h3>{t('Debts, both ways')}</h3>
             </header>
-            <p>What you owe, with a plan. What you lent, kept apart.</p>
+            <p>{t('What you owe, with a plan. What you lent, kept apart.')}</p>
             <div className="lp-bars" aria-hidden="true">
               <div>
-                <span>Laptop</span>
+                <span>{t('Laptop')}</span>
                 <b style={{ '--w': '17%' }} />
               </div>
               <div>
-                <span>Dentist</span>
+                <span>{t('Dentist')}</span>
                 <b style={{ '--w': '62%' }} />
               </div>
               <div>
-                <span>Lent to Jordan</span>
+                <span>{t('Lent to Jordan')}</span>
                 <b className="lent" style={{ '--w': '40%' }} />
               </div>
             </div>
@@ -260,11 +263,11 @@ function Bento() {
               <span className="lp-chipicon">
                 <Icon name="sparkle" size={18} />
               </span>
-              <h3>Ask Penny</h3>
+              <h3>{t('Ask Penny')}</h3>
             </header>
             <div className="lp-chat" aria-hidden="true">
-              <p className="me">What changed this month?</p>
-              <p className="penny">You are spending 11% less than last month. Utilities and Groceries made the difference.</p>
+              <p className="me">{t('What changed this month?')}</p>
+              <p className="penny">{t('You are spending 11% less than last month. Utilities and Groceries made the difference.')}</p>
               <p className="typing">
                 <i />
                 <i />
@@ -278,11 +281,11 @@ function Bento() {
               <span className="lp-chipicon">
                 <Icon name="card" size={18} />
               </span>
-              <h3>Installments and cards</h3>
+              <h3>{t('Installments and cards')}</h3>
             </header>
-            <p>Split a purchase, with interest if there is some. Each installment lands on the right card bill, and you can pay part of a bill.</p>
+            <p>{t('Split a purchase, with interest if there is some. Each installment lands on the right card bill, and you can pay part of a bill.')}</p>
             <div className="lp-track" aria-hidden="true">
-              {['Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr'].map((m, i) => (
+              {[t('Nov'), t('Dec'), t('Jan'), t('Feb'), t('Mar'), t('Apr')].map((m, i) => (
                 <span key={m} className={i < 3 ? 'done' : ''}>
                   <i />
                   {m}
@@ -297,43 +300,42 @@ function Bento() {
                 <span className="lp-chipicon">
                   <Icon name="upload" size={18} />
                 </span>
-                <h3>Bring in a bank statement</h3>
+                <h3>{t('Bring in a bank statement')}</h3>
               </header>
               <p>
-                Drop in a statement from your bank, as a PDF or a spreadsheet file. Penny finds the columns by itself, suggests a category for every line, spots what is already there and shows you everything before it saves a thing. The file is read on your
-                device and never uploaded.
+                {t('Drop in a statement from your bank, as a PDF or a spreadsheet file. Penny finds the columns by itself, suggests a category for every line, spots what is already there and shows you everything before it saves a thing. The file is read on your device and never uploaded.')}
               </p>
             </div>
             <div className="lp-import" aria-hidden="true">
               <div className="lp-file">
                 <Icon name="file" size={18} />
-                <span>statement.pdf</span>
-                <small>38 lines</small>
+                <span>{t('statement.pdf')}</span>
+                <small>{t('38 lines')}</small>
               </div>
               <ul className="lp-lines">
                 <li>
-                  <span>Esselunga</span>
-                  <i style={{ '--c': 'var(--lp-teal)' }}>Groceries</i>
+                  <span>{t('Esselunga')}</span>
+                  <i style={{ '--c': 'var(--lp-teal)' }}>{t('Groceries')}</i>
                   <b>−€45.30</b>
                 </li>
                 <li>
-                  <span>Zara</span>
-                  <i style={{ '--c': 'var(--lp-pink)' }}>Clothing</i>
+                  <span>{t('Zara')}</span>
+                  <i style={{ '--c': 'var(--lp-pink)' }}>{t('Clothing')}</i>
                   <b>−€59.90</b>
                 </li>
                 <li>
-                  <span>Netflix</span>
-                  <i style={{ '--c': 'var(--lp-violet)' }}>Subscriptions</i>
+                  <span>{t('Netflix')}</span>
+                  <i style={{ '--c': 'var(--lp-violet)' }}>{t('Subscriptions')}</i>
                   <b>−€15.49</b>
                 </li>
                 <li>
-                  <span>Uber</span>
-                  <i style={{ '--c': 'var(--lp-sky)' }}>Transport</i>
+                  <span>{t('Uber')}</span>
+                  <i style={{ '--c': 'var(--lp-sky)' }}>{t('Transport')}</i>
                   <b>−€18.20</b>
                 </li>
                 <li className="check">
-                  <span>Corner bakery</span>
-                  <i className="q">Check</i>
+                  <span>{t('Corner bakery')}</span>
+                  <i className="q">{t('Check')}</i>
                   <b>−€5.80</b>
                 </li>
               </ul>
@@ -345,9 +347,9 @@ function Bento() {
               <span className="lp-chipicon">
                 <Icon name="command" size={18} />
               </span>
-              <h3>Fast, and yours</h3>
+              <h3>{t('Fast, and yours')}</h3>
             </header>
-            <p>Search or act from anywhere. Light or dark, your accent colour, your dashboard. Any currency per budget. On your phone too.</p>
+            <p>{t('Search or act from anywhere. Light or dark, your accent colour, your dashboard. Any currency per budget. On your phone too.')}</p>
             <div className="lp-keys" aria-hidden="true">
               <kbd>Ctrl</kbd>
               <kbd>K</kbd>
@@ -366,24 +368,23 @@ function Bento() {
                 <span className="lp-chipicon">
                   <Icon name="target" size={18} />
                 </span>
-                <h3>Plan each month, category by category</h3>
+                <h3>{t('Plan each month, category by category')}</h3>
               </header>
               <p>
-                Give every category an amount for the month, or let Penny suggest it from what you usually spend. You see how much is spent and how much is left, now and at the end of the month, in plain words,
-                and Penny warns you before a category runs over.
+                {t('Give every category an amount for the month, or let Penny suggest it from what you usually spend. You see how much is spent and how much is left, now and at the end of the month, in plain words, and Penny warns you before a category runs over.')}
               </p>
             </div>
             <div className="lp-budget" aria-hidden="true">
               <div className="lp-bud-top">
-                <span>Left to spend</span>
+                <span>{t('Left to spend')}</span>
                 <b>€412</b>
-                <small>€688 of €1,100 · 12 days left</small>
+                <small>{t('€688 of €1,100 · 12 days left')}</small>
               </div>
               <ul className="lp-bud-list">
                 {[
-                  ['Groceries', 'On track', 'var(--lp-teal)', 62, '€248 of €400'],
-                  ['Dining out', 'Almost used up', 'var(--lp-amber)', 92, '€110 of €120'],
-                  ['Transport', 'Over budget', 'var(--lp-coral)', 100, '€96 of €80'],
+                  [t('Groceries'), t('On track'), 'var(--lp-teal)', 62, t('€248 of €400')],
+                  [t('Dining out'), t('Almost used up'), 'var(--lp-amber)', 92, t('€110 of €120')],
+                  [t('Transport'), t('Over budget'), 'var(--lp-coral)', 100, t('€96 of €80')],
                 ].map(([name, state, color, width, amounts]) => (
                   <li key={name} style={{ '--c': color }}>
                     <span>{name}</span>
@@ -410,112 +411,112 @@ const TOUR = [
   {
     id: 'forecast',
     icon: 'trend',
-    label: 'Forecast',
+    get label() { return t('Forecast'); },
     shot: 'forecast',
-    alt: 'The Forecast page: balance today, balance in twelve months, and a chart that shows where the balance dips below zero',
-    title: 'Know your balance before you get there',
-    text: 'A forecast from what is pending, what repeats and what is in installments, plus an estimate of everyday spending that you can switch off.',
-    points: ['3 months, 6 months, a year or two years ahead', 'A warning when the balance will go below zero or below your own safety buffer', '"Safe to spend" per day until your next payday', 'Leftover money carries into next month; match your bank balance in one click'],
+    get alt() { return t('The Forecast page: balance today, balance in twelve months, and a chart that shows where the balance dips below zero'); },
+    get title() { return t('Know your balance before you get there'); },
+    get text() { return t('A forecast from what is pending, what repeats and what is in installments, plus an estimate of everyday spending that you can switch off.'); },
+    get points() { return [t('3 months, 6 months, a year or two years ahead'), t('A warning when the balance will go below zero or below your own safety buffer'), t('"Safe to spend" per day until your next payday'), t('Leftover money carries into next month; match your bank balance in one click')]; },
   },
   {
     id: 'payments',
     icon: 'list',
-    label: 'Payments',
+    get label() { return t('Payments'); },
     shot: 'payments',
-    alt: 'The Payments page: this month\'s payments with their state, category and amount',
-    title: 'Everything you pay, in one calm list',
-    text: 'Pending, paid and overdue are clear at a glance. Rent, salary and subscriptions repeat by themselves, weekly, monthly or yearly, with an end date if they have one.',
-    points: ['Change one month, or every month still to come', 'Categories, search and filters', 'Attach a receipt to a payment', 'Past dates count as already paid'],
+    get alt() { return t('The Payments page: this month\'s payments with their state, category and amount'); },
+    get title() { return t('Everything you pay, in one calm list'); },
+    get text() { return t('Pending, paid and overdue are clear at a glance. Rent, salary and subscriptions repeat by themselves, weekly, monthly or yearly, with an end date if they have one.'); },
+    get points() { return [t('Change one month, or every month still to come'), t('Categories, search and filters'), t('Attach a receipt to a payment'), t('Past dates count as already paid')]; },
   },
   {
     id: 'budget',
     icon: 'target',
-    label: 'Budget',
+    get label() { return t('Budget'); },
     shot: 'budget',
-    alt: 'The Monthly budget page: how much is left to spend this month, a bar of what is spent and planned, and sentences about which categories are over or heading over',
-    title: 'Know how each category is doing, before the month ends',
-    text: 'Give every category an amount for the month. Penny shows how much of it is spent and how much is left, now and at the end of the month, and says in plain words what needs a look.',
-    points: [
-      'Let Penny suggest the amounts from what you usually spend, then change any of them',
-      'A bar for each category, a pace to compare with, and an estimate of where the month will end',
-      'A warning in the app when a category is nearly used up, and again when it goes over',
-      'Change a budget from now on, or for one month only; past months keep theirs',
-    ],
+    get alt() { return t('The Monthly budget page: how much is left to spend this month, a bar of what is spent and planned, and sentences about which categories are over or heading over'); },
+    get title() { return t('Know how each category is doing, before the month ends'); },
+    get text() { return t('Give every category an amount for the month. Penny shows how much of it is spent and how much is left, now and at the end of the month, and says in plain words what needs a look.'); },
+    get points() { return [
+      t('Let Penny suggest the amounts from what you usually spend, then change any of them'),
+      t('A bar for each category, a pace to compare with, and an estimate of where the month will end'),
+      t('A warning in the app when a category is nearly used up, and again when it goes over'),
+      t('Change a budget from now on, or for one month only; past months keep theirs'),
+    ]; },
   },
   {
     id: 'import',
     icon: 'upload',
-    label: 'Import',
+    get label() { return t('Import'); },
     shot: 'import',
-    alt: 'The import window: the lines of a bank statement, each with a suggested category, and a mark on the ones Penny wants you to check',
-    title: 'Bring in a whole statement instead of typing it',
-    text: 'Choose a statement from your bank, as a PDF or a spreadsheet file. Penny reads it on your device, suggests a category for every line, and shows you the lot before anything is saved.',
-    points: [
-      'No list of supported banks: Penny works out the layout of the file itself, and asks you once if it cannot',
-      'Esselunga is Groceries, Zara is Clothing, Netflix is Subscriptions; what Penny is unsure about is marked',
-      'Lines already in your payments are spotted, and a scheduled bill can be marked paid instead of added twice',
-      'Penny remembers the categories you correct; one click undoes a whole import',
-    ],
+    get alt() { return t('The import window: the lines of a bank statement, each with a suggested category, and a mark on the ones Penny wants you to check'); },
+    get title() { return t('Bring in a whole statement instead of typing it'); },
+    get text() { return t('Choose a statement from your bank, as a PDF or a spreadsheet file. Penny reads it on your device, suggests a category for every line, and shows you the lot before anything is saved.'); },
+    get points() { return [
+      t('No list of supported banks: Penny works out the layout of the file itself, and asks you once if it cannot'),
+      t('Esselunga is Groceries, Zara is Clothing, Netflix is Subscriptions; what Penny is unsure about is marked'),
+      t('Lines already in your payments are spotted, and a scheduled bill can be marked paid instead of added twice'),
+      t('Penny remembers the categories you correct; one click undoes a whole import'),
+    ]; },
   },
   {
     id: 'installments',
     icon: 'card',
-    label: 'Installments',
+    get label() { return t('Installments'); },
     shot: 'installments',
-    alt: 'The Installments page: purchases split over months with their progress',
-    title: 'Split a purchase, see it on the right bill',
-    text: 'Buy now, pay over months, with or without interest. For a credit card each installment lands on its own bill month, and you can pay part of a bill and roll the rest over.',
-    points: ['Equal installments or amounts you choose', 'Interest worked out and shown', 'Pay only part of a card bill; the rest moves on with its interest'],
+    get alt() { return t('The Installments page: purchases split over months with their progress'); },
+    get title() { return t('Split a purchase, see it on the right bill'); },
+    get text() { return t('Buy now, pay over months, with or without interest. For a credit card each installment lands on its own bill month, and you can pay part of a bill and roll the rest over.'); },
+    get points() { return [t('Equal installments or amounts you choose'), t('Interest worked out and shown'), t('Pay only part of a card bill; the rest moves on with its interest')]; },
   },
   {
     id: 'debts',
     icon: 'debt',
-    label: 'Debts',
+    get label() { return t('Debts'); },
     shot: 'debts',
-    alt: 'The Debts page: two repayment plans with progress bars and the next payment',
-    title: 'Money you owe, and money owed to you',
-    text: 'Keep track of what you owe a friend, a shop or the dentist with a plan, a progress bar and a timeline. Money you lent is kept apart, so it never looks like income.',
-    points: ['Pay it at once, split over months, or just keep it on file', 'Choose whether a debt counts in your balance and forecast', 'See what the balance looks like once everything is paid'],
+    get alt() { return t('The Debts page: two repayment plans with progress bars and the next payment'); },
+    get title() { return t('Money you owe, and money owed to you'); },
+    get text() { return t('Keep track of what you owe a friend, a shop or the dentist with a plan, a progress bar and a timeline. Money you lent is kept apart, so it never looks like income.'); },
+    get points() { return [t('Pay it at once, split over months, or just keep it on file'), t('Choose whether a debt counts in your balance and forecast'), t('See what the balance looks like once everything is paid')]; },
   },
   {
     id: 'shared',
     icon: 'users',
-    label: 'Shared',
+    get label() { return t('Shared'); },
     shot: 'shared',
-    alt: 'A shared budget called Home: the dashboard shows the household\'s balance and who it is shared with',
-    title: 'Budget together, without sharing everything',
-    text: 'Make a budget with your partner, family or flatmates. Everyone sees what is in it; nobody sees your personal budget or your other details.',
-    points: ['Invite people you are connected with', 'Split a payment and give everyone their share', 'Leave a shared budget whenever you like'],
+    get alt() { return t('A shared budget called Home: the dashboard shows the household\'s balance and who it is shared with'); },
+    get title() { return t('Budget together, without sharing everything'); },
+    get text() { return t('Make a budget with your partner, family or flatmates. Everyone sees what is in it; nobody sees your personal budget or your other details.'); },
+    get points() { return [t('Invite people you are connected with'), t('Split a payment and give everyone their share'), t('Leave a shared budget whenever you like')]; },
   },
 ];
 
 function Tour() {
   const [active, setActive] = useState(TOUR[0].id);
-  const cur = TOUR.find((t) => t.id === active);
+  const cur = TOUR.find((tt) => tt.id === active);
   const onKey = (e) => {
-    const i = TOUR.findIndex((t) => t.id === active);
+    const i = TOUR.findIndex((tt) => tt.id === active);
     const next = e.key === 'ArrowDown' || e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowUp' || e.key === 'ArrowLeft' ? i - 1 : null;
     if (next === null) return;
     e.preventDefault();
-    const t = TOUR[(next + TOUR.length) % TOUR.length];
-    setActive(t.id);
-    document.getElementById(`tour-tab-${t.id}`)?.focus();
+    const tt = TOUR[(next + TOUR.length) % TOUR.length];
+    setActive(tt.id);
+    document.getElementById(`tour-tab-${tt.id}`)?.focus();
   };
   return (
     <section id="tour" className="lp-section">
       <div className="lp-wrap">
-        <p className="lp-eyebrow lp-center lp-reveal">Take a look</p>
-        <h2 className="lp-reveal">The real thing, page by page</h2>
-        <p className="lp-sub lp-reveal">Every picture is a real page of Penny, with made-up numbers.</p>
+        <p className="lp-eyebrow lp-center lp-reveal">{t('Take a look')}</p>
+        <h2 className="lp-reveal">{t('The real thing, page by page')}</h2>
+        <p className="lp-sub lp-reveal">{t('Every picture is a real page of Penny, with made-up numbers.')}</p>
         <div className="lp-tour lp-reveal">
-          <div className="lp-tabs" role="tablist" aria-label="Pages of Penny" aria-orientation="horizontal" onKeyDown={onKey}>
-            {TOUR.map((t) => (
-              <button key={t.id} id={`tour-tab-${t.id}`} role="tab" type="button" aria-selected={active === t.id} aria-controls="tour-panel" tabIndex={active === t.id ? 0 : -1} className={active === t.id ? 'on' : ''} onClick={() => setActive(t.id)}>
+          <div className="lp-tabs" role="tablist" aria-label={t('Pages of Penny')} aria-orientation="horizontal" onKeyDown={onKey}>
+            {TOUR.map((tt) => (
+              <button key={tt.id} id={`tour-tab-${tt.id}`} role="tab" type="button" aria-selected={active === tt.id} aria-controls="tour-panel" tabIndex={active === tt.id ? 0 : -1} className={active === tt.id ? 'on' : ''} onClick={() => setActive(tt.id)}>
                 <span className="lp-chipicon">
-                  <Icon name={t.icon} size={18} />
+                  <Icon name={tt.icon} size={18} />
                 </span>
                 <span>
-                  <strong>{t.label}</strong>
+                  <strong>{tt.label}</strong>
                 </span>
               </button>
             ))}
@@ -541,38 +542,39 @@ function Tour() {
   );
 }
 
-const MARQUEE = ['Forecast', 'Recurring bills', 'Installments', 'Credit cards', 'Debts', 'Shared budgets', 'Bank statement import', 'Monthly budget', 'Receipts', 'Alerts', 'Insights', 'Ask Penny', 'Any currency', 'Light and dark'];
+const MARQUEE = [N_('Forecast'), N_('Recurring bills'), N_('Installments'), N_('Credit cards'), N_('Debts'), N_('Shared budgets'), N_('Bank statement import'), N_('Monthly budget'), N_('Receipts'), N_('Alerts'), N_('Insights'), N_('Ask Penny'), N_('Any currency'), N_('Light and dark')];
 
 const STEPS = [
-  { icon: 'plus', title: 'Add what you pay and earn', text: 'One-off payments, rent and salary that repeat, installments, money you owe and money owed to you. Enter it once, or import a bank statement.' },
-  { icon: 'trend', title: 'See what is ahead', text: 'Your balance month by month, a warning well before it dips below zero, and a figure for what is safe to spend today.' },
-  { icon: 'bell', title: 'Stay in control', text: 'Alerts before a bill is due, plain answers when you ask a question, and nothing hidden in the numbers.' },
+  { icon: 'plus', get title() { return t('Add what you pay and earn'); }, get text() { return t('One-off payments, rent and salary that repeat, installments, money you owe and money owed to you. Enter it once, or import a bank statement.'); } },
+  { icon: 'trend', get title() { return t('See what is ahead'); }, get text() { return t('Your balance month by month, a warning well before it dips below zero, and a figure for what is safe to spend today.'); } },
+  { icon: 'bell', get title() { return t('Stay in control'); }, get text() { return t('Alerts before a bill is due, plain answers when you ask a question, and nothing hidden in the numbers.'); } },
 ];
 
 const PRIVACY = [
-  { icon: 'shield', title: 'Private by design', text: 'No ads, no tracking, no selling your data. No bank login to hand over, and a statement you import is read on your device, never uploaded.' },
-  { icon: 'download', title: 'Yours to take', text: 'Download everything you have entered as a file, whenever you like.' },
-  { icon: 'trash', title: 'Yours to delete', text: 'One button removes your account and everything in it, immediately.' },
-  { icon: 'eye', title: 'No surprises', text: 'If the person running the site ever has to look inside your account to help you, they need a written reason, and you are told.' },
+  { icon: 'shield', get title() { return t('Private by design'); }, get text() { return t('No ads, no tracking, no selling your data. No bank login to hand over, and a statement you import is read on your device, never uploaded.'); } },
+  { icon: 'download', get title() { return t('Yours to take'); }, get text() { return t('Download everything you have entered as a file, whenever you like.'); } },
+  { icon: 'trash', get title() { return t('Yours to delete'); }, get text() { return t('One button removes your account and everything in it, immediately.'); } },
+  { icon: 'eye', get title() { return t('No surprises'); }, get text() { return t('If the person running the site ever has to look inside your account to help you, they need a written reason, and you are told.'); } },
 ];
 
 const FAQ = [
-  { q: 'Is Penny free?', a: 'Yes. You can sign up and use it without paying.' },
-  { q: 'Does it connect to my bank?', a: 'No, on purpose, so Penny never sees your bank login. You enter payments yourself, set them to repeat, or import a statement file from your bank. When your real balance and Penny\'s drift apart, "Match my bank balance" fixes it in one step.' },
-  { q: 'Can I import a bank statement?', a: 'Yes: a PDF or a spreadsheet file (CSV or Excel), from any bank. Penny works out the layout by itself (it reads English, Italian, German, French, Spanish, Portuguese and Dutch headings), suggests a category for each line and lets you check everything before it saves. The file is read in your browser and never uploaded, and one click undoes an import.' },
-  { q: 'Can I set a budget for each category?', a: 'Yes. Give each category an amount for the month, or let Penny suggest amounts from what you usually spend. Penny shows how much is spent and left, tells you which categories are heading over, and warns you in the app at 80% and when a category goes over. You can also look back at a finished month.' },
-  { q: 'Who can see my data?', a: 'You, and the people you share a budget with, in that budget only. The person who runs the site sees account basics, not what your payments are or their amounts. They can look inside your account only to help you, with a written reason, and you are told when it happens.' },
-  { q: 'Can I share a budget with my partner or family?', a: 'Yes. Make a shared budget and invite people you are connected with. You can also split single payments between people.' },
-  { q: 'What if I want to leave?', a: 'Download everything as a file, then delete your account, both in Settings. Deleting is immediate and complete.' },
-  { q: 'Does it work on my phone?', a: 'Yes. It runs in your phone\'s browser and can be added to your home screen.' },
+  { get q() { return t('Is Penny free?'); }, get a() { return t('Yes. You can sign up and use it without paying.'); } },
+  { get q() { return t('Does it connect to my bank?'); }, get a() { return t('No, on purpose, so Penny never sees your bank login. You enter payments yourself, set them to repeat, or import a statement file from your bank. When your real balance and Penny\'s drift apart, "Match my bank balance" fixes it in one step.'); } },
+  { get q() { return t('Can I import a bank statement?'); }, get a() { return t('Yes: a PDF or a spreadsheet file (CSV or Excel), from any bank. Penny works out the layout by itself (it reads English, Italian, German, French, Spanish, Portuguese and Dutch headings), suggests a category for each line and lets you check everything before it saves. The file is read in your browser and never uploaded, and one click undoes an import.'); } },
+  { get q() { return t('Can I set a budget for each category?'); }, get a() { return t('Yes. Give each category an amount for the month, or let Penny suggest amounts from what you usually spend. Penny shows how much is spent and left, tells you which categories are heading over, and warns you in the app at 80% and when a category goes over. You can also look back at a finished month.'); } },
+  { get q() { return t('Who can see my data?'); }, get a() { return t('You, and the people you share a budget with, in that budget only. The person who runs the site sees account basics, not what your payments are or their amounts. They can look inside your account only to help you, with a written reason, and you are told when it happens.'); } },
+  { get q() { return t('Can I share a budget with my partner or family?'); }, get a() { return t('Yes. Make a shared budget and invite people you are connected with. You can also split single payments between people.'); } },
+  { get q() { return t('What if I want to leave?'); }, get a() { return t('Download everything as a file, then delete your account, both in Settings. Deleting is immediate and complete.'); } },
+  { get q() { return t('Does it work on my phone?'); }, get a() { return t('Yes. It runs in your phone\'s browser and can be added to your home screen.'); } },
 ];
 
 export default function Landing() {
   const { signupsOpen } = useAuth();
+  const to = useLocalPath();
 
   useEffect(() => {
     const before = document.title;
-    document.title = TITLE;
+    document.title = t(TITLE);
     return () => {
       document.title = before;
     };
@@ -602,7 +604,7 @@ export default function Landing() {
 
   const signup = signupsOpen ? (
     <Link className="btn primary lp-big lp-glow" to="/signup">
-      Create your account
+      {t('Create your account')}
       <Icon name="right" size={18} />
     </Link>
   ) : null;
@@ -610,31 +612,32 @@ export default function Landing() {
   return (
     <div className="landing">
       <a className="skip-link" href="#lp-main">
-        Skip to content
+        {t('Skip to content')}
       </a>
       <header className="lp-nav">
         <div className="lp-wrap lp-nav-in">
-          <Link to="/" className="lp-brand" aria-label="Penny, home">
+          <Link to={to('/')} className="lp-brand" aria-label={t('Penny, home')}>
             <Wordmark height={26} />
           </Link>
-          <nav className="lp-links" aria-label="Page sections">
-            <a href="#try">Try it</a>
-            <a href="#features">Features</a>
-            <a href="#tour">Tour</a>
-            <a href="#privacy">Privacy</a>
-            <a href="#faq">Questions</a>
-            <a href="/guides">Guides</a>
+          <nav className="lp-links" aria-label={t('Page sections')}>
+            <a href="#try">{t('Try it')}</a>
+            <a href="#features">{t('Features')}</a>
+            <a href="#tour">{t('Tour')}</a>
+            <a href="#privacy">{t('Privacy')}</a>
+            <a href="#faq">{t('Questions')}</a>
+            <a href={to('/guides')}>{t('Guides')}</a>
           </nav>
           <div className="lp-nav-actions">
+            <LanguageLinks />
             <span className="lp-theme-nav">
               <ThemeToggle compact />
             </span>
             <Link className="btn" to="/login">
-              Log in
+              {t('Log in')}
             </Link>
             {signupsOpen && (
               <Link className="btn primary" to="/signup">
-                Sign up
+                {t('Sign up')}
               </Link>
             )}
           </div>
@@ -650,33 +653,33 @@ export default function Landing() {
           </div>
           <div className="lp-wrap">
             <p className="lp-pill">
-              <span className="lp-pulse-dot" /> A calm budget for real life
+              <span className="lp-pulse-dot" /> {t('A calm budget for real life')}
             </p>
             <h1>
-              See your money <span className="lp-grad">months ahead</span>, not just where it went.
+              {tRich('See your money {span}, not just where it went.', { span: <span className="lp-grad">{t('months ahead')}</span> })}
             </h1>
             <p className="lp-lead">
-              Penny turns your payments, recurring bills, installments and debts into one clear forecast. Bring in a bank statement instead of typing, plan each month category by category, and share a budget with the people you live with. No bank login, no ads, no selling your data.
+              {t('Penny turns your payments, recurring bills, installments and debts into one clear forecast. Bring in a bank statement instead of typing, plan each month category by category, and share a budget with the people you live with. No bank login, no ads, no selling your data.')}
             </p>
             <div className="lp-cta">
               {signup}
               <Link className={`btn lp-big${signupsOpen ? '' : ' primary'}`} to="/login">
-                Log in
+                {t('Log in')}
               </Link>
             </div>
-            <p className="lp-note">{signupsOpen ? 'Free to use · Takes a minute · Works on your phone' : 'Sign-ups are closed for now. If you already have an account, log in.'}</p>
+            <p className="lp-note">{signupsOpen ? t('Free to use · Takes a minute · Works on your phone') : t('Sign-ups are closed for now. If you already have an account, log in.')}</p>
 
             <div className="lp-stage">
               <div className="lp-hero-shot">
-                <Shot name="dashboard" alt="The Penny dashboard: balance today, a chart of the balance and forecast, and what needs attention" priority />
+                <Shot name="dashboard" alt={t('The Penny dashboard: balance today, a chart of the balance and forecast, and what needs attention')} priority />
               </div>
               <div className="lp-float f1" aria-hidden="true">
                 <span className="ico ok">
                   <Icon name="check" size={16} />
                 </span>
                 <span>
-                  <strong>No dip ahead</strong>
-                  <small>lowest €4,262 in February</small>
+                  <strong>{t('No dip ahead')}</strong>
+                  <small>{t('lowest €4,262 in February')}</small>
                 </span>
               </div>
               <div className="lp-float f2" aria-hidden="true">
@@ -684,8 +687,8 @@ export default function Landing() {
                   <Icon name="trend" size={16} />
                 </span>
                 <span>
-                  <strong>Safe to spend</strong>
-                  <small>€176 a day until payday</small>
+                  <strong>{t('Safe to spend')}</strong>
+                  <small>{t('€176 a day until payday')}</small>
                 </span>
               </div>
               <div className="lp-float f3" aria-hidden="true">
@@ -693,8 +696,8 @@ export default function Landing() {
                   <Icon name="bell" size={16} />
                 </span>
                 <span>
-                  <strong>Rent is due in 3 days</strong>
-                  <small>€780 · on your calendar</small>
+                  <strong>{t('Rent is due in 3 days')}</strong>
+                  <small>{t('€780 · on your calendar')}</small>
                 </span>
               </div>
               <div className="lp-float f4" aria-hidden="true">
@@ -702,19 +705,19 @@ export default function Landing() {
                   <Icon name="users" size={16} />
                 </span>
                 <span>
-                  <strong>Sam added a payment</strong>
-                  <small>to Home, your shared budget</small>
+                  <strong>{t('Sam added a payment')}</strong>
+                  <small>{t('to Home, your shared budget')}</small>
                 </span>
               </div>
             </div>
           </div>
         </section>
 
-        <div className="lp-marquee" aria-label="What Penny covers">
+        <div className="lp-marquee" aria-label={t('What Penny covers')}>
           <div className="lp-marquee-track">
             {[...MARQUEE, ...MARQUEE].map((m, i) => (
               <span key={m + i} aria-hidden={i >= MARQUEE.length ? 'true' : undefined}>
-                <i /> {m}
+                <i /> {t(m)}
               </span>
             ))}
           </div>
@@ -728,8 +731,8 @@ export default function Landing() {
 
         <section id="how" className="lp-section lp-tint">
           <div className="lp-wrap">
-            <p className="lp-eyebrow lp-center lp-reveal">How it works</p>
-            <h2 className="lp-reveal">Three steps, then it looks after itself</h2>
+            <p className="lp-eyebrow lp-center lp-reveal">{t('How it works')}</p>
+            <h2 className="lp-reveal">{t('Three steps, then it looks after itself')}</h2>
             <ol className="lp-steps">
               {STEPS.map((s, i) => (
                 <li key={s.title} className="lp-reveal" style={{ '--d': `${i * 90}ms` }}>
@@ -749,9 +752,9 @@ export default function Landing() {
 
         <section id="privacy" className="lp-dark">
           <div className="lp-wrap">
-            <p className="lp-eyebrow lp-center lp-reveal">Privacy</p>
-            <h2 className="lp-reveal">Your money, your data</h2>
-            <p className="lp-sub lp-reveal">A budget is personal. Penny is built so that it stays that way.</p>
+            <p className="lp-eyebrow lp-center lp-reveal">{t('Privacy')}</p>
+            <h2 className="lp-reveal">{t('Your money, your data')}</h2>
+            <p className="lp-sub lp-reveal">{t('A budget is personal. Penny is built so that it stays that way.')}</p>
             <ul className="lp-privacy-grid">
               {PRIVACY.map((p, i) => (
                 <li key={p.title} className="lp-reveal" style={{ '--d': `${i * 80}ms` }}>
@@ -764,15 +767,15 @@ export default function Landing() {
               ))}
             </ul>
             <p className="lp-more lp-reveal">
-              Read the <Link to="/privacy">privacy policy</Link> and the <Link to="/terms">terms of use</Link>.
+              {tRich('Read the {link} and the {link2}.', { link: <Link to={to('/privacy')}>{t('privacy policy')}</Link>, link2: <Link to={to('/terms')}>{t('terms of use')}</Link> })}
             </p>
           </div>
         </section>
 
         <section id="faq" className="lp-section">
           <div className="lp-wrap lp-narrow">
-            <p className="lp-eyebrow lp-center lp-reveal">Questions</p>
-            <h2 className="lp-reveal">Good to know</h2>
+            <p className="lp-eyebrow lp-center lp-reveal">{t('Questions')}</p>
+            <h2 className="lp-reveal">{t('Good to know')}</h2>
             <div className="lp-faq lp-reveal">
               {FAQ.map((f) => (
                 <details key={f.q}>
@@ -786,17 +789,17 @@ export default function Landing() {
 
         <section className="lp-final">
           <div className="lp-wrap lp-reveal">
-            <h2>Ready to see what is ahead?</h2>
-            <p>{signupsOpen ? 'Make an account in a minute, and add your first payment.' : 'Sign-ups are closed for now. If you already have an account, log in.'}</p>
+            <h2>{t('Ready to see what is ahead?')}</h2>
+            <p>{signupsOpen ? t('Make an account in a minute, and add your first payment.') : t('Sign-ups are closed for now. If you already have an account, log in.')}</p>
             <div className="lp-cta lp-cta-center">
               {signupsOpen && (
                 <Link className="btn lp-big lp-white" to="/signup">
-                  Create your account
+                  {t('Create your account')}
                   <Icon name="right" size={18} />
                 </Link>
               )}
               <Link className={`btn lp-big ${signupsOpen ? 'lp-ghost' : 'lp-white'}`} to="/login">
-                Log in
+                {t('Log in')}
               </Link>
             </div>
           </div>
@@ -806,18 +809,19 @@ export default function Landing() {
       <footer className="lp-footer">
         <div className="lp-wrap lp-footer-in">
           <Wordmark height={22} />
-          <nav aria-label="Footer">
-            <a href="/guides">Guides</a>
-            <Link to="/terms">Terms of use</Link>
-            <Link to="/privacy">Privacy policy</Link>
-            <Link to="/login">Log in</Link>
-            {signupsOpen && <Link to="/signup">Sign up</Link>}
-            <Link to="/contact">Contact</Link>
+          <nav aria-label={t('Footer')}>
+            <a href={to('/guides')}>{t('Guides')}</a>
+            <Link to={to('/terms')}>{t('Terms of use')}</Link>
+            <Link to={to('/privacy')}>{t('Privacy policy')}</Link>
+            <Link to="/login">{t('Log in')}</Link>
+            {signupsOpen && <Link to="/signup">{t('Sign up')}</Link>}
+            <Link to={to('/contact')}>{t('Contact')}</Link>
           </nav>
+          <LanguageLinks className="lp-lang-foot" />
           <span className="lp-theme-foot">
             <ThemeToggle compact />
           </span>
-          <span className="lp-copy">© {new Date().getFullYear()} Penny</span>
+          <span className="lp-copy">{t('© {getFullYear} Penny', { getFullYear: new Date().getFullYear() })}</span>
         </div>
       </footer>
     </div>

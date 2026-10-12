@@ -1,4 +1,5 @@
 import { addMonths } from './recurrenceLogic.js';
+import { t } from './i18n/translate.js';
 
 const toCents = (v) => Math.round((Number(v) || 0) * 100);
 
@@ -25,17 +26,19 @@ export function previewPlan({ plan, owed, firstDate, count }) {
 
 /** One line saying what the plan of a debt is. */
 export function describePlan(debt, dateLong) {
-  if (debt.plan === 'none') return 'Not scheduled yet';
-  if (debt.plan === 'once') return `All in one go on ${dateLong(debt.first_due_date)}`;
-  return `${debt.installment_count} monthly ${debt.direction === 'lent' ? 'repayments' : 'payments'} from ${dateLong(debt.first_due_date)}`;
+  if (debt.plan === 'none') return t('Not scheduled yet');
+  if (debt.plan === 'once') return t('All in one go on {dateLong}', { dateLong: dateLong(debt.first_due_date) });
+  return debt.direction === 'lent'
+    ? t('{installment_count} monthly repayments from {dateLong}', { installment_count: debt.installment_count, dateLong: dateLong(debt.first_due_date) })
+    : t('{installment_count} monthly payments from {dateLong}', { installment_count: debt.installment_count, dateLong: dateLong(debt.first_due_date) });
 }
 
 /** The short badge that says how the debt relates to the budget. */
 export function budgetStatus(debt) {
-  if (debt.status === 'settled') return { tone: 'ok', label: debt.direction === 'lent' ? 'Paid back' : 'Settled' };
-  if (!debt.count_in_budget) return { tone: '', label: 'Not counted' };
-  if (debt.scheduled_count > 0) return { tone: 'tone-forecast', label: 'In your forecast' };
-  return { tone: '', label: 'Counted · no plan yet' };
+  if (debt.status === 'settled') return { tone: 'ok', label: debt.direction === 'lent' ? t('Paid back') : t('Settled') };
+  if (!debt.count_in_budget) return { tone: '', label: t('Not counted') };
+  if (debt.scheduled_count > 0) return { tone: 'tone-forecast', label: t('In your forecast') };
+  return { tone: '', label: t('Counted · no plan yet') };
 }
 
 /**
@@ -76,48 +79,48 @@ export const ofDirection = (debts, direction) => (debts ?? []).filter((d) => dir
 /** The words of each side of the page, so the screen reads naturally both ways. */
 export const WORDS = {
   owe: {
-    tab: 'I owe',
-    title: 'Debts',
-    lead: 'Money you owe. Pay it all in one month, split it over months, or just keep it on file for now.',
-    name: 'Who or what is it owed to?',
-    namePlaceholder: 'e.g. Faeze, Car loan',
-    amount: 'Amount owed',
-    still: 'Still owed',
-    add: 'Add debt',
-    addTitle: 'Add debt',
-    editTitle: 'Edit debt',
-    action: 'Record a payment',
-    paid: 'paid',
-    paidSoFar: 'Paid so far',
-    settle: 'Mark settled',
-    nextWord: 'Next payment',
-    emptyTitle: 'No debts',
-    empty: 'Add money you owe, for example to a friend. Choose when to pay it, and whether it counts in your balance and forecast.',
+    get tab() { return t('I owe'); },
+    get title() { return t('Debts'); },
+    get lead() { return t('Money you owe. Pay it all in one month, split it over months, or just keep it on file for now.'); },
+    get name() { return t('Who or what is it owed to?'); },
+    get namePlaceholder() { return t('e.g. Faeze, Car loan'); },
+    get amount() { return t('Amount owed'); },
+    get still() { return t('Still owed'); },
+    get add() { return t('Add debt'); },
+    get addTitle() { return t('Add debt'); },
+    get editTitle() { return t('Edit debt'); },
+    get action() { return t('Record a payment'); },
+    get paid() { return t('paid'); },
+    get paidSoFar() { return t('Paid so far'); },
+    get settle() { return t('Mark settled'); },
+    get nextWord() { return t('Next payment'); },
+    get emptyTitle() { return t('No debts'); },
+    get empty() { return t('Add money you owe, for example to a friend. Choose when to pay it, and whether it counts in your balance and forecast.'); },
     categoryKind: 'expense',
-    stepWord: { paid: 'Paid', overdue: 'Overdue', next: 'Next', later: 'Planned', open: 'Not scheduled yet' },
-    end: 'Debt-free',
+    stepWord: { get paid() { return t('Paid'); }, get overdue() { return t('Overdue'); }, get next() { return t('Next'); }, get later() { return t('Planned'); }, get open() { return t('Not scheduled yet'); } },
+    get end() { return t('Debt-free'); },
   },
   lent: {
-    tab: 'Owed to me',
-    title: 'Debts',
-    lead: 'Money other people owe you: a loan to a friend, a share of a bill someone will pay back. Count it in your forecast, or just keep it on file.',
-    name: 'Who owes you?',
-    namePlaceholder: 'e.g. Sam, Dinner share',
-    amount: 'Amount owed to you',
-    still: 'Still owed to you',
-    add: 'Add what someone owes me',
-    addTitle: 'Someone owes me',
-    editTitle: 'Edit what someone owes me',
-    action: 'Record money received',
-    paid: 'received',
-    paidSoFar: 'Received so far',
-    settle: 'Mark as paid back',
-    nextWord: 'Next repayment',
-    emptyTitle: 'Nobody owes you',
-    empty: 'Add money a friend borrowed or will pay you back. Choose when you expect it, and whether it counts in your forecast.',
+    get tab() { return t('Owed to me'); },
+    get title() { return t('Debts'); },
+    get lead() { return t('Money other people owe you: a loan to a friend, a share of a bill someone will pay back. Count it in your forecast, or just keep it on file.'); },
+    get name() { return t('Who owes you?'); },
+    get namePlaceholder() { return t('e.g. Sam, Dinner share'); },
+    get amount() { return t('Amount owed to you'); },
+    get still() { return t('Still owed to you'); },
+    get add() { return t('Add what someone owes me'); },
+    get addTitle() { return t('Someone owes me'); },
+    get editTitle() { return t('Edit what someone owes me'); },
+    get action() { return t('Record money received'); },
+    get paid() { return t('received'); },
+    get paidSoFar() { return t('Received so far'); },
+    get settle() { return t('Mark as paid back'); },
+    get nextWord() { return t('Next repayment'); },
+    get emptyTitle() { return t('Nobody owes you'); },
+    get empty() { return t('Add money a friend borrowed or will pay you back. Choose when you expect it, and whether it counts in your forecast.'); },
     categoryKind: 'income',
-    stepWord: { paid: 'Received', overdue: 'Late', next: 'Next', later: 'Expected', open: 'Not scheduled yet' },
-    end: 'Paid back',
+    stepWord: { get paid() { return t('Received'); }, get overdue() { return t('Late'); }, get next() { return t('Next'); }, get later() { return t('Expected'); }, get open() { return t('Not scheduled yet'); } },
+    get end() { return t('Paid back'); },
   },
 };
 

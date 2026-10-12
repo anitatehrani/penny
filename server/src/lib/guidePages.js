@@ -1,18 +1,22 @@
-// The guides as web pages (docs/DESIGN.md section 45). They are written by the server as ordinary HTML that needs no scripts: the words are in the page for
+// The guides as web pages (docs/DESIGN.md sections 45 and 46). They are written by the server as ordinary HTML that needs no scripts: the words are in the page for
 // people, screen readers and search engines alike, and the page is light. They wear the same stylesheet as the rest of Penny (found in the built index.html)
 // and the look of the terms and privacy pages. All text is escaped; only **bold** and links to addresses on this site are allowed in the content.
+// Each guide has an address per language (/guides/x, /it/guides/x): the writing is English in guides.js and Italian in the dictionary.
 
 import { GUIDES, GUIDES_INDEX, guideBySlug } from '../content/guides.js';
-import { escapeHtml } from './seo.js';
+import { LANGUAGES, localeOf, runWithLanguage, t, withLang } from './i18n.js';
+import { alternateLinks, escapeHtml, OG_LOCALE } from './seo.js';
 import { signupsOpen } from './signups.js';
 
 const esc = escapeHtml;
 const LABEL = 'Penny';
+// the addresses of this site that exist in every language (the others, like /login, are the app's)
+const PUBLIC = (href) => href === '/' || href === '/terms' || href === '/privacy' || href === '/contact' || href === '/guides' || href.startsWith('/guides/');
 
-/** Escaped text with **bold** and [links](/to/this/site) made into markup. */
-export function inline(text) {
+/** Escaped text with **bold** and [links](/to/this/site) made into markup; a link to a public page goes to the page in the same language. */
+export function inline(text, lang = 'en') {
   return esc(text)
-    .replace(/\[([^\]]+)\]\((\/[a-z0-9/_-]*)\)/g, (_m, label, href) => `<a href="${href}">${label}</a>`)
+    .replace(/\[([^\]]+)\]\((\/[a-z0-9/_-]*)\)/g, (_m, label, href) => `<a href="${PUBLIC(href) ? withLang(href, lang) : href}">${label}</a>`)
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
 }
 const plain = (text) => String(text).replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/\*\*/g, '');
@@ -30,19 +34,22 @@ export function wordCount(g) {
 }
 export const readMinutes = (g) => Math.max(2, Math.round(wordCount(g) / 200));
 
-const longDate = (iso) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+// the numbers in the examples are written the English way in guides.js; in Italian the point and the comma swap places
+const number = (v, lang) => (lang === 'it' ? String(v).replace(/[.,]/g, (c) => (c === ',' ? '.' : ',')) : String(v));
+const longDate = (iso, lang) => new Date(`${iso}T12:00:00Z`).toLocaleDateString(lang === 'en' ? 'en-GB' : localeOf(), { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
 
-function blocksHtml(blocks) {
+function blocksHtml(blocks, lang) {
+  const i = (text) => inline(t(text), lang);
   return blocks
     .map((b) => {
-      if (typeof b === 'string') return `<p>${inline(b)}</p>`;
-      if (b.ul) return `<ul>${b.ul.map((i) => `<li>${inline(i)}</li>`).join('')}</ul>`;
-      if (b.ol) return `<ol>${b.ol.map((i) => `<li>${inline(i)}</li>`).join('')}</ol>`;
+      if (typeof b === 'string') return `<p>${i(b)}</p>`;
+      if (b.ul) return `<ul>${b.ul.map((x) => `<li>${i(x)}</li>`).join('')}</ul>`;
+      if (b.ol) return `<ol>${b.ol.map((x) => `<li>${i(x)}</li>`).join('')}</ol>`;
       if (b.example) {
-        const rows = b.example.rows.map(([label, value]) => `<tr><th scope="row">${inline(label)}</th><td>${esc(value)}</td></tr>`).join('');
-        return `<table class="g-example"><caption>${esc(b.example.title)}</caption><tbody>${rows}</tbody></table>${b.example.note ? `<p class="g-note">${inline(b.example.note)}</p>` : ''}`;
+        const rows = b.example.rows.map(([label, value]) => `<tr><th scope="row">${i(label)}</th><td>${esc(number(value, lang))}</td></tr>`).join('');
+        return `<table class="g-example"><caption>${esc(t(b.example.title))}</caption><tbody>${rows}</tbody></table>${b.example.note ? `<p class="g-note">${i(b.example.note)}</p>` : ''}`;
       }
-      return `<p class="g-note">${inline(b.note)}</p>`;
+      return `<p class="g-note">${i(b.note)}</p>`;
     })
     .join('\n');
 }
@@ -53,10 +60,12 @@ export const stylesFrom = (indexHtml) => (String(indexHtml ?? '').match(/<link r
 const THEME_SCRIPT = `try { var t = localStorage.getItem('theme'); if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t); } catch (e) {}`;
 const json = (data) => JSON.stringify(data).replace(/</g, '\\u003c');
 
-function shell({ base, styles, title, description, path, ogType = 'website', robots = null, current = 'guides', jsonLd = [], body }) {
-  const url = `${base}${path}`;
+function shell({ lang, base, styles, title, description, path, ogType = 'website', robots = null, current = 'guides', jsonLd = [], body }) {
+  const to = (p) => withLang(p, lang);
+  const url = `${base}${to(path)}`;
+  const alternates = robots ? [] : alternateLinks(base, path);
   return `<!doctype html>
-<html lang="en">
+<html lang="${lang}">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -68,8 +77,9 @@ function shell({ base, styles, title, description, path, ogType = 'website', rob
     <meta name="color-scheme" content="light dark" />
     <title>${esc(title)}</title>
     <meta name="description" content="${esc(description)}" />
-    <link rel="canonical" href="${esc(url)}" />${robots ? `\n    <meta name="robots" content="${esc(robots)}" />` : ''}
+    <link rel="canonical" href="${esc(url)}" />${alternates.map((a) => `\n    ${a}`).join('')}${robots ? `\n    <meta name="robots" content="${esc(robots)}" />` : ''}
     <meta property="og:type" content="${ogType}" />
+    <meta property="og:locale" content="${OG_LOCALE[lang]}" />
     <meta property="og:site_name" content="${LABEL}" />
     <meta property="og:title" content="${esc(title.replace(/ · Penny$/, ''))}" />
     <meta property="og:description" content="${esc(description)}" />
@@ -82,23 +92,24 @@ function shell({ base, styles, title, description, path, ogType = 'website', rob
     ${styles}${jsonLd.map((d) => `\n    <script type="application/ld+json">${json(d)}</script>`).join('')}
   </head>
   <body>
-    <a class="skip-link" href="#main">Skip to the text</a>
+    <a class="skip-link" href="#main">${esc(t('Skip to the text'))}</a>
     <div class="legal-page">
       <header class="legal-top">
-        <a class="legal-brand" href="/" aria-label="Penny, home">
+        <a class="legal-brand" href="${to('/')}" aria-label="${esc(t('Penny, home'))}">
           <img class="g-mark g-mark-light" src="/brand/penny-wordmark.svg" alt="" width="82" height="26" />
           <img class="g-mark g-mark-dark" src="/brand/penny-wordmark-light.svg" alt="" width="82" height="26" />
         </a>
-        <nav class="legal-nav" aria-label="Pages">
-          <a href="/guides"${current === 'guides' ? ' aria-current="page"' : ''}>Guides</a>
-          <a href="/terms">Terms of use</a>
-          <a href="/privacy">Privacy policy</a>
-          <a href="/contact">Contact</a>
+        <nav class="legal-nav" aria-label="${esc(t('Pages'))}">
+          <a href="${to('/guides')}"${current === 'guides' ? ' aria-current="page"' : ''}>${esc(t('Guides'))}</a>
+          <a href="${to('/terms')}">${esc(t('Terms of use'))}</a>
+          <a href="${to('/privacy')}">${esc(t('Privacy policy'))}</a>
+          <a href="${to('/contact')}">${esc(t('Contact'))}</a>
+          <span class="lang-links" role="group" aria-label="${esc(t('Language'))}">${LANGUAGES.map((l) => `<a href="${withLang(path, l)}" lang="${l}" hreflang="${l}"${l === lang ? ' aria-current="true" class="on"' : ''}>${l === 'it' ? 'Italiano' : 'English'}</a>`).join('')}</span>
         </nav>
       </header>
       <main class="legal-main" id="main">
 ${body}
-        <p class="legal-back"><a href="/">Back to the home page</a></p>
+        <p class="legal-back"><a href="${to('/')}">${esc(t('Back to the home page'))}</a></p>
       </main>
     </div>
   </body>
@@ -106,108 +117,120 @@ ${body}
 `;
 }
 
-const crumbs = (base, trail) => ({
+const crumbs = (base, trail, lang) => ({
   '@context': 'https://schema.org',
   '@type': 'BreadcrumbList',
-  itemListElement: trail.map(([name, path], i) => ({ '@type': 'ListItem', position: i + 1, name, item: `${base}${path}` })),
+  itemListElement: trail.map(([name, path], i) => ({ '@type': 'ListItem', position: i + 1, name, item: `${base}${withLang(path, lang)}` })),
 });
 
-const cta = () => `<section class="g-cta" aria-labelledby="g-try">
-          <h2 id="g-try">Try Penny</h2>
-          <p>Penny is a calm personal budget that shows your balance months ahead. Free to use, no ads, and no bank login.</p>
-          <p class="g-cta-buttons">${signupsOpen() ? '<a class="btn primary" href="/signup">Sign up free</a> ' : ''}<a class="btn${signupsOpen() ? '' : ' primary'}" href="/login">Log in</a></p>
-          ${signupsOpen() ? '' : '<p class="muted small">Sign-ups are closed for now. If you already have an account, log in.</p>'}
+const cta = (lang) => `<section class="g-cta" aria-labelledby="g-try">
+          <h2 id="g-try">${esc(t('Try Penny'))}</h2>
+          <p>${esc(t('Penny is a calm personal budget that shows your balance months ahead. Free to use, no ads, and no bank login.'))}</p>
+          <p class="g-cta-buttons">${signupsOpen() ? `<a class="btn primary" href="/signup">${esc(t('Sign up free'))}</a> ` : ''}<a class="btn${signupsOpen() ? '' : ' primary'}" href="/login">${esc(t('Log in'))}</a></p>
+          ${signupsOpen() ? '' : `<p class="muted small">${esc(t('Sign-ups are closed for now. If you already have an account, log in.'))}</p>`}
         </section>`;
 
 /** One guide as a complete page, or null when there is no such guide. */
-export function renderGuide(slug, { base, indexHtml }) {
+export function renderGuide(slug, { base, indexHtml, lang = 'en' }) {
   const g = guideBySlug(slug);
   if (!g) return null;
-  const path = `/guides/${g.slug}`;
-  const related = g.related.map((s) => guideBySlug(s)).filter(Boolean);
-  const body = `        <article class="legal-article guide">
-          <nav class="g-crumbs" aria-label="Breadcrumb"><a href="/">Penny</a> <span aria-hidden="true">›</span> <a href="/guides">Guides</a></nav>
-          <h1>${esc(g.title)}</h1>
-          <p class="legal-updated">Updated ${longDate(g.updated)} · ${readMinutes(g)} min read</p>
-          <p class="legal-lead">${inline(g.intro)}</p>
-${g.sections.map((s) => `          <section>\n          <h2>${esc(s.h)}</h2>\n${blocksHtml(s.blocks)}\n          </section>`).join('\n')}
+  return runWithLanguage(lang, () => {
+    const path = `/guides/${g.slug}`;
+    const to = (p) => withLang(p, lang);
+    const related = g.related.map((s) => guideBySlug(s)).filter(Boolean);
+    const title = t(g.title);
+    const body = `        <article class="legal-article guide">
+          <nav class="g-crumbs" aria-label="${esc(t('Breadcrumb'))}"><a href="${to('/')}">Penny</a> <span aria-hidden="true">›</span> <a href="${to('/guides')}">${esc(t('Guides'))}</a></nav>
+          <h1>${esc(title)}</h1>
+          <p class="legal-updated">${esc(t('Updated {date}', { date: longDate(g.updated, lang) }))} · ${esc(t('{n} min read', { n: readMinutes(g) }))}</p>
+          <p class="legal-lead">${inline(t(g.intro), lang)}</p>
+${g.sections.map((s) => `          <section>\n          <h2>${esc(t(s.h))}</h2>\n${blocksHtml(s.blocks, lang)}\n          </section>`).join('\n')}
           <section class="g-penny">
-          <h2>${esc(g.penny.h)}</h2>
-          <p>${inline(g.penny.text)}</p>
+          <h2>${esc(t(g.penny.h))}</h2>
+          <p>${inline(t(g.penny.text), lang)}</p>
           </section>
-          ${cta()}
+          ${cta(lang)}
           <section aria-labelledby="g-more">
-          <h2 id="g-more">More guides</h2>
-          <ul class="g-related">${related.map((r) => `<li><a href="/guides/${r.slug}">${esc(r.title)}</a><span class="muted small"> ${esc(r.description)}</span></li>`).join('')}</ul>
+          <h2 id="g-more">${esc(t('More guides'))}</h2>
+          <ul class="g-related">${related.map((r) => `<li><a href="${to(`/guides/${r.slug}`)}">${esc(t(r.title))}</a><span class="muted small"> ${esc(t(r.description))}</span></li>`).join('')}</ul>
           </section>
-          <p class="g-disclaimer muted small">This guide is general information, not financial advice.</p>
+          <p class="g-disclaimer muted small">${esc(t('This guide is general information, not financial advice.'))}</p>
         </article>`;
-  return shell({
-    base,
-    styles: stylesFrom(indexHtml),
-    title: `${g.title} · ${LABEL}`,
-    description: g.description,
-    path,
-    ogType: 'article',
-    body,
-    jsonLd: [
-      {
-        '@context': 'https://schema.org',
-        '@type': 'Article',
-        headline: g.title,
-        description: g.description,
-        datePublished: g.updated,
-        dateModified: g.updated,
-        inLanguage: 'en',
-        mainEntityOfPage: { '@type': 'WebPage', '@id': `${base}${path}` },
-        image: `${base}/landing/og.png`,
-        author: { '@type': 'Organization', name: LABEL, url: `${base}/` },
-        publisher: { '@type': 'Organization', name: LABEL, url: `${base}/`, logo: { '@type': 'ImageObject', url: `${base}/icon-512.png` } },
-      },
-      crumbs(base, [[LABEL, '/'], ['Guides', '/guides'], [g.title, path]]),
-    ],
+    return shell({
+      lang,
+      base,
+      styles: stylesFrom(indexHtml),
+      title: `${title} · ${LABEL}`,
+      description: t(g.description),
+      path,
+      ogType: 'article',
+      body,
+      jsonLd: [
+        {
+          '@context': 'https://schema.org',
+          '@type': 'Article',
+          headline: title,
+          description: t(g.description),
+          datePublished: g.updated,
+          dateModified: g.updated,
+          inLanguage: lang,
+          mainEntityOfPage: { '@type': 'WebPage', '@id': `${base}${to(path)}` },
+          image: `${base}/landing/og.png`,
+          author: { '@type': 'Organization', name: LABEL, url: `${base}/` },
+          publisher: { '@type': 'Organization', name: LABEL, url: `${base}/`, logo: { '@type': 'ImageObject', url: `${base}/icon-512.png` } },
+        },
+        crumbs(base, [[LABEL, '/'], [t('Guides'), '/guides'], [title, path]], lang),
+      ],
+    });
   });
 }
 
 /** The list of all guides. */
-export function renderGuidesIndex({ base, indexHtml }) {
-  const body = `        <article class="legal-article guide">
-          <nav class="g-crumbs" aria-label="Breadcrumb"><a href="/">Penny</a></nav>
-          <h1>Budgeting guides</h1>
-          <p class="legal-lead">${esc(GUIDES_INDEX.intro)}</p>
+export function renderGuidesIndex({ base, indexHtml, lang = 'en' }) {
+  return runWithLanguage(lang, () => {
+    const to = (p) => withLang(p, lang);
+    const body = `        <article class="legal-article guide">
+          <nav class="g-crumbs" aria-label="${esc(t('Breadcrumb'))}"><a href="${to('/')}">Penny</a></nav>
+          <h1>${esc(t('Budgeting guides'))}</h1>
+          <p class="legal-lead">${esc(t(GUIDES_INDEX.intro))}</p>
           <ul class="g-list">
-${GUIDES.map((g) => `            <li><a href="/guides/${g.slug}"><strong>${esc(g.title)}</strong><span>${esc(g.description)}</span></a><small class="muted">${readMinutes(g)} min read</small></li>`).join('\n')}
+${GUIDES.map((g) => `            <li><a href="${to(`/guides/${g.slug}`)}"><strong>${esc(t(g.title))}</strong><span>${esc(t(g.description))}</span></a><small class="muted">${esc(t('{n} min read', { n: readMinutes(g) }))}</small></li>`).join('\n')}
           </ul>
-          ${cta()}
+          ${cta(lang)}
         </article>`;
-  return shell({
-    base,
-    styles: stylesFrom(indexHtml),
-    title: GUIDES_INDEX.title,
-    description: GUIDES_INDEX.description,
-    path: '/guides',
-    body,
-    jsonLd: [
-      {
-        '@context': 'https://schema.org',
-        '@type': 'CollectionPage',
-        name: 'Budgeting guides',
-        description: GUIDES_INDEX.description,
-        url: `${base}/guides`,
-        inLanguage: 'en',
-        hasPart: GUIDES.map((g) => ({ '@type': 'Article', headline: g.title, url: `${base}/guides/${g.slug}` })),
-      },
-      crumbs(base, [[LABEL, '/'], ['Guides', '/guides']]),
-    ],
+    return shell({
+      lang,
+      base,
+      styles: stylesFrom(indexHtml),
+      title: t(GUIDES_INDEX.title),
+      description: t(GUIDES_INDEX.description),
+      path: '/guides',
+      body,
+      jsonLd: [
+        {
+          '@context': 'https://schema.org',
+          '@type': 'CollectionPage',
+          name: t('Budgeting guides'),
+          description: t(GUIDES_INDEX.description),
+          url: `${base}${to('/guides')}`,
+          inLanguage: lang,
+          hasPart: GUIDES.map((g) => ({ '@type': 'Article', headline: t(g.title), url: `${base}${to(`/guides/${g.slug}`)}` })),
+        },
+        crumbs(base, [[LABEL, '/'], [t('Guides'), '/guides']], lang),
+      ],
+    });
   });
 }
 
 /** A guide that does not exist: a page that says so and offers the real ones. Marked "do not index"; the server answers 404. */
-export function renderGuideNotFound({ base, indexHtml }) {
-  const body = `        <article class="legal-article guide">
-          <h1>That guide does not exist</h1>
-          <p class="legal-lead">It may have moved, or the address may be mistyped. These are the guides there are:</p>
-          <ul class="g-related">${GUIDES.map((g) => `<li><a href="/guides/${g.slug}">${esc(g.title)}</a></li>`).join('')}</ul>
+export function renderGuideNotFound({ base, indexHtml, lang = 'en' }) {
+  return runWithLanguage(lang, () => {
+    const to = (p) => withLang(p, lang);
+    const body = `        <article class="legal-article guide">
+          <h1>${esc(t('That guide does not exist'))}</h1>
+          <p class="legal-lead">${esc(t('It may have moved, or the address may be mistyped. These are the guides there are:'))}</p>
+          <ul class="g-related">${GUIDES.map((g) => `<li><a href="${to(`/guides/${g.slug}`)}">${esc(t(g.title))}</a></li>`).join('')}</ul>
         </article>`;
-  return shell({ base, styles: stylesFrom(indexHtml), title: `Guide not found · ${LABEL}`, description: 'That guide does not exist.', path: '/guides', robots: 'noindex, nofollow', body });
+    return shell({ lang, base, styles: stylesFrom(indexHtml), title: `${t('Guide not found')} · ${LABEL}`, description: t('That guide does not exist.'), path: '/guides', robots: 'noindex, nofollow', body });
+  });
 }

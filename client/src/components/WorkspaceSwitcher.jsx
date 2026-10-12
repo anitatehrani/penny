@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useWorkspace } from '../workspace.jsx';
 import { AvatarStack, Icon } from './ui.jsx';
+import { t } from '../i18n/translate.js';
 
 /** Pick which budget you are working in: your personal one or a shared group. */
 export default function WorkspaceSwitcher({ compact = false }) {
@@ -24,22 +25,22 @@ export default function WorkspaceSwitcher({ compact = false }) {
 
   return (
     <div className={`switcher${compact ? ' compact' : ''}`} ref={box}>
-      <button className={`switcher-btn${isGroup ? ' group' : ''}`} onClick={() => setOpen((o) => !o)} aria-haspopup="listbox" aria-expanded={open} aria-label={compact ? `Budget: ${current.name}` : undefined} title={compact ? current.name : undefined}>
+      <button className={`switcher-btn${isGroup ? ' group' : ''}`} onClick={() => setOpen((o) => !o)} aria-haspopup="listbox" aria-expanded={open} aria-label={compact ? t('Budget: {name}', { name: (current.kind === 'personal' ? t('Personal') : current.name) }) : undefined} title={compact ? (current.kind === 'personal' ? t('Personal') : current.name) : undefined}>
         <span className="switcher-icon">
           <Icon name={isGroup ? 'users' : 'user'} size={16} />
         </span>
         {!compact && (
           <>
             <span className="switcher-text">
-              <strong>{current.name}</strong>
-              <span className="muted small">{isGroup ? `Shared · ${current.members.length} people` : 'Only you'}</span>
+              <strong>{(current.kind === 'personal' ? t('Personal') : current.name)}</strong>
+              <span className="muted small">{isGroup ? t('Shared · {length} people', { length: current.members.length }) : t('Only you')}</span>
             </span>
             <Icon name="chevron" size={16} />
           </>
         )}
       </button>
       {open && (
-        <div className="switcher-menu" role="listbox" aria-label="Choose a budget">
+        <div className="switcher-menu" role="listbox" aria-label={t('Choose a budget')}>
           {spaces.map((w) => (
             <button
               key={w.id}
@@ -55,14 +56,14 @@ export default function WorkspaceSwitcher({ compact = false }) {
                 <Icon name={w.kind === 'group' ? 'users' : 'user'} size={16} />
               </span>
               <span className="switcher-text">
-                <strong>{w.kind === 'personal' ? 'Personal' : w.name}</strong>
-                {w.kind === 'group' ? <AvatarStack people={w.members} size={18} limit={5} /> : <span className="muted small">Your private budget</span>}
+                <strong>{w.kind === 'personal' ? t('Personal') : w.name}</strong>
+                {w.kind === 'group' ? <AvatarStack people={w.members} size={18} limit={5} /> : <span className="muted small">{t('Your private budget')}</span>}
               </span>
               {w.id === current.id && <Icon name="check" size={16} />}
             </button>
           ))}
           <Link to="/people?tab=groups" className="switcher-manage" onClick={() => setOpen(false)}>
-            <Icon name="plus" size={14} /> New or manage groups
+            <Icon name="plus" size={14} /> {t('New or manage groups')}
           </Link>
         </div>
       )}

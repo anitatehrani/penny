@@ -6,6 +6,7 @@ import TransactionForm from '../../components/TransactionForm.jsx';
 import { useApp } from '../../context.jsx';
 import { useQuick } from '../../quick.jsx';
 import PaymentRow from '../PaymentRow.jsx';
+import { t, tn } from '../../i18n/translate.js';
 
 const FIRST = 5;
 
@@ -21,18 +22,18 @@ export default function UpcomingWidget({ summary }) {
 
   if (rows.length === 0) {
     return (
-      <EmptyState art="calm" title="Nothing due in the next two weeks" action={<button className="btn sm" onClick={() => openAddPayment()}>Add a payment</button>}>
-        When you add a payment with a date, it will appear here.
+      <EmptyState art="calm" title={t('Nothing due in the next two weeks')} action={<button className="btn sm" onClick={() => openAddPayment()}>{t('Add a payment')}</button>}>
+        {t('When you add a payment with a date, it will appear here.')}
       </EmptyState>
     );
   }
   return (
     <>
       <p className="widget-lead">
-        <span className="num">{money(total)}</span> to pay across {rows.length} item{rows.length === 1 ? '' : 's'}
-        {summary.overdue.count > 0 && <span className="neg-text"> · {summary.overdue.count} overdue</span>}
+        <span className="num">{money(total)}</span> {tn(rows.length, 'to pay across {n} item', 'to pay across {n} items')}
+        {summary.overdue.count > 0 && <span className="neg-text"> {t('· {count} overdue', { count: summary.overdue.count })}</span>}
       </p>
-      <ul className="ledger" aria-label="Payments coming up">
+      <ul className="ledger" aria-label={t('Payments coming up')}>
         {shown.map((tx) => (
           <PaymentRow key={tx.id} tx={tx} onEdit={setEditing} />
         ))}
@@ -40,16 +41,16 @@ export default function UpcomingWidget({ summary }) {
       <div className="widget-foot">
         {rows.length > FIRST && (
           <button className="link-quiet" onClick={() => setExpanded((e) => !e)} aria-expanded={expanded}>
-            {expanded ? 'Show fewer' : `Show ${rows.length - FIRST} more`}
+            {expanded ? t('Show fewer') : t('Show {value} more', { value: rows.length - FIRST })}
           </button>
         )}
         <span className="spacer" />
         <Link to="/payments?status=pending" className="link-quiet">
-          All payments
+          {t('All payments')}
         </Link>
       </div>
       {editing && (
-        <Modal title="Edit payment" onClose={() => setEditing(null)}>
+        <Modal title={t('Edit payment')} onClose={() => setEditing(null)}>
           <TransactionForm
             initial={editing}
             onCancel={() => setEditing(null)}

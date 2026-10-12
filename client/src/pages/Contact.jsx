@@ -5,6 +5,8 @@ import Select from '../components/ds/Select.jsx';
 import { Field, Icon } from '../components/ui.jsx';
 import { useAuth } from '../auth.jsx';
 import { LegalShell } from './Legal.jsx';
+import { t } from '../i18n/translate.js';
+import { tRich, useLocalPath } from '../i18n/react.jsx';
 
 /**
  * The contact form (docs/DESIGN.md section 38). Public: it works signed in or out. A signed-in person gets their name and address filled in,
@@ -12,17 +14,18 @@ import { LegalShell } from './Legal.jsx';
  * programs (the server throws such messages away). Nothing is mailed back to the writer automatically.
  */
 export const TOPICS = [
-  { value: 'question', label: 'A question' },
-  { value: 'problem', label: 'Something is wrong' },
-  { value: 'idea', label: 'An idea' },
-  { value: 'account', label: 'My data or my account' },
-  { value: 'other', label: 'Something else' },
+  { value: 'question', get label() { return t('A question'); } },
+  { value: 'problem', get label() { return t('Something is wrong'); } },
+  { value: 'idea', get label() { return t('An idea'); } },
+  { value: 'account', get label() { return t('My data or my account'); } },
+  { value: 'other', get label() { return t('Something else'); } },
 ];
 const MAX = 4000;
 const MIN = 10;
 
 export default function Contact() {
   const { user } = useAuth();
+  const to = useLocalPath();
   const [form, setForm] = useState({ name: user?.name ?? '', email: user?.email ?? '', topic: 'question', message: '', website: '' });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
@@ -46,23 +49,23 @@ export default function Contact() {
 
   if (sent) {
     return (
-      <LegalShell which="contact" title="Thank you">
+      <LegalShell which="contact" title={t('Thank you')}>
         <div className="banner ok" role="status">
           <Icon name="check" />
           <div>
-            Your message is sent. If it needs an answer, it will come by e-mail to <strong>{form.email.trim().toLowerCase()}</strong>. That can take a few days, and the reply may land in spam.
+            {tRich('Your message is sent. If it needs an answer, it will come by e-mail to {bold}. That can take a few days, and the reply may land in spam.', { bold: <strong>{form.email.trim().toLowerCase()}</strong> })}
           </div>
         </div>
         <p>
-          <Link to="/">{user ? 'Back to Penny' : 'Back to the home page'}</Link>
+          <Link to={to('/')}>{user ? t('Back to Penny') : t('Back to the home page')}</Link>
         </p>
       </LegalShell>
     );
   }
 
   return (
-    <LegalShell which="contact" title="Contact us">
-      <p className="legal-lead">A question, something that is not working, an idea, or a request about your data or account. Write here and the person who runs Penny will read it.</p>
+    <LegalShell which="contact" title={t('Contact us')}>
+      <p className="legal-lead">{t('A question, something that is not working, an idea, or a request about your data or account. Write here and the person who runs Penny will read it.')}</p>
       <form onSubmit={submit} className="form contact-form" noValidate>
         {error && (
           <div className="banner danger" role="alert">
@@ -71,29 +74,29 @@ export default function Contact() {
           </div>
         )}
         <div className="contact-row">
-          <Field label="Your name">
+          <Field label={t('Your name')}>
             <input value={form.name} onChange={set('name')} autoComplete="name" maxLength={80} required />
           </Field>
-          <Field label="Your e-mail" hint="So there is somewhere to send the answer.">
+          <Field label={t('Your e-mail')} hint={t('So there is somewhere to send the answer.')}>
             <input type="email" value={form.email} onChange={set('email')} autoComplete="email" autoCapitalize="none" autoCorrect="off" spellCheck={false} maxLength={254} required />
           </Field>
         </div>
-        <Select label="What is it about?" value={form.topic} onChange={(v) => setForm((f) => ({ ...f, topic: v }))} options={TOPICS} />
-        <Field label="Your message" hint={left < 200 ? `${left} characters left` : `At least ${MIN} characters.`}>
+        <Select label={t('What is it about?')} value={form.topic} onChange={(v) => setForm((f) => ({ ...f, topic: v }))} options={TOPICS} />
+        <Field label={t('Your message')} hint={left < 200 ? t('{left} characters left', { left }) : t('At least {MIN} characters.', { MIN })}>
           <textarea value={form.message} onChange={set('message')} rows={7} maxLength={MAX} required />
         </Field>
         {/* the trap: people never see or reach this field, programs fill every field they find */}
         <div className="contact-trap" aria-hidden="true">
           <label>
-            Leave this empty
+            {t('Leave this empty')}
             <input name="website" value={form.website} onChange={set('website')} tabIndex={-1} autoComplete="off" />
           </label>
         </div>
         <button className="btn primary" disabled={!ready}>
-          {busy ? 'Sending…' : 'Send message'}
+          {busy ? t('Sending…') : t('Send message')}
         </button>
         <p className="muted small">
-          Please do not send passwords or card numbers. What you write is kept for a year; see the <Link to="/privacy">privacy policy</Link>.
+          {tRich('Please do not send passwords or card numbers. What you write is kept for a year; see the {link}.', { link: <Link to={to('/privacy')}>{t('privacy policy')}</Link> })}
         </p>
       </form>
     </LegalShell>

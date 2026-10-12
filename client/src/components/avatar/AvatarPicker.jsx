@@ -7,12 +7,13 @@ import { usePrefs } from '../../prefs.jsx';
 import { Avatar, avatarTone, initialsOf } from '../Avatar.jsx';
 import { Icon, Modal, Segmented } from '../ui.jsx';
 import { generatedSvg, illustratedSvg, svgToPng } from './art.js';
+import { t } from '../../i18n/translate.js';
 
 const STYLES = [
-  { value: 'photo', label: 'Photo' },
-  { value: 'initials', label: 'Initials' },
-  { value: 'generated', label: 'Generated' },
-  { value: 'illustrated', label: 'Illustrated' },
+  { value: 'photo', get label() { return t('Photo'); } },
+  { value: 'initials', get label() { return t('Initials'); } },
+  { value: 'generated', get label() { return t('Generated'); } },
+  { value: 'illustrated', get label() { return t('Illustrated'); } },
 ];
 const COUNT = 8;
 
@@ -54,17 +55,17 @@ export default function AvatarPicker({ onClose }) {
       setBusy(false);
     }
   }
-  const useDrawn = () => save(async () => api.upload('PUT', '/profile/avatar', await svgToPng(svgFor(choice, 256)), {}), 'Avatar updated');
-  const useInitials = () => save(() => api.del('/profile/avatar'), 'Using your initials');
+  const useDrawn = () => save(async () => api.upload('PUT', '/profile/avatar', await svgToPng(svgFor(choice, 256)), {}), t('Avatar updated'));
+  const useInitials = () => save(() => api.del('/profile/avatar'), t('Using your initials'));
   const pickFile = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
-    save(async () => api.upload('PUT', '/profile/avatar', await squareAvatar(file)), 'Profile picture updated');
+    save(async () => api.upload('PUT', '/profile/avatar', await squareAvatar(file)), t('Profile picture updated'));
   };
 
   return (
-    <Modal title="Choose your avatar" onClose={onClose}>
+    <Modal title={t('Choose your avatar')} onClose={onClose}>
       <div className="avatar-picker">
         <div className="avatar-preview">
           {style === 'initials' ? (
@@ -82,19 +83,19 @@ export default function AvatarPicker({ onClose }) {
           </div>
         </div>
 
-        <Segmented label="Avatar style" value={style} onChange={setStyle} options={STYLES} />
+        <Segmented label={t('Avatar style')} value={style} onChange={setStyle} options={STYLES} />
 
         {style === 'photo' && (
           <div className="picker-pane">
-            <p className="muted small">JPEG, PNG or WebP. It is cropped to a square and shrunk on your device. People who can see your profile can see it.</p>
-            <input ref={input} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={pickFile} aria-label="Choose a profile picture" data-testid="avatar-input" />
+            <p className="muted small">{t('JPEG, PNG or WebP. It is cropped to a square and shrunk on your device. People who can see your profile can see it.')}</p>
+            <input ref={input} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={pickFile} aria-label={t('Choose a profile picture')} data-testid="avatar-input" />
             <div className="picker-actions">
               <button className="btn primary" onClick={() => input.current.click()} disabled={busy}>
-                <Icon name="camera" size={16} /> {user.avatar_url ? 'Upload a new photo' : 'Upload a photo'}
+                <Icon name="camera" size={16} /> {user.avatar_url ? t('Upload a new photo') : t('Upload a photo')}
               </button>
               {own && (
                 <button className="btn" onClick={useInitials} disabled={busy}>
-                  <Icon name="trash" size={16} /> Remove photo
+                  <Icon name="trash" size={16} /> {t('Remove photo')}
                 </button>
               )}
             </div>
@@ -103,10 +104,10 @@ export default function AvatarPicker({ onClose }) {
 
         {style === 'initials' && (
           <div className="picker-pane">
-            <p className="muted small">A colour that is yours, with your initials. {user.google_linked ? 'If you connected Google, your Google picture is used when you have no photo.' : ''}</p>
+            <p className="muted small">{t('A colour that is yours, with your initials.')} {user.google_linked ? t('If you connected Google, your Google picture is used when you have no photo.') : ''}</p>
             <div className="picker-actions">
               <button className="btn primary" onClick={useInitials} disabled={busy}>
-                Use initials
+                {t('Use initials')}
               </button>
             </div>
           </div>
@@ -114,16 +115,16 @@ export default function AvatarPicker({ onClose }) {
 
         {(style === 'generated' || style === 'illustrated') && (
           <div className="picker-pane">
-            <div className="picker-grid" role="radiogroup" aria-label={`${style} avatars`}>
+            <div className="picker-grid" role="radiogroup" aria-label={t('{style} avatars', { style })}>
               {Array.from({ length: COUNT }, (_, i) => (
-                <button key={`${salt}-${i}`} role="radio" aria-checked={choice === i} aria-label={`Option ${i + 1}`} className={`picker-opt${choice === i ? ' on' : ''}`} onClick={() => setChoice(i)}>
+                <button key={`${salt}-${i}`} role="radio" aria-checked={choice === i} aria-label={t('Option {value}', { value: i + 1 })} className={`picker-opt${choice === i ? ' on' : ''}`} onClick={() => setChoice(i)}>
                   <Art svg={svgFor(i, 64)} size={64} />
                 </button>
               ))}
             </div>
             <div className="picker-actions">
               <button className="btn primary" onClick={useDrawn} disabled={busy}>
-                Use this avatar
+                {t('Use this avatar')}
               </button>
               <button
                 className="btn"
@@ -133,7 +134,7 @@ export default function AvatarPicker({ onClose }) {
                 }}
                 disabled={busy}
               >
-                <Icon name="refresh" size={16} /> Show others
+                <Icon name="refresh" size={16} /> {t('Show others')}
               </button>
             </div>
           </div>

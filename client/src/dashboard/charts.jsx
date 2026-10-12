@@ -3,6 +3,7 @@ import { useReducedMotion } from '../components/ds/hooks.js';
 import { Icon } from '../components/ui.jsx';
 import { useApp } from '../context.jsx';
 import { monthLabel } from '../format.js';
+import { t } from '../i18n/translate.js';
 
 /** Round tick values that always include 0, so the axis reads "−€1K, €0, €1K, €2K" rather than "€700.6". */
 function niceAxis(values, target = 4) {
@@ -27,10 +28,10 @@ const axisLabel = (ym, i) => {
 const AXIS = { tick: { fill: 'var(--ink-3)', fontSize: 11, fontFamily: 'var(--font-mono)' }, tickLine: false, axisLine: false };
 
 /** "▲ 12% vs last month": direction is an arrow and a sign, colour only reinforces it. `goodWhen` says which way is good. */
-export function Delta({ now, before, goodWhen = 'down', suffix = 'vs last month', compact }) {
+export function Delta({ now, before, goodWhen = 'down', suffix = t('vs last month'), compact }) {
   if (before == null || before === 0) return null;
   const pct = Math.round(((now - before) / Math.abs(before)) * 100);
-  if (pct === 0) return <span className="delta flat">Unchanged {suffix}</span>;
+  if (pct === 0) return <span className="delta flat">{t('Unchanged {suffix}', { suffix })}</span>;
   const up = pct > 0;
   const good = (goodWhen === 'down') === !up;
   return (
@@ -53,16 +54,16 @@ function TrendTooltip({ active, payload }) {
     <div className="chart-tip">
       <strong>{monthLabel(p.month)}</strong>
       <div className="chart-tip-row">
-        <span>{p.kind === 'forecast' ? 'Forecast' : p.kind === 'current' ? 'Expected at month end' : 'Month-end balance'}</span>
+        <span>{p.kind === 'forecast' ? t('Forecast') : p.kind === 'current' ? t('Expected at month end') : t('Month-end balance')}</span>
         <span className={`num ${p.balance < 0 ? 'neg' : ''}`}>{money(p.balance)}</span>
       </div>
       {p.change != null && (
         <div className="chart-tip-row muted">
-          <span>Change over the month</span>
+          <span>{t('Change over the month')}</span>
           <span className="num">{p.change >= 0 ? '+' : '−'}{money(Math.abs(p.change))}</span>
         </div>
       )}
-      {p.kind !== 'actual' && <div className="chart-tip-note">Dashed means predicted</div>}
+      {p.kind !== 'actual' && <div className="chart-tip-note">{t('Dashed means predicted')}</div>}
     </div>
   );
 }
@@ -94,7 +95,13 @@ export function BalanceTrend({ months, height = 190, marker, buffer = 0 }) {
   const dip = data.find((d) => d.kind !== 'actual' && d.balance < 0);
   const low = min > 0 && !dip ? data.find((d) => d.kind !== 'actual' && d.balance < min) : null; // under the buffer but not below zero
   const mark = marker ? data.find((d) => d.month === marker) : null; // the month the dashboard is pointed at
-  const label = `${mark ? `${monthLabel(mark.month)} is marked. ` : ''}Month-end balance from ${monthLabel(months[0].month)} to ${monthLabel(months.at(-1).month)}. Lowest ${money(Math.min(...values))}.${dip ? ` It dips below zero in ${monthLabel(dip.month)}.` : ''}${low ? ` It dips below your ${money(min)} buffer in ${monthLabel(low.month)}.` : ''}`;
+  const label = [
+    mark ? t('{monthLabel} is marked.', { monthLabel: monthLabel(mark.month) }) : '',
+    t('Month-end balance from {monthLabel} to {monthLabel2}. Lowest {money}.', { monthLabel: monthLabel(months[0].month), monthLabel2: monthLabel(months.at(-1).month), money: money(Math.min(...values)) }),
+    dip ? t('It dips below zero in {monthLabel}.', { monthLabel: monthLabel(dip.month) }) : low ? t('It dips below your {money} buffer in {monthLabel}.', { money: money(min), monthLabel: monthLabel(low.month) }) : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   return (
     <div role="img" aria-label={label} className="chart-box" style={{ height }}>
@@ -104,14 +111,14 @@ export function BalanceTrend({ months, height = 190, marker, buffer = 0 }) {
           <XAxis dataKey="month" {...AXIS} tickFormatter={(m) => labels[m]} interval="preserveStartEnd" minTickGap={18} tickMargin={8} padding={{ left: 14, right: 6 }} />
           <YAxis {...AXIS} width={54} domain={axis.domain} ticks={axis.ticks} tickFormatter={(v) => money.compact(v)} />
           <ReferenceLine y={0} stroke="var(--ink-3)" strokeDasharray="3 3" />
-          {min > 0 && <ReferenceLine y={min} stroke="var(--caution)" strokeDasharray="6 4" label={{ value: 'Buffer', position: 'insideTopRight', fill: 'var(--caution)', fontSize: 11, fontWeight: 600 }} />}
+          {min > 0 && <ReferenceLine y={min} stroke="var(--caution)" strokeDasharray="6 4" label={{ value: t('Buffer'), position: 'insideTopRight', fill: 'var(--caution)', fontSize: 11, fontWeight: 600 }} />}
           <Tooltip content={<TrendTooltip />} cursor={{ stroke: 'var(--ink-3)', strokeDasharray: '2 3' }} isAnimationActive={false} />
           <Area type="monotone" dataKey="actual" stroke="var(--series-3)" strokeWidth={2.25} fill="var(--series-3)" fillOpacity={0.1} dot={false} activeDot={{ r: 5, stroke: 'var(--surface)', strokeWidth: 2 }} isAnimationActive={!reduced} animationDuration={700} connectNulls={false} />
           <Line type="monotone" dataKey="forecast" stroke="var(--forecast)" strokeWidth={2.25} strokeDasharray="5 5" dot={false} activeDot={{ r: 5, stroke: 'var(--surface)', strokeWidth: 2 }} isAnimationActive={!reduced} animationDuration={700} connectNulls={false} />
           {mark && <ReferenceLine x={mark.month} stroke="var(--accent)" strokeDasharray="2 3" />}
           {mark && <ReferenceDot x={mark.month} y={mark.balance} r={6} fill="var(--accent)" stroke="var(--surface)" strokeWidth={2} />}
           {low && <ReferenceDot x={low.month} y={low.balance} r={5} fill="var(--caution)" stroke="var(--surface)" strokeWidth={2} />}
-          {dip && <ReferenceDot x={dip.month} y={dip.balance} r={5} fill="var(--neg)" stroke="var(--surface)" strokeWidth={2} label={{ value: 'Dips below zero', position: 'left', offset: 10, fill: 'var(--neg)', fontSize: 11, fontWeight: 600 }} />}
+          {dip && <ReferenceDot x={dip.month} y={dip.balance} r={5} fill="var(--neg)" stroke="var(--surface)" strokeWidth={2} label={{ value: t('Dips below zero'), position: 'left', offset: 10, fill: 'var(--neg)', fontSize: 11, fontWeight: 600 }} />}
         </ComposedChart>
       </ResponsiveContainer>
     </div>
@@ -125,22 +132,22 @@ function FlowTooltip({ active, payload }) {
   return (
     <div className="chart-tip">
       <strong>
-        {monthLabel(p.month)} <span className="muted">{p.kind === 'forecast' ? '· forecast' : p.kind === 'current' ? '· this month' : ''}</span>
+        {monthLabel(p.month)} <span className="muted">{p.kind === 'forecast' ? t('· forecast') : p.kind === 'current' ? t('· this month') : ''}</span>
       </strong>
       <div className="chart-tip-row">
         <span>
-          <i className="swatch" style={{ background: 'var(--series-1)' }} /> Income
+          <i className="swatch" style={{ background: 'var(--series-1)' }} /> {t('Income')}
         </span>
         <span className="num">{money(p.income)}</span>
       </div>
       <div className="chart-tip-row">
         <span>
-          <i className="swatch" style={{ background: 'var(--series-2)' }} /> Expenses
+          <i className="swatch" style={{ background: 'var(--series-2)' }} /> {t('Expenses')}
         </span>
         <span className="num">{money(p.expenses)}</span>
       </div>
       <div className="chart-tip-row strong">
-        <span>Net</span>
+        <span>{t('Net')}</span>
         <span className={`num ${p.net < 0 ? 'neg' : 'pos'}`}>
           {p.net >= 0 ? '+' : '−'}
           {money(Math.abs(p.net))}
@@ -148,11 +155,11 @@ function FlowTooltip({ active, payload }) {
       </div>
       {p.prevExpenses != null && p.prevExpenses > 0 && (
         <div className="chart-tip-row muted">
-          <span>Expenses vs previous month</span>
+          <span>{t('Expenses vs previous month')}</span>
           <Delta now={p.expenses} before={p.prevExpenses} goodWhen="down" suffix="" compact />
         </div>
       )}
-      {p.kind === 'forecast' && <div className="chart-tip-note">Includes an estimate of everyday spending</div>}
+      {p.kind === 'forecast' && <div className="chart-tip-note">{t('Includes an estimate of everyday spending')}</div>}
     </div>
   );
 }
@@ -171,7 +178,7 @@ export function CashFlowChart({ months, height = 230, showForecast = true }) {
     });
   const labels = Object.fromEntries(rows.map((r) => [r.month, r.label]));
   const flowAxis = niceAxis(rows.flatMap((r) => [r.income, r.expenses, r.net]));
-  const label = `Income and expenses by month, ${monthLabel(rows[0].month)} to ${monthLabel(rows.at(-1).month)}.`;
+  const label = t('Income and expenses by month, {monthLabel} to {monthLabel2}.', { monthLabel: monthLabel(rows[0].month), monthLabel2: monthLabel(rows.at(-1).month) });
   return (
     <div role="img" aria-label={label} className="chart-box" style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">

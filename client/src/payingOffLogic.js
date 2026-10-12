@@ -1,4 +1,5 @@
 import { planFacts } from './installmentLogic.js';
+import { t } from './i18n/translate.js';
 
 const cents = (v) => Math.round((Number(v) || 0) * 100);
 
@@ -40,7 +41,7 @@ export function payingOff(debts, plans, today, limit = 5) {
       remaining: Math.max(0, p.remaining_total),
       pct: f.pct,
       segments: f.segments,
-      paidText: `${f.paid} of ${f.count} paid`,
+      paidText: t('{paid} of {count} paid', { paid: f.paid, count: f.count }),
       nextDate: p.next_due ?? null,
       nextAmount: f.each,
       counted: true,

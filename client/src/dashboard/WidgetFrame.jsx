@@ -1,11 +1,12 @@
 import { Tooltip } from '../components/ds/Tooltip.jsx';
 import { Icon } from '../components/ui.jsx';
 import { usePrefs } from '../prefs.jsx';
+import { N_, t } from '../i18n/translate.js';
 
 const SIZES = [
-  ['s', 'S', 'Small'],
-  ['m', 'M', 'Medium'],
-  ['l', 'L', 'Wide'],
+  ['s', 'S', N_('Small')],
+  ['m', 'M', N_('Medium')],
+  ['l', 'L', N_('Wide')],
 ];
 
 /**
@@ -21,25 +22,25 @@ export default function WidgetFrame({ id, label, eyebrow, title, actions, collap
   return (
     <section className={`widget size-${size}${edit ? ' editing' : ''}${collapsed ? ' is-collapsed' : ''} ${className}`} data-widget={id} aria-label={label ?? title}>
       {edit && controls && (
-        <div className="widget-edit" role="toolbar" aria-label={`Customise ${label ?? title}`}>
+        <div className="widget-edit" role="toolbar" aria-label={t('Customise {value}', { value: label ?? title })}>
           <span className="widget-edit-name">
             <Icon name="grip" size={14} /> {label ?? title}
           </span>
           <span className="widget-edit-tools">
-            <button className="btn icon sm ghost" onClick={controls.onUp} disabled={!controls.canUp} aria-label={`Move ${label ?? title} earlier`} title="Move earlier">
+            <button className="btn icon sm ghost" onClick={controls.onUp} disabled={!controls.canUp} aria-label={t('Move {value} earlier', { value: label ?? title })} title={t('Move earlier')}>
               <Icon name="up" size={14} />
             </button>
-            <button className="btn icon sm ghost" onClick={controls.onDown} disabled={!controls.canDown} aria-label={`Move ${label ?? title} later`} title="Move later">
+            <button className="btn icon sm ghost" onClick={controls.onDown} disabled={!controls.canDown} aria-label={t('Move {value} later', { value: label ?? title })} title={t('Move later')}>
               <Icon name="down" size={14} />
             </button>
-            <span className="segmented mini" role="radiogroup" aria-label={`Size of ${label ?? title}`}>
+            <span className="segmented mini" role="radiogroup" aria-label={t('Size of {value}', { value: label ?? title })}>
               {SIZES.map(([v, short, long]) => (
-                <button key={v} role="radio" aria-checked={size === v} className={size === v ? 'active' : ''} onClick={() => controls.onSize(v)} title={long} aria-label={long}>
+                <button key={v} role="radio" aria-checked={size === v} className={size === v ? 'active' : ''} onClick={() => controls.onSize(v)} title={t(long)} aria-label={t(long)}>
                   {short}
                 </button>
               ))}
             </span>
-            <button className="btn icon sm ghost" onClick={controls.onHide} aria-label={`Hide ${label ?? title}`} title="Hide">
+            <button className="btn icon sm ghost" onClick={controls.onHide} aria-label={t('Hide {value}', { value: label ?? title })} title={t('Hide')}>
               <Icon name="eyeOff" size={14} />
             </button>
           </span>

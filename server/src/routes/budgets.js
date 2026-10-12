@@ -4,6 +4,7 @@ import { query, withTransaction } from '../db.js';
 import { addMonthsYM, isValidYM, monthOf, todayYMD } from '../lib/dates.js';
 import { budgetForMonth, effectiveBudgets, gatherSpending, niceBudget } from '../lib/budget.js';
 import { cents, HttpError, wrap } from '../lib/http.js';
+import { t } from '../lib/i18n.js';
 
 /** Budget-scoped: a monthly budget for each expense category, and how the month stands against it (docs/DESIGN.md section 43). */
 const router = Router();
@@ -23,13 +24,13 @@ const fillSchema = z
 
 const monthParam = (req) => {
   const month = req.query.month ?? monthOf(todayYMD());
-  if (!isValidYM(month)) throw new HttpError(400, 'month must be YYYY-MM');
+  if (!isValidYM(month)) throw new HttpError(400, t('month must be YYYY-MM'));
   return month;
 };
 
 async function expenseCategory(workspaceId, id) {
   const { rows } = await query(`SELECT id FROM categories WHERE id = $1 AND workspace_id = $2 AND kind = 'expense'`, [id, workspaceId]);
-  if (!rows[0]) throw new HttpError(400, 'Budgets are for expense categories of this budget.');
+  if (!rows[0]) throw new HttpError(400, t('Budgets are for expense categories of this budget.'));
 }
 
 /**
@@ -67,7 +68,7 @@ router.put(
   '/budgets/:categoryId',
   wrap(async (req, res) => {
     const categoryId = Number(req.params.categoryId);
-    if (!Number.isInteger(categoryId) || categoryId <= 0) throw new HttpError(400, 'Invalid id');
+    if (!Number.isInteger(categoryId) || categoryId <= 0) throw new HttpError(400, t('Invalid id'));
     const { month, amount, scope } = setSchema.parse(req.body);
     await expenseCategory(req.workspace.id, categoryId);
     await withTransaction((client) => setBudget(client, req.workspace.id, req.user.id, categoryId, month, amount, scope));

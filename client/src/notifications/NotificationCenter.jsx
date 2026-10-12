@@ -10,6 +10,7 @@ import { Icon, Skeleton } from '../components/ui.jsx';
 import { timeAgo } from '../format.js';
 import { useNotifications } from '../notifications.jsx';
 import { useWorkspace } from '../workspace.jsx';
+import { localeOf, t } from '../i18n/translate.js';
 
 const SHOW_FIRST = 3; // notifications per group before "Show more"
 
@@ -29,10 +30,10 @@ export default function NotificationCenter() {
   useEffect(() => setOpen(false), [pathname]);
   useDismiss(root, open && !small, (why) => close(why === 'escape'));
 
-  const label = unread ? `Notifications, ${unread} unread` : 'Notifications';
+  const label = unread ? t('Notifications, {unread} unread', { unread }) : t('Notifications');
   return (
     <div className="nc-root" ref={root}>
-      <Tooltip label="Notifications" side="bottom" disabled={open}>
+      <Tooltip label={t('Notifications')} side="bottom" disabled={open}>
         <button ref={button} className={`bell-btn${open ? ' open' : ''}${unread ? ' has-unread' : ''}`} onClick={() => setOpen((o) => !o)} aria-haspopup="dialog" aria-expanded={open} aria-label={label}>
           <Icon name="bell" size={20} />
           {unread > 0 && (
@@ -43,12 +44,12 @@ export default function NotificationCenter() {
         </button>
       </Tooltip>
       {open && !small && (
-        <div className="nc-panel" role="dialog" aria-label="Notifications">
+        <div className="nc-panel" role="dialog" aria-label={t('Notifications')}>
           <CenterBody onClose={close} />
         </div>
       )}
       {open && small && (
-        <Sheet title="Notifications" label="Notifications" onClose={() => close()} width={420}>
+        <Sheet title={t('Notifications')} label={t('Notifications')} onClose={() => close()} width={420}>
           <CenterBody onClose={close} inSheet />
         </Sheet>
       )}
@@ -138,13 +139,13 @@ function CenterBody({ onClose, inSheet }) {
     <div className="nc" ref={ref}>
       <div className="nc-head">
         <div className="nc-title">
-          <strong>Notifications</strong>
-          {unread > 0 && <span className="nc-unread-pill">{unread} new</span>}
+          <strong>{t('Notifications')}</strong>
+          {unread > 0 && <span className="nc-unread-pill">{t('{unread} new', { unread })}</span>}
         </div>
-        <div className="nc-tabs" role="group" aria-label="Show">
+        <div className="nc-tabs" role="group" aria-label={t('Show')}>
           {[
-            ['all', 'All'],
-            ['unread', 'Unread'],
+            ['all', t('All')],
+            ['unread', t('Unread')],
           ].map(([v, l]) => (
             <button key={v} className={filter === v ? 'active' : ''} aria-pressed={filter === v} onClick={() => setFilter(v)}>
               {l}
@@ -155,11 +156,11 @@ function CenterBody({ onClose, inSheet }) {
 
       <div className="nc-body">
         {state.error && !state.items ? (
-          <EmptyState art="offline" title="Could not load notifications" compact>
-            Try again in a moment.
+          <EmptyState art="offline" title={t('Could not load notifications')} compact>
+            {t('Try again in a moment.')}
           </EmptyState>
         ) : !state.items ? (
-          <div className="nc-skel" aria-busy="true" aria-label="Loading notifications">
+          <div className="nc-skel" aria-busy="true" aria-label={t('Loading notifications')}>
             {[0, 1, 2, 3].map((i) => (
               <div className="nc-item" key={i}>
                 <Skeleton w={32} h={32} r="50%" />
@@ -171,8 +172,8 @@ function CenterBody({ onClose, inSheet }) {
             ))}
           </div>
         ) : groups.length === 0 ? (
-          <EmptyState art={filter === 'unread' ? 'calm' : 'bell'} title={filter === 'unread' ? 'You are all caught up' : 'Nothing here yet'} compact>
-            {filter === 'unread' ? 'No unread notifications. Nice.' : 'Payment reminders, warnings and insights will gather here.'}
+          <EmptyState art={filter === 'unread' ? 'calm' : 'bell'} title={filter === 'unread' ? t('You are all caught up') : t('Nothing here yet')} compact>
+            {filter === 'unread' ? t('No unread notifications. Nice.') : t('Payment reminders, warnings and insights will gather here.')}
           </EmptyState>
         ) : (
           groups.map((g) => {
@@ -187,7 +188,7 @@ function CenterBody({ onClose, inSheet }) {
                   <span className="spacer" />
                   {groupUnread > 0 && (
                     <button className="nc-link" onClick={() => markGroupRead(g)}>
-                      Mark read
+                      {t('Mark read')}
                     </button>
                   )}
                 </header>
@@ -200,20 +201,20 @@ function CenterBody({ onClose, inSheet }) {
                         </span>
                         <span className="nc-text">
                           <span className="nc-item-title">
-                            {!n.read_at && <span className="unread-dot" role="img" aria-label="Unread" />}
+                            {!n.read_at && <span className="unread-dot" role="img" aria-label={t('Unread')} />}
                             {n.title}
                           </span>
                           {n.body && <span className="nc-item-body">{n.body}</span>}
-                          <time className="nc-time" dateTime={n.created_at} title={new Date(n.created_at).toLocaleString()}>
+                          <time className="nc-time" dateTime={n.created_at} title={new Date(n.created_at).toLocaleString(localeOf())}>
                             {timeAgo(n.created_at)}
                           </time>
                         </span>
                       </button>
                       <span className="nc-actions">
-                        <button className="btn icon sm ghost" onClick={() => toggleRead(n)} aria-label={n.read_at ? `Mark “${n.title}” as unread` : `Mark “${n.title}” as read`} title={n.read_at ? 'Mark unread' : 'Mark read'}>
+                        <button className="btn icon sm ghost" onClick={() => toggleRead(n)} aria-label={n.read_at ? t('Mark “{title}” as unread', { title: n.title }) : t('Mark “{title}” as read', { title: n.title })} title={n.read_at ? t('Mark unread') : t('Mark read')}>
                           <Icon name={n.read_at ? 'eyeOff' : 'check'} size={14} />
                         </button>
-                        <button className="btn icon sm ghost danger-hover" onClick={() => remove(n)} aria-label={`Delete “${n.title}”`} title="Delete">
+                        <button className="btn icon sm ghost danger-hover" onClick={() => remove(n)} aria-label={t('Delete “{title}”', { title: n.title })} title={t('Delete')}>
                           <Icon name="trash" size={14} />
                         </button>
                       </span>
@@ -233,7 +234,7 @@ function CenterBody({ onClose, inSheet }) {
                       })
                     }
                   >
-                    {open ? 'Show less' : `Show ${g.items.length - SHOW_FIRST} more`}
+                    {open ? t('Show less') : t('Show {value} more', { value: g.items.length - SHOW_FIRST })}
                     <Icon name="chevron" size={14} />
                   </button>
                 )}
@@ -245,14 +246,14 @@ function CenterBody({ onClose, inSheet }) {
 
       <div className="nc-foot">
         <button className="btn sm ghost" onClick={markAll} disabled={!unread}>
-          <Icon name="check" size={14} /> Mark all read
+          <Icon name="check" size={14} /> {t('Mark all read')}
         </button>
         <span className="spacer" />
-        <Link to="/settings?tab=notifications" className="btn icon sm ghost" aria-label="Notification settings" title="Notification settings" onClick={() => onClose(false)}>
+        <Link to="/settings?tab=notifications" className="btn icon sm ghost" aria-label={t('Notification settings')} title={t('Notification settings')} onClick={() => onClose(false)}>
           <Icon name="gear" size={16} />
         </Link>
         <Link to="/notifications" className="btn sm primary-soft" onClick={() => onClose(false)}>
-          View all
+          {t('View all')}
         </Link>
       </div>
     </div>

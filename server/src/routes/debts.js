@@ -6,6 +6,7 @@ import { categoryId, HttpError, idParam, money, note, text, wrap, ymd } from '..
 import { assertOwnCategory } from '../lib/ownership.js';
 import { usernameField } from '../lib/profile.js';
 import { installmentDates, splitInstallments } from '../lib/schedule.js';
+import { t } from '../lib/i18n.js';
 
 const router = Router();
 
@@ -75,7 +76,7 @@ async function resolveMember(workspaceId, defaultUserId, username) {
     `SELECT u.id FROM users u JOIN workspace_members m ON m.user_id = u.id AND m.workspace_id = $1 WHERE lower(u.username) = $2`,
     [workspaceId, username],
   );
-  if (!rows[0]) throw new HttpError(400, `@${username} is not a member of this budget.`);
+  if (!rows[0]) throw new HttpError(400, t('@{username} is not a member of this budget.', { username }));
   return rows[0].id;
 }
 
@@ -144,7 +145,7 @@ router.get(
       for (const p of pay) byDebt.get(p.debt_id)?.push({ id: p.id, date: p.date, amount: p.amount, status: p.status, installment_no: p.installment_no });
     }
     for (const r of rows) r.payments = byDebt.get(r.id);
-    const sum = (list, key) => Math.round(list.reduce((t, r) => t + Math.round(r[key] * 100), 0)) / 100;
+    const sum = (list, key) => Math.round(list.reduce((tt, r) => tt + Math.round(r[key] * 100), 0)) / 100;
     // The two directions are never added together: what you owe and what is owed to you are different things.
     const figures = (direction) => {
       const mine = rows.filter((r) => r.direction === direction);
@@ -196,9 +197,9 @@ router.put(
     const d = debtSchema.parse(req.body);
     const ws = req.workspace.id;
     const existing = (await query('SELECT member_id, direction FROM debts WHERE id = $1 AND workspace_id = $2', [id, ws])).rows[0];
-    if (!existing) throw new HttpError(404, 'Debt not found');
-    if (d.direction !== undefined && d.direction !== existing.direction) throw new HttpError(400, 'Who owes whom cannot be changed. Add a new one instead.');
-    if (d.record_loan) throw new HttpError(400, 'The money handed over can only be recorded when the debt is added.');
+    if (!existing) throw new HttpError(404, t('Debt not found'));
+    if (d.direction !== undefined && d.direction !== existing.direction) throw new HttpError(400, t('Who owes whom cannot be changed. Add a new one instead.'));
+    if (d.record_loan) throw new HttpError(400, t('The money handed over can only be recorded when the debt is added.'));
     await assertOwnCategory(ws, d.category_id);
     const memberId = d.paid_by === undefined ? existing.member_id : await resolveMember(ws, req.user.id, d.paid_by);
     await withTransaction(async (client) => {
@@ -220,7 +221,7 @@ router.delete(
     const id = idParam(req);
     await withTransaction(async (client) => {
       const owned = await client.query('SELECT 1 FROM debts WHERE id = $1 AND workspace_id = $2', [id, req.workspace.id]);
-      if (!owned.rowCount) throw new HttpError(404, 'Debt not found');
+      if (!owned.rowCount) throw new HttpError(404, t('Debt not found'));
       // Unpaid payments disappear with the debt; payments already made stay as history.
       await client.query(`DELETE FROM transactions WHERE debt_id = $1 AND status IN ('pending', 'skipped')`, [id]);
       await client.query('DELETE FROM debts WHERE id = $1', [id]);
@@ -239,11 +240,11 @@ router.post(
     const paymentId = await withTransaction(async (client) => {
       // Lock the debt while the payment is checked and recorded: two payments at the same moment must not both fit into what is owed.
       const debt = (await client.query('SELECT name, direction, category_id, member_id, total_amount, settled_at FROM debts WHERE id = $1 AND workspace_id = $2 FOR UPDATE', [id, ws])).rows[0];
-      if (!debt) throw new HttpError(404, 'Debt not found');
+      if (!debt) throw new HttpError(404, t('Debt not found'));
       const paid = (await client.query(`SELECT COALESCE(sum(amount), 0)::float8 AS paid FROM transactions WHERE debt_id = $1 AND status = 'paid'`, [id])).rows[0].paid;
       const remainingCents = debt.settled_at ? 0 : Math.max(0, Math.round(debt.total_amount * 100) - Math.round(paid * 100));
-      if (remainingCents <= 0) throw new HttpError(400, debt.direction === 'lent' ? 'This is already paid back.' : 'This debt is already settled.');
-      if (Math.round(p.amount * 100) > remainingCents) throw new HttpError(400, `That is more than what is still owed${debt.direction === 'lent' ? ' to you' : ''} (${(remainingCents / 100).toFixed(2)}).`);
+      if (remainingCents <= 0) throw new HttpError(400, debt.direction === 'lent' ? t('This is already paid back.') : t('This debt is already settled.'));
+      if (Math.round(p.amount * 100) > remainingCents) throw new HttpError(400, debt.direction === 'lent' ? t('That is more than what is still owed to you ({amount}).', { amount: (remainingCents / 100).toFixed(2) }) : t('That is more than what is still owed ({amount}).', { amount: (remainingCents / 100).toFixed(2) }));
       const { rows } = await client.query(
         `INSERT INTO transactions (user_id, workspace_id, member_id, type, description, amount, category_id, date, status, note, source, debt_id)
          VALUES ($1, $2, $3, $10, $4, $5, $6, $7, 'paid', $8, 'debt', $9) RETURNING id`,
@@ -262,7 +263,7 @@ router.post(
   wrap(async (req, res) => {
     const id = idParam(req);
     const ws = req.workspace.id;
-    if (!(await findOne(ws, id))) throw new HttpError(404, 'Debt not found');
+    if (!(await findOne(ws, id))) throw new HttpError(404, t('Debt not found'));
     await withTransaction(async (client) => {
       await client.query('UPDATE debts SET settled_at = COALESCE(settled_at, now()) WHERE id = $1', [id]);
       await rebuildSchedule(client, id);
@@ -276,7 +277,7 @@ router.post(
   wrap(async (req, res) => {
     const id = idParam(req);
     const ws = req.workspace.id;
-    if (!(await findOne(ws, id))) throw new HttpError(404, 'Debt not found');
+    if (!(await findOne(ws, id))) throw new HttpError(404, t('Debt not found'));
     await withTransaction(async (client) => {
       await client.query('UPDATE debts SET settled_at = NULL WHERE id = $1', [id]);
       await rebuildSchedule(client, id);

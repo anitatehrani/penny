@@ -1,5 +1,6 @@
 import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
+import { t } from './i18n.js';
 
 const scryptAsync = promisify(scrypt);
 
@@ -25,21 +26,21 @@ const COMMON = new Set([
  */
 export function validatePassword(password, { email = '', name = '', username = '' } = {}) {
   const problems = [];
-  if (typeof password !== 'string') return ['Password is required.'];
-  if (password.length < PASSWORD_MIN) problems.push(`Use at least ${PASSWORD_MIN} characters.`);
-  if (password.length > PASSWORD_MAX) problems.push(`Use at most ${PASSWORD_MAX} characters.`);
-  if (!/[a-z]/.test(password)) problems.push('Add a lowercase letter.');
-  if (!/[A-Z]/.test(password)) problems.push('Add an uppercase letter.');
-  if (!/[0-9]/.test(password)) problems.push('Add a number.');
-  if (!/[^A-Za-z0-9\s]/.test(password)) problems.push('Add a special character (for example ! ? # % &).');
+  if (typeof password !== 'string') return [t('Password is required.')];
+  if (password.length < PASSWORD_MIN) problems.push(t('Use at least {PASSWORD_MIN} characters.', { PASSWORD_MIN }));
+  if (password.length > PASSWORD_MAX) problems.push(t('Use at most {PASSWORD_MAX} characters.', { PASSWORD_MAX }));
+  if (!/[a-z]/.test(password)) problems.push(t('Add a lowercase letter.'));
+  if (!/[A-Z]/.test(password)) problems.push(t('Add an uppercase letter.'));
+  if (!/[0-9]/.test(password)) problems.push(t('Add a number.'));
+  if (!/[^A-Za-z0-9\s]/.test(password)) problems.push(t('Add a special character (for example ! ? # % &).'));
   const lower = password.toLowerCase();
-  if (COMMON.has(lower)) problems.push('That password is too common.');
+  if (COMMON.has(lower)) problems.push(t('That password is too common.'));
   const local = email.split('@')[0].toLowerCase();
-  if (local.length >= 4 && lower.includes(local)) problems.push('Do not include your email name in the password.');
+  if (local.length >= 4 && lower.includes(local)) problems.push(t('Do not include your email name in the password.'));
   const handle = String(username ?? '').toLowerCase();
-  if (handle.length >= 4 && lower.includes(handle)) problems.push('Do not include your username in the password.');
+  if (handle.length >= 4 && lower.includes(handle)) problems.push(t('Do not include your username in the password.'));
   const first = name.trim().split(/\s+/)[0]?.toLowerCase();
-  if (first && first.length >= 4 && lower.includes(first)) problems.push('Do not include your name in the password.');
+  if (first && first.length >= 4 && lower.includes(first)) problems.push(t('Do not include your name in the password.'));
   return problems;
 }
 

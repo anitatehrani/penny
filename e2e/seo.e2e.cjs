@@ -187,7 +187,7 @@ const freePort = () =>
   await check('the sitemap lists only pages that answer, can be indexed and have a title of their own', async () => {
     const xml = await (await fetch(`${BASE}/sitemap.xml`)).text();
     const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
-    eq(locs.length, 10, 'pages in the sitemap: four public pages, the guides page and five guides');
+    eq(locs.length, 20, 'pages in the sitemap: four public pages, the guides page and five guides, each in English and in Italian');
     const titles = new Set();
     for (const loc of locs) {
       const r = await fetch(loc);
@@ -197,7 +197,7 @@ const freePort = () =>
       titles.add(/<title>([^<]*)<\/title>/.exec(html)[1]);
       truthy(!/name="robots"/.test(html), `${loc} has no noindex`);
     }
-    eq(titles.size, 10, 'distinct titles');
+    eq(titles.size, 20, 'distinct titles');
     const robots = await (await fetch(`${BASE}/robots.txt`)).text();
     truthy(robots.includes(`Sitemap: ${BASE}/sitemap.xml`), 'robots.txt points to the sitemap');
   });

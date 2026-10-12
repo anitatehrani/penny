@@ -5,6 +5,8 @@ import { dateLabel, monthLabel } from '../format.js';
 import { laterBillMonths, summarizeRollover } from '../rolloverLogic.js';
 import Select from './ds/Select.jsx';
 import { Field, Modal } from './ui.jsx';
+import { t } from '../i18n/translate.js';
+import { tRich } from '../i18n/react.jsx';
 
 /**
  * "Pay only part of the card bill": say how much you pay now, which later bill gets the rest, and the interest. The preview says what
@@ -25,7 +27,7 @@ export default function CardBillDialog({ bill, month, onClose, onDone }) {
     setSaving(true);
     try {
       const r = await api.post('/card-bills/rollover', { bill_month: month, to_month: toMonth, pay_now: Number(payNow), interest: Number(interest) || 0 });
-      notify(`${money(r.rolled)}${r.interest > 0 ? ` and ${money(r.interest)} interest` : ''} moved to the ${dateLabel(r.to_date)} bill`);
+      notify(r.interest > 0 ? t('{money} and {interest} interest moved to the {dateLabel} bill', { money: money(r.rolled), interest: money(r.interest), dateLabel: dateLabel(r.to_date) }) : t('{money} moved to the {dateLabel} bill', { money: money(r.rolled), dateLabel: dateLabel(r.to_date) }));
       onDone();
     } catch (err) {
       notify(err.message, 'error');
@@ -36,61 +38,57 @@ export default function CardBillDialog({ bill, month, onClose, onDone }) {
   const problem =
     s && !s.valid
       ? {
-          whole: 'Enter less than the whole bill: what you pay now. The rest is what moves.',
-          negative: 'Amounts cannot be negative.',
-          toomuch: `Only ${money(s?.movable)} of this bill can move to a later one (fixed installments, debt payments and shared payments stay). Pay at least ${money(s?.minPay)} now.`,
+          whole: t('Enter less than the whole bill: what you pay now. The rest is what moves.'),
+          negative: t('Amounts cannot be negative.'),
+          toomuch: t('Only {money} of this bill can move to a later one (fixed installments, debt payments and shared payments stay). Pay at least {money2} now.', { money: money(s?.movable), money2: money(s?.minPay) }),
         }[s.reason]
       : null;
 
   return (
-    <Modal title="Pay only part of the card bill" onClose={onClose}>
+    <Modal title={t('Pay only part of the card bill')} onClose={onClose}>
       <form onSubmit={submit} className="form">
         <p className="muted">
-          The card bill on <strong>{dateLabel(bill.bill_date)}</strong> is <strong className="num">{money(bill.total)}</strong> to pay.
-          {bill.fixed > 0 && ` ${money(bill.fixed)} of it is fixed (installments, debts, shared payments) and stays on this bill.`}
+          {bill.fixed > 0
+            ? tRich('The card bill on {bold} is {bold2} to pay. {money} of it is fixed (installments, debts, shared payments) and stays on this bill.', { bold: <strong>{dateLabel(bill.bill_date)}</strong>, bold2: <strong className="num">{money(bill.total)}</strong>, money: money(bill.fixed) })
+            : tRich('The card bill on {bold} is {bold2} to pay.', { bold: <strong>{dateLabel(bill.bill_date)}</strong>, bold2: <strong className="num">{money(bill.total)}</strong> })}
         </p>
         <div className="form-grid">
-          <Field label="I will pay now" hint="The rest moves to a later bill.">
+          <Field label={t('I will pay now')} hint={t('The rest moves to a later bill.')}>
             <input type="number" step="0.01" min="0" inputMode="decimal" value={payNow} onChange={(e) => setPayNow(e.target.value)} placeholder={String(bill.total)} required autoFocus />
           </Field>
-          <Field label="The rest moves to the bill of">
-            <Select label="The rest moves to the bill of" value={toMonth} onChange={setToMonth} options={months} />
+          <Field label={t('The rest moves to the bill of')}>
+            <Select label={t('The rest moves to the bill of')} value={toMonth} onChange={setToMonth} options={months} />
           </Field>
         </div>
-        <Field label="Interest on the rest (optional)" hint="Added as one card payment on that later bill.">
+        <Field label={t('Interest on the rest (optional)')} hint={t('Added as one card payment on that later bill.')}>
           <input type="number" step="0.01" min="0" inputMode="decimal" value={interest} onChange={(e) => setInterest(e.target.value)} placeholder="0.00" />
         </Field>
         <div className={`banner ${s?.valid ? 'info' : 'warn'}`} aria-live="polite">
           {s?.valid ? (
             <div>
               <div>
-                This bill becomes <strong>{money(s.thisBill)}</strong>. The {monthLabel(toMonth)} bill gets <strong>{money(s.rest)}</strong>
-                {s.interest > 0 && (
-                  <>
-                    {' + '}
-                    <strong>{money(s.interest)}</strong> interest
-                  </>
-                )}
-                .
+                {s.interest > 0
+                  ? tRich('This bill becomes {bold}. The {monthLabel} bill gets {rest} + {interest} interest.', { monthLabel: monthLabel(toMonth), bold: <strong>{money(s.thisBill)}</strong>, rest: <strong>{money(s.rest)}</strong>, interest: <strong>{money(s.interest)}</strong> })
+                  : tRich('This bill becomes {bold}. The {monthLabel} bill gets {rest}.', { monthLabel: monthLabel(toMonth), bold: <strong>{money(s.thisBill)}</strong>, rest: <strong>{money(s.rest)}</strong> })}
               </div>
               <ul className="rollover-list">
                 {s.moves.map((m) => (
                   <li key={m.id}>
-                    {m.description}: {m.action === 'move' ? `${money(m.part)} moves` : `${money(m.part)} of ${money(m.of)} moves, ${money(m.of - m.part)} stays`}
+                    {m.description}: {m.action === 'move' ? t('{money} moves', { money: money(m.part) }) : t('{money} of {money2} moves, {money3} stays', { money: money(m.part), money2: money(m.of), money3: money(m.of - m.part) })}
                   </li>
                 ))}
               </ul>
             </div>
           ) : (
-            <span>{problem ?? 'Enter how much you pay now.'}</span>
+            <span>{problem ?? t('Enter how much you pay now.')}</span>
           )}
         </div>
         <div className="form-actions">
           <button type="button" className="btn" onClick={onClose}>
-            Cancel
+            {t('Cancel')}
           </button>
           <button type="submit" className="btn primary" disabled={saving || !s?.valid || payNow === ''}>
-            Move the rest
+            {t('Move the rest')}
           </button>
         </div>
       </form>

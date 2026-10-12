@@ -355,10 +355,10 @@ export function layoutPdf(pages) {
   });
 
   const out = [];
-  for (const t of tables) {
-    const { rows } = extractRows(t.body, t.cols);
+  for (const tt of tables) {
+    const { rows } = extractRows(tt.body, tt.cols);
     if (!rows.length) continue;
-    out.push({ title: t.title, kind: t.kind, cols: t.cols.map(({ text, role, alt }) => ({ text, role, alt })), rows });
+    out.push({ title: tt.title, kind: tt.kind, cols: tt.cols.map(({ text, role, alt }) => ({ text, role, alt })), rows });
   }
   return { tables: out, lines: perPage };
 }
@@ -408,13 +408,13 @@ export function layoutLoose(perPageLines) {
 
 /** The tables as plain grids of text, header first, which is what the rest of the importer reads. */
 export function gridsFromTables(tables) {
-  return tables.map((t, i) => ({
+  return tables.map((tt, i) => ({
     source: 'pdf',
-    name: t.title || (tables.length > 1 ? `Table ${i + 1}` : 'Payments'),
-    title: t.title,
-    kind: t.kind,
+    name: tt.title || (tables.length > 1 ? `Table ${i + 1}` : 'Payments'),
+    title: tt.title,
+    kind: tt.kind,
     headerRow: 0,
-    loose: !!t.loose,
-    rows: [t.cols.map((c) => c.text), ...t.rows.map((r) => r.cells)],
+    loose: !!tt.loose,
+    rows: [tt.cols.map((c) => c.text), ...tt.rows.map((r) => r.cells)],
   }));
 }

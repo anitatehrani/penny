@@ -1,6 +1,8 @@
 import { query } from '../db.js';
 import { addDays, addMonthsYM, daysInMonth, monthOf, monthStart, parseYMD, todayYMD } from './dates.js';
 import { forecastForWorkspace } from './forecastService.js';
+import { catName } from './categoryNames.js';
+import { localeOf, t, tn } from './i18n.js';
 
 /**
  * The "assistant": statistics over one budget's ledger, turned into plain sentences.
@@ -11,13 +13,14 @@ import { forecastForWorkspace } from './forecastService.js';
 const SUBSCRIPTION = /subscri/i;
 const DISCRETIONARY = /dining|leisure|restaurant|entertain|shopping|subscri|travel|hobb|gift|coffee|takeaway|bar|other/i;
 const round2 = (n) => Math.round(n * 100) / 100;
-const WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
-const countWord = (n) => (n <= 10 ? WORDS[n] : String(n));
+const countWord = (n) => (n <= 10 ? [t('no'), t('one'), t('two'), t('three'), t('four'), t('five'), t('six'), t('seven'), t('eight'), t('nine'), t('ten')][n] : String(n));
+/** "a and b", "a, b and c" */
+const listOf = (names) => (names.length <= 1 ? names.join('') : t('{join} and {at}', { join: names.slice(0, -1).join(', '), at: names.at(-1) }));
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 const pctChange = (now, before) => (before > 0 ? Math.round(((now - before) / before) * 100) : null);
 
 export const monthName = (ym, { year = false } = {}) =>
-  new Date(`${ym}-15T12:00:00Z`).toLocaleDateString('en', { month: 'long', ...(year ? { year: 'numeric' } : {}), timeZone: 'UTC' });
+  new Date(`${ym}-15T12:00:00Z`).toLocaleDateString(localeOf(), { month: 'long', ...(year ? { year: 'numeric' } : {}), timeZone: 'UTC' });
 
 /** "€1,240" and "€90" for whole or big amounts, "€12.40" for small ones with cents. */
 export function makeFmt(currency) {
@@ -25,7 +28,7 @@ export function makeFmt(currency) {
     const abs = Math.abs(amount);
     const digits = abs >= 100 || Math.abs(Math.round(amount) - amount) < 0.005 ? 0 : 2;
     try {
-      return new Intl.NumberFormat('en', { style: 'currency', currency: currency || 'USD', maximumFractionDigits: digits, minimumFractionDigits: digits }).format(amount);
+      return new Intl.NumberFormat(localeOf(), { style: 'currency', currency: currency || 'USD', maximumFractionDigits: digits, minimumFractionDigits: digits }).format(amount);
     } catch {
       return `${round2(amount)} ${currency ?? ''}`.trim();
     }
@@ -98,7 +101,7 @@ export async function gatherFacts(workspaceId, { today = todayYMD() } = {}) {
   const cats = new Map();
   for (const r of expenseRows.rows) {
     const key = r.category_id ?? 0;
-    if (!cats.has(key)) cats.set(key, { id: r.category_id, name: r.name ?? 'Uncategorized', color: r.color ?? '#8a8a85', cur: 0, curPaid: 0, prev: 0, mtdCur: 0, mtdPrev: 0, history: {} });
+    if (!cats.has(key)) cats.set(key, { id: r.category_id, name: r.name ?? t('Uncategorized'), color: r.color ?? '#8a8a85', cur: 0, curPaid: 0, prev: 0, mtdCur: 0, mtdPrev: 0, history: {} });
     const c = cats.get(key);
     c.history[r.month] = r.total;
     if (r.month === month) {
@@ -167,7 +170,7 @@ const RANK = { alert: 0, watch: 1, good: 2, info: 3 };
 
 export function buildInsights(facts) {
   const fmt = makeFmt(facts.currency);
-  const { totals: t, categories, subscriptions, balance } = facts;
+  const { totals: tt, categories, subscriptions, balance } = facts;
   const out = [];
   const k = (type, extra = '') => `${type}:${facts.month}${extra ? `:${extra}` : ''}`;
   const nextDays = (n) => facts.upcoming.filter((u) => u.date <= addDays(facts.today, n));
@@ -178,11 +181,11 @@ export function buildInsights(facts) {
       key: k('below-zero'),
       type: 'below-zero',
       severity: 'alert',
-      title: `Your balance is below zero (${fmt(balance.current)})`,
-      body: 'Record any income you have received, or check the starting balance in Settings.',
-      details: [{ label: 'Balance today', value: fmt(balance.current), tone: 'neg' }],
-      action: { label: 'Open settings', to: '/settings' },
-      ask: ['Will I go negative?', 'What is due soon?'],
+      title: t('Your balance is below zero ({fmt})', { fmt: fmt(balance.current) }),
+      body: t('Record any income you have received, or check the starting balance in Settings.'),
+      details: [{ label: t('Balance today'), value: fmt(balance.current), tone: 'neg' }],
+      action: { label: t('Open settings'), to: '/settings' },
+      ask: [t('Will I go negative?'), t('What is due soon?')],
     });
   }
   if (balance.current >= 0 && balance.min > 0 && balance.current < balance.min) {
@@ -190,14 +193,14 @@ export function buildInsights(facts) {
       key: k('below-buffer'),
       type: 'below-buffer',
       severity: 'alert',
-      title: `Your balance (${fmt(balance.current)}) is below your safety buffer of ${fmt(balance.min)}`,
-      body: 'It is not below zero, but it is under the cushion you chose to keep. Check what is still to pay before spending more.',
+      title: t('Your balance ({fmt}) is below your safety buffer of {fmt2}', { fmt: fmt(balance.current), fmt2: fmt(balance.min) }),
+      body: t('It is not below zero, but it is under the cushion you chose to keep. Check what is still to pay before spending more.'),
       details: [
-        { label: 'Balance today', value: fmt(balance.current), tone: 'neg' },
-        { label: 'Safety buffer', value: fmt(balance.min) },
+        { label: t('Balance today'), value: fmt(balance.current), tone: 'neg' },
+        { label: t('Safety buffer'), value: fmt(balance.min) },
       ],
-      action: { label: 'Open forecast', to: '/forecast' },
-      ask: ['Will I go negative?', 'What is due soon?'],
+      action: { label: t('Open forecast'), to: '/forecast' },
+      ask: [t('Will I go negative?'), t('What is due soon?')],
     });
   }
   if (facts.overdue.count > 0) {
@@ -206,11 +209,11 @@ export function buildInsights(facts) {
       key: k('overdue'),
       type: 'overdue',
       severity: 'alert',
-      title: `${cap(countWord(n))} overdue payment${n > 1 ? 's' : ''} (${fmt(facts.overdue.total)})`,
-      body: 'Mark them as paid once settled, or move the date if the plan changed.',
+      title: tn(n, '{cap} overdue payment ({fmt})', '{cap} overdue payments ({fmt})', { cap: cap(countWord(n)), fmt: fmt(facts.overdue.total) }),
+      body: t('Mark them as paid once settled, or move the date if the plan changed.'),
       details: facts.overdue.items.map((i) => ({ label: i.description, value: fmt(i.amount) })),
-      action: { label: 'Review overdue', to: '/payments?status=overdue' },
-      ask: ['What is overdue?'],
+      action: { label: t('Review overdue'), to: '/payments?status=overdue' },
+      ask: [t('What is overdue?')],
     });
   }
 
@@ -223,22 +226,22 @@ export function buildInsights(facts) {
       key: k('forecast-negative', fn.month),
       type: 'forecast-negative',
       severity: monthsAway <= 2 ? 'alert' : 'watch',
-      title: fn.balance < 0 ? `You may run below ${fmt(0)} in ${monthName(fn.month, { year: monthsAway > 6 })}` : `You may dip below your safety buffer of ${fmt(balance.min)} in ${monthName(fn.month, { year: monthsAway > 6 })}`,
-      body: `The forecast reaches ${fmt(fn.balance)}${lowest.month !== fn.month ? ` and bottoms out at ${fmt(lowest.balance)} in ${monthName(lowest.month)}` : ''}. Moving or trimming a large planned payment would help.`,
+      title: fn.balance < 0 ? t('You may run below {fmt} in {monthName}', { fmt: fmt(0), monthName: monthName(fn.month, { year: monthsAway > 6 }) }) : t('You may dip below your safety buffer of {fmt} in {monthName}', { fmt: fmt(balance.min), monthName: monthName(fn.month, { year: monthsAway > 6 }) }),
+      body: lowest.month !== fn.month ? t('The forecast reaches {fmt} and bottoms out at {low} in {monthName}. Moving or trimming a large planned payment would help.', { fmt: fmt(fn.balance), low: fmt(lowest.balance), monthName: monthName(lowest.month) }) : t('The forecast reaches {fmt}. Moving or trimming a large planned payment would help.', { fmt: fmt(fn.balance) }),
       details: [
-        { label: `Lowest point (${monthName(lowest.month)})`, value: fmt(lowest.balance), tone: 'neg' },
-        { label: 'Balance today', value: fmt(balance.current) },
-        { label: 'Expected end of this month', value: fmt(balance.endOfMonth) },
+        { label: t('Lowest point ({monthName})', { monthName: monthName(lowest.month) }), value: fmt(lowest.balance), tone: 'neg' },
+        { label: t('Balance today'), value: fmt(balance.current) },
+        { label: t('Expected end of this month'), value: fmt(balance.endOfMonth) },
       ],
       forecast: true,
-      action: { label: 'Open forecast', to: '/forecast' },
-      ask: ['Will I go negative?', 'How can I save money?'],
+      action: { label: t('Open forecast'), to: '/forecast' },
+      ask: [t('Will I go negative?'), t('How can I save money?')],
     });
   }
 
   // 3. spending pace vs last month (same days)
-  const cur = t.mtdExpenseCur;
-  const prev = t.mtdExpensePrev;
+  const cur = tt.mtdExpenseCur;
+  const prev = tt.mtdExpensePrev;
   const pct = pctChange(cur, prev);
   if (prev >= 50 && pct !== null && Math.abs(pct) >= 8 && facts.dayOfMonth >= 5) {
     const movers = categories
@@ -250,11 +253,11 @@ export function buildInsights(facts) {
       key: k('spend-pace'),
       type: 'spend-pace',
       severity: pct > 0 ? 'watch' : 'good',
-      title: pct > 0 ? `Your spending is ${pct}% higher than last month` : `You are spending ${Math.abs(pct)}% less than last month`,
-      body: `So far this month you have spent ${fmt(cur)}; by this day last month it was ${fmt(prev)}.${movers.length ? ` Most of the difference is ${movers.map((m) => m.name).slice(0, 2).join(' and ')}.` : ''}`,
-      details: movers.map((m) => ({ label: m.name, value: `${m.diff > 0 ? '+' : '−'}${fmt(Math.abs(m.diff))}`, tone: m.diff > 0 ? 'neg' : 'pos' })),
-      action: { label: 'See payments', to: '/payments' },
-      ask: ['Where does my money go?', 'How can I save money?'],
+      title: pct > 0 ? t('Your spending is {pct}% higher than last month', { pct }) : t('You are spending {abs}% less than last month', { abs: Math.abs(pct) }),
+      body: movers.length ? t('So far this month you have spent {fmt}; by this day last month it was {fmt2}. Most of the difference is {names}.', { fmt: fmt(cur), fmt2: fmt(prev), names: listOf(movers.map((m) => catName(m.name)).slice(0, 2)) }) : t('So far this month you have spent {fmt}; by this day last month it was {fmt2}.', { fmt: fmt(cur), fmt2: fmt(prev) }),
+      details: movers.map((m) => ({ label: catName(m.name), value: `${m.diff > 0 ? '+' : '−'}${fmt(Math.abs(m.diff))}`, tone: m.diff > 0 ? 'neg' : 'pos' })),
+      action: { label: t('See payments'), to: '/payments' },
+      ask: [t('Where does my money go?'), t('How can I save money?')],
     });
   }
 
@@ -268,14 +271,14 @@ export function buildInsights(facts) {
       key: k('category-spike', String(c.id ?? 0)),
       type: 'category-spike',
       severity: 'watch',
-      title: `${c.name} is ${pctChange(c.mtdCur, c.avg3)}% above your usual`,
-      body: `${fmt(c.mtdCur)} so far this month, against about ${fmt(c.avg3)} in a typical month.`,
+      title: t('{name} is {pctChange}% above your usual', { name: catName(c.name), pctChange: pctChange(c.mtdCur, c.avg3) }),
+      body: t('{fmt} so far this month, against about {fmt2} in a typical month.', { fmt: fmt(c.mtdCur), fmt2: fmt(c.avg3) }),
       details: [
-        { label: 'This month so far', value: fmt(c.mtdCur), tone: 'neg' },
-        { label: '3-month average', value: fmt(c.avg3) },
+        { label: t('This month so far'), value: fmt(c.mtdCur), tone: 'neg' },
+        { label: t('3-month average'), value: fmt(c.avg3) },
       ],
-      action: { label: 'See payments', to: `/payments${c.id ? `?category=${c.id}` : ''}` },
-      ask: [`How much did I spend on ${c.name}?`],
+      action: { label: t('See payments'), to: `/payments${c.id ? `?category=${c.id}` : ''}` },
+      ask: [t('How much did I spend on {name}?', { name: catName(c.name) })],
     });
   }
 
@@ -286,11 +289,11 @@ export function buildInsights(facts) {
       key: k('subscriptions'),
       type: 'subscriptions',
       severity: 'watch',
-      title: `Your subscriptions increased by ${fmt(subDiff)} this month`,
-      body: `They add up to ${fmt(subscriptions.cur)} this month, against ${fmt(subscriptions.prev)} last month.`,
-      details: subscriptions.items.slice(0, 4).map((i) => ({ label: i.description, value: `${fmt(i.monthly)}/mo` })),
-      action: { label: 'View subscriptions', to: '/recurring' },
-      ask: ['What are my subscriptions?'],
+      title: t('Your subscriptions increased by {fmt} this month', { fmt: fmt(subDiff) }),
+      body: t('They add up to {fmt} this month, against {fmt2} last month.', { fmt: fmt(subscriptions.cur), fmt2: fmt(subscriptions.prev) }),
+      details: subscriptions.items.slice(0, 4).map((i) => ({ label: i.description, value: t('{amount}/mo', { amount: fmt(i.monthly) }) })),
+      action: { label: t('View subscriptions'), to: '/recurring' },
+      ask: [t('What are my subscriptions?')],
     });
   }
 
@@ -303,11 +306,11 @@ export function buildInsights(facts) {
       key: k('week-ahead', facts.today),
       type: 'week-ahead',
       severity: after < 0 ? 'alert' : weekTotal > Math.max(0, balance.current) * 0.3 ? 'watch' : 'info',
-      title: `${cap(countWord(week.length))} upcoming payment${week.length > 1 ? 's' : ''} (${fmt(weekTotal)}) may affect your balance next week`,
-      body: after < 0 ? `After they are paid your balance would be ${fmt(after)}.` : `After they are paid your balance would be about ${fmt(after)}.`,
+      title: tn(week.length, '{cap} upcoming payment ({fmt}) may affect your balance next week', '{cap} upcoming payments ({fmt}) may affect your balance next week', { cap: cap(countWord(week.length)), fmt: fmt(weekTotal) }),
+      body: after < 0 ? t('After they are paid your balance would be {fmt}.', { fmt: fmt(after) }) : t('After they are paid your balance would be about {fmt}.', { fmt: fmt(after) }),
       details: week.slice(0, 5).map((p) => ({ label: p.description, value: fmt(p.amount), when: p.date })),
-      action: { label: 'Open payments', to: '/payments?status=pending' },
-      ask: ['What is due soon?'],
+      action: { label: t('Open payments'), to: '/payments?status=pending' },
+      ask: [t('What is due soon?')],
     });
   }
 
@@ -322,27 +325,27 @@ export function buildInsights(facts) {
       key: k('savings'),
       type: 'savings',
       severity: 'info',
-      title: `You could save about ${fmt(savings)} a month`,
-      body: `That is roughly 15% less on ${savable.map((c) => c.name).join(', ')}. It is an estimate from your last three months, not a promise.`,
-      details: savable.map((c) => ({ label: c.name, value: `${fmt(c.avg3 * 0.15)} of ${fmt(c.avg3)}` })),
-      action: { label: 'See categories', to: '/settings' },
-      ask: ['How can I save money?', 'Where does my money go?'],
+      title: t('You could save about {fmt} a month', { fmt: fmt(savings) }),
+      body: t('That is roughly 15% less on {join}. It is an estimate from your last three months, not a promise.', { join: savable.map((c) => catName(c.name)).join(', ') }),
+      details: savable.map((c) => ({ label: catName(c.name), value: t('{fmt} of {fmt2}', { fmt: fmt(c.avg3 * 0.15), fmt2: fmt(c.avg3) }) })),
+      action: { label: t('See categories'), to: '/settings' },
+      ask: [t('How can I save money?'), t('Where does my money go?')],
     });
   }
 
   // 8. a good month
-  if (t.incomePrev > 0) {
-    const net = t.incomePrev - t.expensePrev;
-    const rate = Math.round((net / t.incomePrev) * 100);
+  if (tt.incomePrev > 0) {
+    const net = tt.incomePrev - tt.expensePrev;
+    const rate = Math.round((net / tt.incomePrev) * 100);
     if (rate >= 10) {
       out.push({
         key: k('saved'),
         type: 'saved',
         severity: 'good',
-        title: `You kept ${rate}% of your income in ${monthName(facts.prevMonth)}`,
-        body: `${fmt(t.incomePrev)} came in and ${fmt(t.expensePrev)} went out, which left ${fmt(net)}.`,
+        title: t('You kept {rate}% of your income in {monthName}', { rate, monthName: monthName(facts.prevMonth) }),
+        body: t('{fmt} came in and {fmt2} went out, which left {fmt3}.', { fmt: fmt(tt.incomePrev), fmt2: fmt(tt.expensePrev), fmt3: fmt(net) }),
         details: [],
-        ask: ['Give me a summary'],
+        ask: [t('Give me a summary')],
       });
     }
   }
@@ -353,35 +356,41 @@ export function buildInsights(facts) {
 /** A short written summary of the month so far. */
 export function buildSummary(facts) {
   const fmt = makeFmt(facts.currency);
-  const { totals: t, balance } = facts;
+  const { totals: tt, balance } = facts;
   const name = monthName(facts.month);
-  if (facts.isEmpty) return { title: `${name} so far`, text: 'There is nothing in this budget yet. Add a payment or a recurring item and a summary will appear here.', stats: [] };
-  const pct = pctChange(t.mtdExpenseCur, t.mtdExpensePrev);
-  const pace = t.mtdExpensePrev >= 50 && pct !== null ? (pct === 0 ? ', the same as at this point last month' : `, ${Math.abs(pct)}% ${pct > 0 ? 'more' : 'less'} than at this point last month`) : '';
-  const stillToPay = round2(t.expenseCur - t.expensePaidCur);
+  if (facts.isEmpty) return { title: t('{name} so far', { name }), text: t('There is nothing in this budget yet. Add a payment or a recurring item and a summary will appear here.'), stats: [] };
+  const pct = pctChange(tt.mtdExpenseCur, tt.mtdExpensePrev);
+  const pace = tt.mtdExpensePrev >= 50 && pct !== null ? (pct === 0 ? 'same' : pct > 0 ? 'more' : 'less') : null;
+  const stillToPay = round2(tt.expenseCur - tt.expensePaidCur);
   const top = [...facts.categories].sort((a, b) => b.cur - a.cur)[0];
   const parts = [
-    `In ${name} you have spent ${fmt(t.expensePaidCur)} across ${t.paidCount} payment${t.paidCount === 1 ? '' : 's'}${pace}.`,
-    t.incomeCur > 0 ? `${fmt(t.incomePaidCur)} of ${fmt(t.incomeCur)} expected income has arrived.` : null,
-    stillToPay > 0 ? `${fmt(stillToPay)} is still to pay.` : 'Everything planned for this month is paid.',
-    top && top.cur > 0 ? `${top.name} is the biggest category at ${fmt(top.cur)}.` : null,
-    balance.endOfMonth < 0 ? `At this pace the balance ends the month at ${fmt(balance.endOfMonth)}, below zero.` : balance.min > 0 && balance.endOfMonth < balance.min ? `At this pace the balance ends the month at ${fmt(balance.endOfMonth)}, below your safety buffer of ${fmt(balance.min)}.` : `The balance is expected to end the month at ${fmt(balance.endOfMonth)}.`,
+    (() => {
+      const figures = { name, fmt: fmt(tt.expensePaidCur), abs: pct === null ? 0 : Math.abs(pct) };
+      if (pace === 'same') return tn(tt.paidCount, 'In {name} you have spent {fmt} across {n} payment, the same as at this point last month.', 'In {name} you have spent {fmt} across {n} payments, the same as at this point last month.', figures);
+      if (pace === 'more') return tn(tt.paidCount, 'In {name} you have spent {fmt} across {n} payment, {abs}% more than at this point last month.', 'In {name} you have spent {fmt} across {n} payments, {abs}% more than at this point last month.', figures);
+      if (pace === 'less') return tn(tt.paidCount, 'In {name} you have spent {fmt} across {n} payment, {abs}% less than at this point last month.', 'In {name} you have spent {fmt} across {n} payments, {abs}% less than at this point last month.', figures);
+      return tn(tt.paidCount, 'In {name} you have spent {fmt} across {n} payment.', 'In {name} you have spent {fmt} across {n} payments.', figures);
+    })(),
+    tt.incomeCur > 0 ? t('{fmt} of {fmt2} expected income has arrived.', { fmt: fmt(tt.incomePaidCur), fmt2: fmt(tt.incomeCur) }) : null,
+    stillToPay > 0 ? t('{fmt} is still to pay.', { fmt: fmt(stillToPay) }) : t('Everything planned for this month is paid.'),
+    top && top.cur > 0 ? t('{name} is the biggest category at {fmt}.', { name: catName(top.name), fmt: fmt(top.cur) }) : null,
+    balance.endOfMonth < 0 ? t('At this pace the balance ends the month at {fmt}, below zero.', { fmt: fmt(balance.endOfMonth) }) : balance.min > 0 && balance.endOfMonth < balance.min ? t('At this pace the balance ends the month at {fmt}, below your safety buffer of {fmt2}.', { fmt: fmt(balance.endOfMonth), fmt2: fmt(balance.min) }) : t('The balance is expected to end the month at {fmt}.', { fmt: fmt(balance.endOfMonth) }),
   ].filter(Boolean);
   return {
-    title: `${name} so far`,
+    title: t('{name} so far', { name }),
     text: parts.join(' '),
     stats: [
-      { label: 'Spent', value: fmt(t.expensePaidCur) },
-      { label: 'Still to pay', value: fmt(stillToPay) },
-      { label: 'Income received', value: fmt(t.incomePaidCur) },
-      { label: 'Expected month end', value: fmt(balance.endOfMonth), tone: balance.endOfMonth < 0 ? 'neg' : undefined },
+      { label: t('Spent'), value: fmt(tt.expensePaidCur) },
+      { label: t('Still to pay'), value: fmt(stillToPay) },
+      { label: t('Income received'), value: fmt(tt.incomePaidCur) },
+      { label: t('Expected month end'), value: fmt(balance.endOfMonth), tone: balance.endOfMonth < 0 ? 'neg' : undefined },
     ],
   };
 }
 
 /** Numbers for the dashboard's "compare with last month" views. */
 export function buildCompare(facts) {
-  const t = facts.totals;
+  const tt = facts.totals;
   return {
     month: facts.month,
     prevMonth: facts.prevMonth,
@@ -391,12 +400,12 @@ export function buildCompare(facts) {
       .map((c) => ({ category_id: c.id, name: c.name, color: c.color, current: round2(c.cur), previous: round2(c.prev), average: c.avg3 }))
       .sort((a, b) => b.current - a.current),
     totals: {
-      expenses: t.expenseCur,
-      expensesPrevious: t.expensePrev,
-      expensesSoFar: t.mtdExpenseCur,
-      expensesSoFarPrevious: t.mtdExpensePrev,
-      income: t.incomeCur,
-      incomePrevious: t.incomePrev,
+      expenses: tt.expenseCur,
+      expensesPrevious: tt.expensePrev,
+      expensesSoFar: tt.mtdExpenseCur,
+      expensesSoFarPrevious: tt.mtdExpensePrev,
+      income: tt.incomeCur,
+      incomePrevious: tt.incomePrev,
       subscriptions: facts.subscriptions.cur,
       subscriptionsPrevious: facts.subscriptions.prev,
       subscriptionsMonthly: facts.subscriptions.monthlyTotal,

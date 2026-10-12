@@ -12,6 +12,7 @@ import Receipts, { uploadQueued, useReceiptList } from './Receipts.jsx';
 import DatePicker from './ds/DatePicker.jsx';
 import Select from './ds/Select.jsx';
 import { Avatar, CategorySelect, Field, Segmented } from './ui.jsx';
+import { t, tn } from '../i18n/translate.js';
 
 const cents = (v) => Math.round((Number(v) || 0) * 100);
 
@@ -105,10 +106,10 @@ export default function TransactionForm({ initial, defaultDate, onSaved, onCance
 
   async function submit(e) {
     e.preventDefault();
-    if (overShared && !inInstallments) return notify('The shares add up to more than the payment.', 'error');
+    if (overShared && !inInstallments) return notify(t('The shares add up to more than the payment.'), 'error');
     if (inInstallments) {
-      if (!summary) return notify('Choose 2 to 36 installments and an amount for each.', 'error');
-      if (!summary.valid) return notify('The installments add up to less than the price. Interest can only add to it.', 'error');
+      if (!summary) return notify(t('Choose 2 to 36 installments and an amount for each.'), 'error');
+      if (!summary.valid) return notify(t('The installments add up to less than the price. Interest can only add to it.'), 'error');
     }
     setSaving(true);
     try {
@@ -128,7 +129,7 @@ export default function TransactionForm({ initial, defaultDate, onSaved, onCance
           note: note || null,
           ...(isGroup ? { paid_by: paidBy } : {}),
         });
-        notify('Installments added');
+        notify(t('Installments added'));
         onSaved(plan);
         return;
       }
@@ -147,16 +148,16 @@ export default function TransactionForm({ initial, defaultDate, onSaved, onCance
       let problem = null;
       if (!editing && queue.length) {
         const failed = await uploadQueued(saved.id, queue);
-        if (failed) problem = `${failed} receipt${failed === 1 ? '' : 's'} could not be uploaded. Open the payment to try again.`;
+        if (failed) problem = tn(failed, '{n} receipt could not be uploaded. Open the payment to try again.', '{n} receipts could not be uploaded. Open the payment to try again.');
       }
       if (!sameChoice(alertChoice, startChoice)) {
         try {
           await saveAlertChoice('transaction', saved.id, alertChoice);
         } catch (err) {
-          problem = problem ?? `The payment was saved, but its alert setting was not: ${err.message}`;
+          problem = problem ?? t('The payment was saved, but its alert setting was not: {message}', { message: err.message });
         }
       }
-      notify(problem ?? (editing ? 'Payment updated' : 'Payment added'), problem ? 'error' : 'ok');
+      notify(problem ?? (editing ? t('Payment updated') : t('Payment added')), problem ? 'error' : 'ok');
       onSaved(saved);
     } catch (err) {
       notify(err.message, 'error');
@@ -168,12 +169,19 @@ export default function TransactionForm({ initial, defaultDate, onSaved, onCance
     <form onSubmit={submit} className="form">
       {initial?.source && initial.source !== 'manual' && (
         <div className="banner info">
-          This is one {initial.source === 'recurring' ? 'occurrence of a recurring item' : initial.source === 'debt' ? (initial.type === 'income' ? 'repayment of money you lent' : 'payment towards a debt') : initial.source === 'loan' ? 'loan you made' : 'installment of a plan'}. Changes here
-          only affect this payment.
+          {initial.source === 'recurring'
+            ? t('This is one occurrence of a recurring item. Changes here only affect this payment.')
+            : initial.source === 'debt'
+              ? initial.type === 'income'
+                ? t('This is one repayment of money you lent. Changes here only affect this payment.')
+                : t('This is one payment towards a debt. Changes here only affect this payment.')
+              : initial.source === 'loan'
+                ? t('This is one loan you made. Changes here only affect this payment.')
+                : t('This is one installment of a plan. Changes here only affect this payment.')}
         </div>
       )}
       <Segmented
-        label="Type"
+        label={t('Type')}
         value={type}
         onChange={(v) => {
           setType(v);
@@ -181,19 +189,19 @@ export default function TransactionForm({ initial, defaultDate, onSaved, onCance
           if (v === 'income') setOnCard(false);
         }}
         options={[
-          { value: 'expense', label: 'Expense', tone: 'expense' },
-          { value: 'income', label: 'Income', tone: 'income' },
+          { value: 'expense', label: t('Expense'), tone: 'expense' },
+          { value: 'income', label: t('Income'), tone: 'income' },
         ]}
       />
-      <Field label="Description">
-        <input value={description} onChange={(e) => setDescription(e.target.value)} required maxLength={200} placeholder={type === 'expense' ? 'e.g. Electricity bill' : 'e.g. Salary'} />
+      <Field label={t('Description')}>
+        <input value={description} onChange={(e) => setDescription(e.target.value)} required maxLength={200} placeholder={type === 'expense' ? t('e.g. Electricity bill') : t('e.g. Salary')} />
       </Field>
       <div className="form-grid">
-        <Field label="Amount">
+        <Field label={t('Amount')}>
           <input type="number" inputMode="decimal" step="0.01" min="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} required placeholder="0.00" />
         </Field>
-        <Field label={onCard ? 'Bought on' : 'Date'} hint={onCard ? 'The day you used the card.' : 'Use a past date to record something you already paid.'}>
-          <DatePicker label={onCard ? 'Bought on' : 'Date'} value={date} onChange={setDate} />
+        <Field label={onCard ? t('Bought on') : t('Date')} hint={onCard ? t('The day you used the card.') : t('Use a past date to record something you already paid.')}>
+          <DatePicker label={onCard ? t('Bought on') : t('Date')} value={date} onChange={setDate} />
         </Field>
       </div>
       {type === 'expense' && (
@@ -201,55 +209,55 @@ export default function TransactionForm({ initial, defaultDate, onSaved, onCance
           <label className="check">
             <input type="checkbox" checked={onCard} onChange={(e) => setOnCard(e.target.checked)} />
             <span>
-              Paid with credit card
-              <span className="muted block small">It counts in the month you pay the card bill, not the day you bought it.</span>
+              {t('Paid with credit card')}
+              <span className="muted block small">{t('It counts in the month you pay the card bill, not the day you bought it.')}</span>
             </span>
           </label>
           {onCard && !editing && (
             <Segmented
-              label="How is it paid?"
+              label={t('How is it paid?')}
               value={cardMode}
               onChange={setCardMode}
               options={[
-                { value: 'one', label: 'In one bill' },
-                { value: 'installments', label: 'In installments' },
+                { value: 'one', label: t('In one bill') },
+                { value: 'installments', label: t('In installments') },
               ]}
             />
           )}
           {onCard && (
             <div className="field">
               <span className="field-label">
-                {inInstallments ? 'The first installment is in' : 'Counts in'} <strong>{monthLabel(billMonth)}</strong>
-                {billMonth === defaultBillMonth(date) ? ' (the next bill)' : ''}
+                {inInstallments ? t('The first installment is in') : t('Counts in')} <strong>{monthLabel(billMonth)}</strong>
+                {billMonth === defaultBillMonth(date) ? t(' (the next bill)') : ''}
               </span>
               <MonthCalendar
                 value={billMonth}
                 onChange={setBillChoice}
                 allowed={billOptions}
-                notAllowedReason="A card bill cannot fall before the purchase or more than a year after it"
+                notAllowedReason={t('A card bill cannot fall before the purchase or more than a year after it')}
                 showToday={false}
-                label="The month the card bill is paid"
+                label={t('The month the card bill is paid')}
               />
-              <span className="field-hint">{`Leaves your balance on ${dateLong(dates.date)}, your card pay day. You can change the day in Settings.`}</span>
+              <span className="field-hint">{t('Leaves your balance on {dateLong}, your card pay day. You can change the day in Settings.', { dateLong: dateLong(dates.date) })}</span>
             </div>
           )}
           {inInstallments && (
             <>
               <Segmented
-                label="How are the installments split?"
+                label={t('How are the installments split?')}
                 value={splitMode}
                 onChange={setSplitMode}
                 options={[
-                  { value: 'equal', label: 'Equal' },
-                  { value: 'custom', label: 'Different amounts' },
+                  { value: 'equal', label: t('Equal') },
+                  { value: 'custom', label: t('Different amounts') },
                 ]}
               />
               <div className="form-grid">
-                <Field label="Number of installments" hint="2 to 36, one on each monthly bill.">
+                <Field label={t('Number of installments')} hint={t('2 to 36, one on each monthly bill.')}>
                   <input type="number" min="2" max="36" step="1" inputMode="numeric" value={instCount} onChange={(e) => setInstCount(e.target.value)} required />
                 </Field>
                 {!unequal && (
-                <Field label="Each installment" hint="What the bank charges each month. Raise it if there is interest.">
+                <Field label={t('Each installment')} hint={t('What the bank charges each month. Raise it if there is interest.')}>
                   <input
                     type="number"
                     step="0.01"
@@ -263,7 +271,7 @@ export default function TransactionForm({ initial, defaultDate, onSaved, onCance
                 )}
               </div>
               {listed && rowAmounts && (
-                <div className="inst-list" role="group" aria-label="Month and amount of each installment">
+                <div className="inst-list" role="group" aria-label={t('Month and amount of each installment')}>
                   {months.map((m, i) => (
                     <div key={i} className={`inst-row${unequal && typed[i] ? ' typed' : ''}`}>
                       <span className="inst-when">
@@ -276,7 +284,7 @@ export default function TransactionForm({ initial, defaultDate, onSaved, onCance
                             onChange={(v) => setPick(i, v)}
                             min={addMonthsYM(months[i - 1], 1)}
                             max={addMonthsYM(billMonth, 72)}
-                            label={`Bill month of installment ${i + 1}`}
+                            label={t('Bill month of installment {value}', { value: i + 1 })}
                             className="inst-month"
                           />
                         )}
@@ -288,8 +296,8 @@ export default function TransactionForm({ initial, defaultDate, onSaved, onCance
                           min="0.01"
                           inputMode="decimal"
                           value={typed[i] ? typed[i] : rowAmounts[i] ? String(rowAmounts[i]) : ''}
-                          onChange={(e) => setTyped((t) => Object.assign(Array.from({ length: Math.max(t.length, i + 1) }, (_, k) => t[k] ?? ''), { [i]: e.target.value }))}
-                          aria-label={`Installment ${i + 1}, ${monthLabel(m)}`}
+                          onChange={(e) => setTyped((tt) => Object.assign(Array.from({ length: Math.max(tt.length, i + 1) }, (_, k) => tt[k] ?? ''), { [i]: e.target.value }))}
+                          aria-label={t('Installment {value}, {monthLabel}', { value: i + 1, monthLabel: monthLabel(m) })}
                         />
                       ) : (
                         <strong className="num">{money(rowAmounts[i])}</strong>
@@ -297,16 +305,16 @@ export default function TransactionForm({ initial, defaultDate, onSaved, onCance
                     </div>
                   ))}
                   <p className="field-hint">
-                    The months follow each other; choose another month for any installment after the first.
-                    {unequal && ' Boxes you have not typed in share what is left of the price equally.'}{' '}
+                    {t('The months follow each other; choose another month for any installment after the first.')}
+                    {unequal && t(' Boxes you have not typed in share what is left of the price equally.')}{' '}
                     {pickedMonths.some(Boolean) && (
                       <button type="button" className="link-quiet" onClick={() => setPickedMonths([])}>
-                        Back to consecutive months
+                        {t('Back to consecutive months')}
                       </button>
                     )}{' '}
                     {unequal && typed.some(Boolean) && (
                       <button type="button" className="link-quiet" onClick={() => setTyped([])}>
-                        Share equally again
+                        {t('Share equally again')}
                       </button>
                     )}
                   </p>
@@ -325,28 +333,24 @@ export default function TransactionForm({ initial, defaultDate, onSaved, onCance
                             </span>
                           ))
                         ) : (
-                          <span>{summary.n} installments</span>
+                          <span>{t('{n} installments', { n: summary.n })}</span>
                         )
                       ) : (
                         <span>
-                          {summary.n} × {summary.approx && 'about '}
+                          {summary.n} × {summary.approx && <>{t('about')} </>}
                           <strong>{money(summary.each)}</strong>
                         </span>
                       )}
                       {' = '}
                       <strong>{money(summary.total)}</strong>
-                      {summary.interest > 0 ? (
-                        <>
-                          {' · interest '}
-                          <strong>{money(summary.interest)}</strong> ({summary.pct}% of the price)
-                        </>
-                      ) : (
-                        ' · no interest'
-                      )}
+                      {' · '}
+                      {summary.interest > 0 ? <>
+                          {t('interest')} <strong>{money(summary.interest)}</strong> {t('({pct}% of the price)', { pct: summary.pct })}
+                        </> : t('no interest')}
                     </span>
                   ) : (
                     <span>
-                      {summary.n} installments add up to {money(summary.total)}, less than the price of {money(summary.price)}. Interest can only add to it.
+                      {t('{n} installments add up to {money}, less than the price of {money2}. Interest can only add to it.', { n: summary.n, money: money(summary.total), money2: money(summary.price) })}
                     </span>
                   )}
                 </div>
@@ -357,18 +361,18 @@ export default function TransactionForm({ initial, defaultDate, onSaved, onCance
         </div>
       )}
       <div className="form-grid">
-        <Field label="Category">
+        <Field label={t('Category')}>
           <CategorySelect kind={type} value={categoryId} onChange={setCategoryId} />
         </Field>
         {!inInstallments && (
-        <Field label="Status">
+        <Field label={t('Status')}>
           <Select
-            label="Status"
+            label={t('Status')}
             value={effectiveStatus}
             onChange={setStatus}
             options={[
-              { value: 'paid', label: type === 'income' ? 'Received' : 'Paid' },
-              { value: 'pending', label: type === 'income' ? 'Expected' : 'Pending (still to pay)' },
+              { value: 'paid', label: type === 'income' ? t('Received') : t('Paid') },
+              { value: 'pending', label: type === 'income' ? t('Expected') : t('Pending (still to pay)') },
             ]}
           />
         </Field>
@@ -376,8 +380,8 @@ export default function TransactionForm({ initial, defaultDate, onSaved, onCance
       </div>
 
       {isGroup && (
-        <Field label={type === 'income' ? 'Whose income' : 'Paid by'} hint="Everything lands in the shared balance; this just records who it came from.">
-          <Select label={type === 'income' ? 'Whose income' : 'Paid by'} value={paidBy} onChange={setPaidBy} options={members.map((m) => ({ value: m.username, label: m.username === user.username ? `${m.name} (you)` : m.name, person: m }))} />
+        <Field label={type === 'income' ? t('Whose income') : t('Paid by')} hint={t('Everything lands in the shared balance; this just records who it came from.')}>
+          <Select label={type === 'income' ? t('Whose income') : t('Paid by')} value={paidBy} onChange={setPaidBy} options={members.map((m) => ({ value: m.username, label: m.username === user.username ? t('{name} (you)', { name: m.name }) : m.name, person: m }))} />
         </Field>
       )}
 
@@ -386,15 +390,15 @@ export default function TransactionForm({ initial, defaultDate, onSaved, onCance
         <label className="check">
           <input type="checkbox" checked={splitOpen} onChange={(e) => setSplitOpen(e.target.checked)} />
           <span>
-            Add people to this payment
-            <span className="muted block small">Share it with your partner, family or friends and note each person’s part.</span>
+            {t('Add people to this payment')}
+            <span className="muted block small">{t('Share it with your partner, family or friends and note each person’s part.')}</span>
           </span>
         </label>
         {splitOpen &&
           (conns.loading && !conns.data ? (
-            <p className="muted small">Loading your people…</p>
+            <p className="muted small">{t('Loading your people…')}</p>
           ) : candidates.length === 0 ? (
-            <p className="field-hint">You have no connections yet. Add people under People first.</p>
+            <p className="field-hint">{t('You have no connections yet. Add people under People first.')}</p>
           ) : (
             <>
               <div className="pick-list">
@@ -410,12 +414,12 @@ export default function TransactionForm({ initial, defaultDate, onSaved, onCance
               {chosen.length > 0 && (
                 <div className="split-detail">
                   <Segmented
-                    label="How to split"
+                    label={t('How to split')}
                     value={mode}
                     onChange={setMode}
                     options={[
-                      { value: 'equal', label: 'Equal parts' },
-                      { value: 'custom', label: 'Custom amounts' },
+                      { value: 'equal', label: t('Equal parts') },
+                      { value: 'custom', label: t('Custom amounts') },
                     ]}
                   />
                   {chosen.map((p) => (
@@ -431,15 +435,15 @@ export default function TransactionForm({ initial, defaultDate, onSaved, onCance
                           inputMode="decimal"
                           value={custom[p.username] ?? ''}
                           onChange={(e) => setCustom((s) => ({ ...s, [p.username]: e.target.value }))}
-                          aria-label={`${p.name}'s share`}
+                          aria-label={t('{name}\'s share', { name: p.name })}
                           placeholder="0.00"
                         />
                       )}
                     </div>
                   ))}
                   <div className={`split-row total${overShared ? ' bad' : ''}`}>
-                    <span>You</span>
-                    <strong className="num">{overShared ? 'Shares exceed the amount' : money(myPart / 100)}</strong>
+                    <span>{t('You')}</span>
+                    <strong className="num">{overShared ? t('Shares exceed the amount') : money(myPart / 100)}</strong>
                   </div>
                 </div>
               )}
@@ -448,34 +452,34 @@ export default function TransactionForm({ initial, defaultDate, onSaved, onCance
       </div>
       )}
 
-      {inInstallments && <p className="field-hint">Sharing the purchase, a receipt or an alert belong to one payment: open any installment afterwards to add them.</p>}
+      {inInstallments && <p className="field-hint">{t('Sharing the purchase, a receipt or an alert belong to one payment: open any installment afterwards to add them.')}</p>}
 
       {effectiveStatus === 'pending' && !inInstallments && (
         <AlertPicker
           value={alertChoice}
           onChange={setAlertChoice}
-          label="Alert for this payment"
+          label={t('Alert for this payment')}
           idPrefix="form-alert"
-          hint={initial?.alert && !initial.alert.own && initial.alert.source !== 'default' ? `Currently set by its ${initial.alert.source}.` : 'Alerts only fire while it is still to pay.'}
+          hint={initial?.alert && !initial.alert.own && initial.alert.source !== 'default' ? t('Currently set by its {source}.', { source: initial.alert.source }) : t('Alerts only fire while it is still to pay.')}
         />
       )}
 
       {!inInstallments && (
         <div className="receipt-section">
-          <span className="field-label">Receipts</span>
+          <span className="field-label">{t('Receipts')}</span>
           <Receipts txId={editing ? initial.id : null} items={receiptList ?? []} onChange={refreshReceipts} queue={queue} setQueue={setQueue} />
         </div>
       )}
 
-      <Field label="Note (optional)">
+      <Field label={t('Note (optional)')}>
         <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={1000} />
       </Field>
       <div className="form-actions">
         <button type="button" className="btn" onClick={onCancel}>
-          Cancel
+          {t('Cancel')}
         </button>
         <button type="submit" className="btn primary" disabled={saving || overShared}>
-          {editing ? 'Save changes' : inInstallments ? 'Add installments' : 'Add payment'}
+          {editing ? t('Save changes') : inInstallments ? t('Add installments') : t('Add payment')}
         </button>
       </div>
     </form>

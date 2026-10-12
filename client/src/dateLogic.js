@@ -1,3 +1,4 @@
+import { t } from './i18n/translate.js';
 // Everything the date picker needs, as plain functions, so it is tested without a browser. A date is "YYYY-MM-DD" (a calendar day, no
 // time zone): all arithmetic is done in UTC so a daylight-saving change can never move a day.
 
@@ -65,8 +66,8 @@ export function weekdayLabels(weekStart = 1, locale) {
 
 /** Whether a day can be picked, and if not why (a tooltip and read out). `min` and `max` are days or empty. */
 export function dateChoice(ymd, { min, max } = {}) {
-  if (min && ymd < min) return { ok: false, reason: 'Too early' };
-  if (max && ymd > max) return { ok: false, reason: 'Too late' };
+  if (min && ymd < min) return { ok: false, reason: t('Too early') };
+  if (max && ymd > max) return { ok: false, reason: t('Too late') };
   return { ok: true };
 }
 

@@ -1166,3 +1166,45 @@ Add an entry to `GUIDES` (a test checks the lengths, that the slug and title are
 ### How it is tested
 
 `guides.test.js` (the writing, the page, the structured data, escaping, sign-ups open and closed, the sitemap), `api-guides.test.js` (through the real server: the pages as a search engine asks, 404 for anything else under `/guides/`, the stylesheet and pictures they use, no dependence on a session, the sitemap's addresses all answer 200), and the browser checks in `e2e/seo.e2e.cjs` (without any script, titles and structured data, contrast in both themes, a phone with the table, every link leads somewhere, the way from the home page and back).
+
+
+## 46. Languages: Italian next to English
+
+Penny speaks English only. This adds Italian, and makes a third language a matter of one more dictionary. It is done in stages, each tested and usable on its own: (1) the translation machinery and the language choice; (2) the public side (home page, terms, privacy, contact, sign-in, guides) with its own Italian addresses; (3) the app's screens; (4) what the server writes (e-mails, notifications, error messages, the assistant and the AI answers).
+
+### Choosing the language
+
+- A **signed-in person** has a saved choice (`language`: `en` or `it`, in the account's preferences, so it follows them to other devices; mirrored in the browser so the first paint is right). Until they choose, it follows the browser's language (an Italian browser gets Italian, anything else gets English).
+- A **visitor** on a public page (home, terms, privacy, contact, guides) gets the language of the address: `/it/…` is Italian, everything else is English, so an address always shows the same words (which is what search engines need). On the sign-in pages, which have no language address, a visitor gets the language they chose (a note in the browser, nothing sent to the server: clicking a language link remembers it), else the browser's.
+- The switch is in **Settings** (Look and feel), on the **home page** and on the **sign-in** pages.
+- The language never changes what is stored, only how it is shown.
+
+### How text is translated (`client/src/i18n`)
+
+Text in the code stays English and readable: `t('Add payment')`. The Italian dictionary maps the English sentence to the Italian one, so there is no separate list of keys, and a missing translation shows the English (never a blank or a code). Pieces that change use `{name}`: `t('{n} payments', { n })`. Plurals use `tn(n, 'One payment', '{n} payments')` and the dictionary gives `{ one, other }`. Labels kept in constants outside a component are marked `N_('Blue')` (it returns the English and lets the tests see it) and translated when drawn with `t(label)`.
+
+The dictionary is a **separate file fetched only when Italian is used**, so English visitors download nothing extra. `t` works anywhere (components and plain logic files). When the language changes the whole tree is drawn again, so nothing keeps the old language. Dates, months, weekdays and money follow the language (`it-IT`: `1.234,56 €`, "ottobre"); English keeps the browser's own format, as before.
+
+### Rules for the Italian
+
+Plain words, for ages 15 to 90, in the same tone as the English: "tu" (not "Lei"), short sentences, an everyday Italian word wherever there is one ("budget", "email" and "app" are everyday Italian and stay). Names of things in the app are the same everywhere (payment = pagamento, recurring = ricorrente, instalment plan = pagamento a rate, shared budget = budget condiviso). A native speaker should read it before it is relied on.
+
+### Keeping it honest (tests)
+
+A test reads the source and requires every sentence passed to `t`, `tn` or `N_` to be in the Italian dictionary, every dictionary entry to be used (no leftovers), the same `{placeholders}` on both sides, no empty entries and no entry that is only a copy of the English (except the few words that really are the same). Another checks that no date or number is formatted in a fixed language.
+
+### Search engines
+
+Italian public pages live at `/it`, `/it/terms`, `/it/privacy`, `/it/contact`, `/it/guides` and `/it/guides/<slug>`. Each has its own title, description and canonical address, `<html lang="it">`, `hreflang` links to the English and Italian versions (and `x-default`), and its place in the sitemap. The app and its interface stay marked "do not index".
+
+The guides are written by the server (`server/src/lib/guidePages.js`) in the language of the address, from the English text in `content/guides.js` and the server's Italian dictionary; the links inside a guide, the date ("Aggiornata il 12 ottobre 2026") and the numbers in the examples (`3.000`, `12,99`) follow the language. An Italian guide that does not exist answers 404 in Italian, marked "do not index". The page cache of the app is kept per language and address.
+
+### What the server writes (stage 4)
+
+The app sends its language with every request (`X-Language`); the server's own dictionary (`server/src/i18n/it.js`, kept complete by `server/test/i18n.test.js`) translates error messages, the assistant's answers (it also understands Italian questions), insights and budget findings. A notification, e-mail or scan result is written in the **recipient's** language (their saved choice), not the language of whoever triggered it. Things stored in the database stay English (default category names, the "Balance adjustment" payment, the audit log); the app shows default category names translated (`catName`).
+
+### Known gaps
+
+- The Italian was written and checked by the assistant only. A native speaker should read it, above all the terms, the privacy policy and the guides.
+- The pictures of the app on the home page are English screenshots.
+- CSV export headings and the text of a reply to a contact message stay English.

@@ -3,6 +3,7 @@ import { record } from '../lib/audit.js';
 import { rateLimit } from '../lib/auth.js';
 import { contactBody, DAILY_CAP, messagesToday, notifyAdmins, saveMessage } from '../lib/contact.js';
 import { HttpError, wrap } from '../lib/http.js';
+import { t } from '../lib/i18n.js';
 
 /**
  * The contact form's one public route (docs/DESIGN.md section 38). Anyone may send; a signed-in person's message is tied to their account.
@@ -14,7 +15,7 @@ const ipLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 5,
   keyFn: (req) => `contact:${req.ip}`,
-  message: 'You have sent a few messages already. Please try again in an hour.',
+  get message() { return t('You have sent a few messages already. Please try again in an hour.'); },
   onLimit: (req) => record('rate_limited', { req, detail: 'too many contact messages from one place' }),
 });
 
@@ -27,7 +28,7 @@ router.post(
     if (body.website) return res.status(201).json({ ok: true });
     if ((await messagesToday()) >= DAILY_CAP) {
       record('rate_limited', { req, detail: 'the daily limit of contact messages was reached' });
-      throw new HttpError(429, 'Penny has received a lot of messages today. Please try again tomorrow.');
+      throw new HttpError(429, t('Penny has received a lot of messages today. Please try again tomorrow.'));
     }
     // an admin who is "viewing as" somebody is not that person: the message is not tied to their account
     const userId = req.user && !req.admin ? req.user.id : null;

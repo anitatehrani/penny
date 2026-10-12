@@ -1,3 +1,4 @@
+import { t } from './i18n/translate.js';
 // The little forecast on the public home page (docs/DESIGN.md section 37): a visitor moves a few sliders and sees what a year could look like.
 // It is only an illustration of the idea (the real forecast is built from the person's own payments), so it is deliberately simple and pure.
 
@@ -28,7 +29,7 @@ export function summarizeProjection(series) {
 
 /** Short month names for the chart: "Now", then the next months counted from `now`. */
 export function monthLabels(now, count, locale = 'en') {
-  const labels = ['Now'];
+  const labels = [t('Now')];
   for (let i = 1; i <= count; i += 1) {
     const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + i, 1));
     labels.push(d.toLocaleDateString(locale, { month: 'short', timeZone: 'UTC' }));
@@ -61,22 +62,22 @@ export function smoothPath(points) {
     dx.push(points[i + 1].x - points[i].x);
     slope.push((points[i + 1].y - points[i].y) / (dx[i] || 1));
   }
-  const t = new Array(n);
-  t[0] = slope[0];
-  t[n - 1] = slope[n - 2];
-  for (let i = 1; i < n - 1; i += 1) t[i] = slope[i - 1] * slope[i] <= 0 ? 0 : (slope[i - 1] + slope[i]) / 2;
+  const tt = new Array(n);
+  tt[0] = slope[0];
+  tt[n - 1] = slope[n - 2];
+  for (let i = 1; i < n - 1; i += 1) tt[i] = slope[i - 1] * slope[i] <= 0 ? 0 : (slope[i - 1] + slope[i]) / 2;
   for (let i = 0; i < n - 1; i += 1) {
     if (slope[i] === 0) {
-      t[i] = 0;
-      t[i + 1] = 0;
+      tt[i] = 0;
+      tt[i + 1] = 0;
     } else {
-      const a = t[i] / slope[i];
-      const b = t[i + 1] / slope[i];
+      const a = tt[i] / slope[i];
+      const b = tt[i + 1] / slope[i];
       const sq = a * a + b * b;
       if (sq > 9) {
         const tau = 3 / Math.sqrt(sq);
-        t[i] = tau * a * slope[i];
-        t[i + 1] = tau * b * slope[i];
+        tt[i] = tau * a * slope[i];
+        tt[i + 1] = tau * b * slope[i];
       }
     }
   }
@@ -84,7 +85,7 @@ export function smoothPath(points) {
   for (let i = 0; i < n - 1; i += 1) {
     const p = points[i];
     const q = points[i + 1];
-    d += ` C${f(p.x + dx[i] / 3)} ${f(p.y + (t[i] * dx[i]) / 3)} ${f(q.x - dx[i] / 3)} ${f(q.y - (t[i + 1] * dx[i]) / 3)} ${f(q.x)} ${f(q.y)}`;
+    d += ` C${f(p.x + dx[i] / 3)} ${f(p.y + (tt[i] * dx[i]) / 3)} ${f(q.x - dx[i] / 3)} ${f(q.y - (tt[i + 1] * dx[i]) / 3)} ${f(q.x)} ${f(q.y)}`;
   }
   return d;
 }

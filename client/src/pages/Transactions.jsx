@@ -15,16 +15,18 @@ import { activeFilterCount, categoryOptions } from '../filterLogic.js';
 import { currentMonth, dateLabel, monthLabel, todayYMD } from '../format.js';
 import { useFetch } from '../hooks.js';
 import { useWorkspace } from '../workspace.jsx';
+import { N_, t } from '../i18n/translate.js';
+import { tRich } from '../i18n/react.jsx';
 
 const TYPES = [
-  { value: '', label: 'Income & expenses' },
-  { value: 'expense', label: 'Expenses only' },
-  { value: 'income', label: 'Income only' },
+  { value: '', get label() { return t('Income & expenses'); } },
+  { value: 'expense', get label() { return t('Expenses only'); } },
+  { value: 'income', get label() { return t('Income only'); } },
 ];
 const PAYS = [
-  { value: '', label: 'Any way of paying' },
-  { value: 'credit_card', label: 'Credit card' },
-  { value: 'cash', label: 'Cash and bank' },
+  { value: '', get label() { return t('Any way of paying'); } },
+  { value: 'credit_card', get label() { return t('Credit card'); } },
+  { value: 'cash', get label() { return t('Cash and bank'); } },
 ];
 
 /** The line at the top of a month: what was left over from the month before. Nothing to edit; it is not a payment. */
@@ -35,17 +37,17 @@ function CarryRow({ carry, state, month }) {
     <div className="tx-row carry">
       <div className="tx-date">
         <strong>{monthLabel(month, { month: 'short' })} 1</strong>
-        <span className="muted">{state === 'pending' ? 'expected' : 'carried over'}</span>
+        <span className="muted">{state === 'pending' ? t('expected') : t('carried over')}</span>
       </div>
       <div className="tx-main">
         <div className="tx-title">
-          Left over from {from}
-          <span className="badge" title="Worked out from your payments. It is not a payment, so it is not in your balance twice.">
-            <Icon name="undo" size={12} /> Carried over
+          {t('Left over from {from}', { from })}
+          <span className="badge" title={t('Worked out from your payments. It is not a payment, so it is not in your balance twice.')}>
+            <Icon name="undo" size={12} /> {t('Carried over')}
           </span>
         </div>
         <div className="tx-meta">
-          <span className="muted">What remained after everything in {from}, added to this month. You can turn this off in Settings.</span>
+          <span className="muted">{t('What remained after everything in {from}, added to this month. You can turn this off in Settings.', { from })}</span>
         </div>
       </div>
       <div className="tx-amount num pos">+{money(carry.amount)}</div>
@@ -55,11 +57,11 @@ function CarryRow({ carry, state, month }) {
 }
 
 const STATUSES = [
-  ['', 'All'],
-  ['pending', 'To pay'],
-  ['paid', 'Paid'],
-  ['overdue', 'Overdue'],
-  ['skipped', 'Skipped'],
+  ['', N_('All')],
+  ['pending', N_('To pay')],
+  ['paid', N_('Paid')],
+  ['overdue', N_('Overdue')],
+  ['skipped', N_('Skipped')],
 ];
 
 export default function Transactions() {
@@ -107,7 +109,7 @@ export default function Transactions() {
   const cardBill = useFetch(() => (status === 'overdue' || status === 'skipped' ? Promise.resolve(null) : api.get(`/card-bills?month=${month}`)), [month, status, data]);
 
   const categoryChoices = useMemo(() => categoryOptions(categories), [categories]);
-  const memberChoices = useMemo(() => [{ value: '', label: 'Everyone' }, ...members.map((m) => ({ value: m.username, label: m.name, person: m }))], [members]);
+  const memberChoices = useMemo(() => [{ value: '', label: t('Everyone') }, ...members.map((m) => ({ value: m.username, label: m.name, person: m }))], [members]);
   const filterCount = activeFilterCount({ type, pay, category, member, search });
   const clearFilters = () => {
     const next = new URLSearchParams(params);
@@ -124,49 +126,49 @@ export default function Transactions() {
     <>
       <header className="page-head">
         <div>
-          <h1>Payments</h1>
-          <p className="muted">Everything you paid or still have to pay. Add past payments by choosing an earlier date.</p>
+          <h1>{t('Payments')}</h1>
+          <p className="muted">{t('Everything you paid or still have to pay. Add past payments by choosing an earlier date.')}</p>
         </div>
         <div className="head-actions">
-          <a className="btn" href={`/api/transactions/export.csv${qs({ month: status === 'overdue' ? '' : month, status, type, pay, category_id: category, member, ws: current.id })}`} title="Save the payments shown here in a file that opens like a spreadsheet">
-            <Icon name="download" /> Export data
+          <a className="btn" href={`/api/transactions/export.csv${qs({ month: status === 'overdue' ? '' : month, status, type, pay, category_id: category, member, ws: current.id })}`} title={t('Save the payments shown here in a file that opens like a spreadsheet')}>
+            <Icon name="download" /> {t('Export data')}
           </a>
           <button className="btn" onClick={() => setImporting(true)}>
-            <Icon name="upload" /> Import statement
+            <Icon name="upload" /> {t('Import statement')}
           </button>
           <button className="btn primary" onClick={() => setEditing({})}>
-            <Icon name="plus" /> Add payment
+            <Icon name="plus" /> {t('Add payment')}
           </button>
         </div>
       </header>
 
       <div className="toolbar">
         {status !== 'overdue' && <MonthNav month={month} onChange={(m) => set('month', m === currentMonth() ? '' : m)} />}
-        <div className="chips" role="group" aria-label="Status filter">
+        <div className="chips" role="group" aria-label={t('Status filter')}>
           {STATUSES.map(([value, label]) => (
             <button key={value} className={`chip${status === value ? ' active' : ''}`} onClick={() => set('status', value)}>
-              {label}
+              {t(label)}
             </button>
           ))}
         </div>
       </div>
-      <div className="filters" role="search" aria-label="Filter payments">
+      <div className="filters" role="search" aria-label={t('Filter payments')}>
         <div className="search-box">
           <Icon name="search" size={16} />
-          <input type="search" placeholder="Search description or note…" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search payments" />
+          <input type="search" placeholder={t('Search description or note…')} value={search} onChange={(e) => setSearch(e.target.value)} aria-label={t('Search payments')} />
           {search && (
-            <button type="button" className="btn icon ghost sm search-clear" aria-label="Clear search" onClick={() => setSearch('')}>
+            <button type="button" className="btn icon ghost sm search-clear" aria-label={t('Clear search')} onClick={() => setSearch('')}>
               <Icon name="x" size={14} />
             </button>
           )}
         </div>
-        <FilterSelect label="Type" icon="trend" value={type} onChange={(v) => set('type', v)} options={TYPES} />
-        <FilterSelect label="Paid with" icon="card" value={pay} onChange={(v) => set('pay', v)} options={PAYS} />
-        <FilterSelect label="Category" icon="tag" value={category} onChange={(v) => set('category', v)} options={categoryChoices} />
-        {isGroup && <FilterSelect label="Member" icon="users" value={member} onChange={(v) => set('member', v)} options={memberChoices} />}
+        <FilterSelect label={t('Type')} icon="trend" value={type} onChange={(v) => set('type', v)} options={TYPES} />
+        <FilterSelect label={t('Paid with')} icon="card" value={pay} onChange={(v) => set('pay', v)} options={PAYS} />
+        <FilterSelect label={t('Category')} icon="tag" value={category} onChange={(v) => set('category', v)} options={categoryChoices} />
+        {isGroup && <FilterSelect label={t('Member')} icon="users" value={member} onChange={(v) => set('member', v)} options={memberChoices} />}
         {filterCount > 0 && (
           <button type="button" className="btn sm ghost filters-clear" onClick={clearFilters}>
-            <Icon name="x" size={14} /> Clear filters ({filterCount})
+            <Icon name="x" size={14} /> {t('Clear filters ({filterCount})', { filterCount })}
           </button>
         )}
       </div>
@@ -174,27 +176,27 @@ export default function Transactions() {
       {status !== 'skipped' && data && (
         <div className="summary-strip">
           <div>
-            <span className="muted">Income</span>
+            <span className="muted">{t('Income')}</span>
             <strong className="num pos">{money(income)}</strong>
-            {carried > 0 && <span className="muted small">includes {money(carried)} left over from {monthLabel(carryData.data.from_month, { month: 'long' })}</span>}
+            {carried > 0 && <span className="muted small">{t('includes {money} left over from {monthLabel}', { money: money(carried), monthLabel: monthLabel(carryData.data.from_month, { month: 'long' }) })}</span>}
           </div>
           <div>
-            <span className="muted">Expenses</span>
+            <span className="muted">{t('Expenses')}</span>
             <strong className="num">{money(expenses)}</strong>
           </div>
           <div>
-            <span className="muted">Net</span>
+            <span className="muted">{t('Net')}</span>
             <strong className={`num ${net < 0 ? 'neg' : ''}`}>{money(net, { signed: true })}</strong>
           </div>
           {boughtCredit > 0 && (
-            <div title="Everything you bought with the credit card this month, including what is paid with a later bill, so it is not part of the Expenses figure.">
-              <span className="muted">Bought with credit card</span>
+            <div title={t('Everything you bought with the credit card this month, including what is paid with a later bill, so it is not part of the Expenses figure.')}>
+              <span className="muted">{t('Bought with credit card')}</span>
               <strong className="num">{money(boughtCredit)}</strong>
             </div>
           )}
           {boughtDebit > 0 && (
-            <div title="Everything paid from cash or your bank account this month, such as with your debit card.">
-              <span className="muted">Bought with debit card</span>
+            <div title={t('Everything paid from cash or your bank account this month, such as with your debit card.')}>
+              <span className="muted">{t('Bought with debit card')}</span>
               <strong className="num">{money(boughtDebit)}</strong>
             </div>
           )}
@@ -204,10 +206,10 @@ export default function Transactions() {
       {status !== 'overdue' && status !== 'skipped' && cardBill.data?.total > 0 && (
         <div className="card-bill-line">
           <span>
-            Card bill on <strong>{dateLabel(cardBill.data.bill_date)}</strong>: <strong className="num">{money(cardBill.data.total)}</strong> to pay
+            {tRich('Card bill on {bold}: {bold2} to pay', { bold: <strong>{dateLabel(cardBill.data.bill_date)}</strong>, bold2: <strong className="num">{money(cardBill.data.total)}</strong> })}
           </span>
           <button type="button" className="btn sm" onClick={() => setPartPaying(true)}>
-            Pay only part…
+            {t('Pay only part…')}
           </button>
         </div>
       )}
@@ -218,8 +220,8 @@ export default function Transactions() {
         ) : !data ? (
           <Loading />
         ) : rows.length === 0 && !showCarry ? (
-          <Empty title="No payments found">
-            {status || type || pay || category || search ? 'Try clearing some filters.' : 'Nothing recorded for this month yet — add a payment to get started.'}
+          <Empty title={t('No payments found')}>
+            {status || type || pay || category || search ? t('Try clearing some filters.') : t('Nothing recorded for this month yet — add a payment to get started.')}
           </Empty>
         ) : (
           <div className="tx-list">
@@ -253,7 +255,7 @@ export default function Transactions() {
         />
       )}
       {editing && (
-        <Modal title={editing.id ? 'Edit payment' : 'Add payment'} onClose={() => setEditing(null)}>
+        <Modal title={editing.id ? t('Edit payment') : t('Add payment')} onClose={() => setEditing(null)}>
           <TransactionForm
             initial={editing.id ? editing : null}
             defaultDate={month === currentMonth() ? undefined : `${month}-01`}

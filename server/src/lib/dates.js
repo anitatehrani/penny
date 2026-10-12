@@ -27,13 +27,13 @@ export function addMonths(ymd, n, anchorDay) {
 
 export function addDays(ymd, n) {
   const { y, m, d } = parseYMD(ymd);
-  const t = new Date(Date.UTC(y, m - 1, d + n));
-  return fmtYMD(t.getUTCFullYear(), t.getUTCMonth() + 1, t.getUTCDate());
+  const tt = new Date(Date.UTC(y, m - 1, d + n));
+  return fmtYMD(tt.getUTCFullYear(), tt.getUTCMonth() + 1, tt.getUTCDate());
 }
 
 export function todayYMD() {
-  const t = new Date();
-  return fmtYMD(t.getFullYear(), t.getMonth() + 1, t.getDate());
+  const tt = new Date();
+  return fmtYMD(tt.getFullYear(), tt.getMonth() + 1, tt.getDate());
 }
 
 // 'YYYY-MM' helpers

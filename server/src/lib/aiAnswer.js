@@ -6,8 +6,9 @@ import { query } from '../db.js';
 import { aiConfig, askModel, takeAllowance } from './ai.js';
 import { AGREED_SQL, gatherOtherBudgets } from './aiBudgets.js';
 import { buildFactSheet, gatherAiExtras, SYSTEM_RULES } from './aiFacts.js';
+import { N_, currentLanguage, t } from './i18n.js';
 
-export const AI_FOLLOW_UPS = ['Give me a summary', 'Where does my money go?', 'Will I go negative?'];
+export const AI_FOLLOW_UPS = [N_('Give me a summary'), N_('Where does my money go?'), N_('Will I go negative?')];
 
 /**
  * { configured, on (this person), waiting (other members who have not agreed), members, ready } for one budget. A member has agreed when they joined
@@ -53,7 +54,7 @@ export async function answerWithAi({ question, history, workspaceId, userId, fac
   const extras = await gatherAiExtras(workspaceId, facts, question, userId);
   extras.others = await gatherOtherBudgets({ userId, openId: workspaceId, facts, question });
   const messages = [
-    { role: 'system', content: `${SYSTEM_RULES}\n\n--- Budget summary ---\n${buildFactSheet(facts, extras)}` },
+    { role: 'system', content: `${SYSTEM_RULES}\nThe app is shown in ${currentLanguage() === 'it' ? 'Italian' : 'English'}: if the question does not make its language clear, answer in that language.\n\n--- Budget summary ---\n${buildFactSheet(facts, extras)}` },
     ...turnsFrom(history),
     { role: 'user', content: clip(question, 300) },
   ];

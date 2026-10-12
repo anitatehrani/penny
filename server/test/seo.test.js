@@ -19,7 +19,7 @@ describe('the public pages', () => {
   it('are the home page, the terms, the privacy policy and the contact page, and each is a page the app really has', () => {
     assert.deepEqual(PUBLIC_PAGES.map((p) => p.path), ['/', '/terms', '/privacy', '/contact']);
     const main = fs.readFileSync(path.join(CLIENT, 'src/main.jsx'), 'utf8');
-    for (const p of PUBLIC_PAGES.filter((x) => x.path !== '/')) assert.ok(main.includes(`pathname === '${p.path}'`), `${p.path} is a page of the app`);
+    for (const p of PUBLIC_PAGES.filter((x) => x.path !== '/')) assert.ok(new RegExp(`(pathname|pathOnly) === '${p.path}'`).test(main), `${p.path} is a page of the app`);
   });
 
   it('each have their own title and description, of a length a search result can show', () => {
@@ -127,7 +127,8 @@ describe('what a reader without scripts sees', () => {
   });
   it('has the same questions and answers as the home page, word for word', () => {
     const landing = fs.readFileSync(path.join(CLIENT, 'src/pages/Landing.jsx'), 'utf8');
-    const faq = new Function(`return ${/const FAQ = (\[[\s\S]*?\n\]);/.exec(landing)[1]}`)();
+    // the sentences are wrapped for translation: t('...') is the English itself here
+    const faq = new Function('t', `return ${/const FAQ = (\[[\s\S]*?\n\]);/.exec(landing)[1]}`)((text) => text);
     assert.deepEqual(HOME_FAQ, faq);
   });
   it('makes no claim the home page does not make', () => {
@@ -146,9 +147,9 @@ describe('the sitemap and robots.txt', () => {
 
   it('the sitemap lists the public pages and the guides, with absolute addresses, and nothing else', () => {
     const xml = sitemapXml(BASE);
-    assert.match(xml, /^<\?xml version="1.0" encoding="UTF-8"\?>\n<urlset xmlns="http:\/\/www\.sitemaps\.org\/schemas\/sitemap\/0\.9">/);
+    assert.match(xml, /^<\?xml version="1.0" encoding="UTF-8"\?>\n<urlset xmlns="http:\/\/www\.sitemaps\.org\/schemas\/sitemap\/0\.9" xmlns:xhtml="http:\/\/www\.w3\.org\/1999\/xhtml">/);
     const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
-    assert.deepEqual(locs, [`${BASE}/`, `${BASE}/terms`, `${BASE}/privacy`, `${BASE}/contact`, `${BASE}/guides`, ...GUIDES.map((g) => `${BASE}/guides/${g.slug}`)]);
+    assert.deepEqual(locs, ['/', '/terms', '/privacy', '/contact', '/guides', ...GUIDES.map((g) => `/guides/${g.slug}`)].flatMap((p) => [p === '/' ? `${BASE}/` : `${BASE}${p}`, `${BASE}/it${p === '/' ? '' : p}`]));
     for (const l of locs) assert.doesNotThrow(() => new URL(l));
     assert.ok(!/payments|settings|login|admin|api/.test(xml));
     assert.equal((xml.match(/<url>/g) || []).length, (xml.match(/<\/url>/g) || []).length);
@@ -157,7 +158,8 @@ describe('the sitemap and robots.txt', () => {
   it('dates only what is really dated: the terms and the privacy policy by their version, the guides by when they were written', () => {
     const xml = sitemapXml(BASE);
     const lastmods = [...xml.matchAll(/<lastmod>([^<]+)<\/lastmod>/g)].map((m) => m[1]);
-    assert.deepEqual(lastmods, [TERMS_VERSION, TERMS_VERSION, ...[...GUIDES.map((g) => g.updated)].sort().slice(-1), ...GUIDES.map((g) => g.updated)]);
+    const once = [TERMS_VERSION, TERMS_VERSION, ...[...GUIDES.map((g) => g.updated)].sort().slice(-1), ...GUIDES.map((g) => g.updated)];
+    assert.deepEqual(lastmods, once.flatMap((d) => [d, d])); // each page in both languages
     for (const d of lastmods) assert.match(d, /^\d{4}-\d{2}-\d{2}$/);
   });
 

@@ -104,7 +104,7 @@ export function cardInstallmentSummary({ price, each, count, amounts }) {
     const partsC = amounts.map(toCents);
     const n = partsC.length;
     if (!(n >= 2 && n <= 36) || priceC <= 0 || partsC.some((c) => c <= 0)) return null;
-    const totalC = partsC.reduce((t, c) => t + c, 0);
+    const totalC = partsC.reduce((tt, c) => tt + c, 0);
     if (totalC < priceC) return { valid: false, n, total: totalC / 100, price: priceC / 100 };
     const interestC = totalC - priceC;
     return { valid: true, n, parts: partsC.map((c) => c / 100), total: totalC / 100, interest: interestC / 100, pct: Math.round((interestC * 1000) / priceC) / 10 };
@@ -143,7 +143,7 @@ export function spreadAmounts({ price, count, typed = [] }) {
   const priceC = toCents(price);
   const filled = Array.from({ length: n }, (_, i) => (typed[i] !== undefined && typed[i] !== '' ? toCents(typed[i]) : null));
   const open = filled.map((c, i) => (c === null ? i : -1)).filter((i) => i >= 0);
-  const left = Math.max(0, priceC - filled.reduce((t, c) => t + (c ?? 0), 0));
+  const left = Math.max(0, priceC - filled.reduce((tt, c) => tt + (c ?? 0), 0));
   const share = open.length ? Math.floor(left / open.length) : 0;
   const extra = open.length ? left - share * open.length : 0;
   return filled.map((c, i) => (c !== null ? c : share + (open.indexOf(i) < extra ? 1 : 0))).map((c) => c / 100);

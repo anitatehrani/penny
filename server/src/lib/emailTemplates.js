@@ -1,11 +1,12 @@
 import { appUrl } from './mailer.js';
+import { localeOf, t, tn } from './i18n.js';
 
 export const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
 const money = (amount, currency) => {
   try {
-    return new Intl.NumberFormat('en', { style: 'currency', currency: currency || 'USD' }).format(amount);
+    return new Intl.NumberFormat(localeOf(), { style: 'currency', currency: currency || 'USD' }).format(amount);
   } catch {
     return `${amount} ${currency ?? ''}`.trim();
   }
@@ -15,12 +16,12 @@ export { money as formatMoney };
 /** "today", "tomorrow", "in 3 days (Sat 5 Oct)", "2 days overdue" relative to `today` (YYYY-MM-DD). */
 export function relativeDate(date, today) {
   const d = Math.round((Date.UTC(...date.split('-').map((n, i) => (i === 1 ? n - 1 : +n))) - Date.UTC(...today.split('-').map((n, i) => (i === 1 ? n - 1 : +n)))) / 86_400_000);
-  const nice = new Date(`${date}T12:00:00Z`).toLocaleDateString('en', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
-  if (d === 0) return `due today (${nice})`;
-  if (d === 1) return `due tomorrow (${nice})`;
-  if (d > 1) return `due in ${d} days (${nice})`;
-  if (d === -1) return `1 day overdue (${nice})`;
-  return `${-d} days overdue (${nice})`;
+  const nice = new Date(`${date}T12:00:00Z`).toLocaleDateString(localeOf(), { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+  if (d === 0) return t('due today ({nice})', { nice });
+  if (d === 1) return t('due tomorrow ({nice})', { nice });
+  if (d > 1) return t('due in {d} days ({nice})', { d, nice });
+  if (d === -1) return t('1 day overdue ({nice})', { nice });
+  return t('{value} days overdue ({nice})', { value: -d, nice });
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -82,7 +83,7 @@ const button = (href, label) =>
 
 /** For links that matter (confirm, reset): the address in full, for the person whose mail program does not show the button. */
 const linkFallback = (href) =>
-  `<p class="muted" style="margin:16px 0 0;font-size:12.5px;line-height:1.6;color:#7a7a72">The button not working? Paste this address into your browser:<br><a class="lnk" href="${esc(href)}" style="color:${VIOLET};word-break:break-all">${esc(href)}</a></p>`;
+  `<p class="muted" style="margin:16px 0 0;font-size:12.5px;line-height:1.6;color:#7a7a72">${esc(t('The button not working? Paste this address into your browser:'))}<br><a class="lnk" href="${esc(href)}" style="color:${VIOLET};word-break:break-all">${esc(href)}</a></p>`;
 
 const small = (html) => `<p class="muted" style="margin:14px 0 0;font-size:13.5px;line-height:1.6;color:#6b6a65">${html}</p>`;
 
@@ -94,8 +95,8 @@ const callout = (html, tone = 'soft') => {
 
 const footerFor = (unsubscribeUrl) =>
   unsubscribeUrl
-    ? `You get this because e-mail alerts are on in your Penny settings.<br><a class="lnk" href="${esc(appUrl())}/notifications?tab=settings" style="color:${VIOLET}">Change what you get</a> · <a class="lnk" href="${esc(unsubscribeUrl)}" style="color:${VIOLET}">Turn e-mail alerts off</a>`
-    : `This is a one-time message from Penny, sent to the address on your account.<br><a class="lnk" href="${esc(appUrl())}" style="color:${VIOLET}">${esc(appUrl().replace(/^https?:\/\//, ''))}</a> · <a class="lnk" href="${esc(appUrl())}/contact" style="color:${VIOLET}">Contact</a>`;
+    ? `${esc(t('You get this because e-mail alerts are on in your Penny settings.'))}<br><a class="lnk" href="${esc(appUrl())}/notifications?tab=settings" style="color:${VIOLET}">${esc(t('Change what you get'))}</a> · <a class="lnk" href="${esc(unsubscribeUrl)}" style="color:${VIOLET}">${esc(t('Turn e-mail alerts off'))}</a>`
+    : `${esc(t('This is a one-time message from Penny, sent to the address on your account.'))}<br><a class="lnk" href="${esc(appUrl())}" style="color:${VIOLET}">${esc(appUrl().replace(/^https?:\/\//, ''))}</a> · <a class="lnk" href="${esc(appUrl())}/contact" style="color:${VIOLET}">${esc(t('Contact'))}</a>`;
 
 /**
  * Digest / instant alert e-mail.
@@ -123,28 +124,28 @@ export function alertEmail({ name, items, today, unsubscribeUrl }) {
   const count = items.length;
   const subject =
     overdue.length && due.length
-      ? `${overdue.length} overdue and ${due.length} upcoming payment${due.length === 1 ? '' : 's'}`
+      ? tn(due.length, '{length} overdue and {n} upcoming payment', '{length} overdue and {n} upcoming payments', { length: overdue.length })
       : overdue.length
-        ? `${overdue.length} overdue payment${overdue.length === 1 ? '' : 's'}`
+        ? tn(overdue.length, '{n} overdue payment', '{n} overdue payments')
         : due.length
-          ? `${due.length} payment${due.length === 1 ? '' : 's'} coming up`
+          ? tn(due.length, '{n} payment coming up', '{n} payments coming up')
           : count === 1
             ? items[0].title
-            : `${count} new notifications`;
+            : t('{count} new notifications', { count });
   const html = shell(
-    `Hi ${name.split(' ')[0]}, here is what needs your attention`,
-    section('Overdue', overdue, '#d1453b') + section('Coming up', due, VIOLET) + section('Also', other, '#5b5c63') + button(`${appUrl()}/notifications`, 'Open Penny'),
+    t('Hi {value}, here is what needs your attention', { value: name.split(' ')[0] }),
+    section(t('Overdue'), overdue, '#d1453b') + section(t('Coming up'), due, VIOLET) + section(t('Also'), other, '#5b5c63') + button(`${appUrl()}/notifications`, t('Open Penny')),
     footerFor(unsubscribeUrl),
     { preheader: subject },
   );
   const text = [
-    `Hi ${name.split(' ')[0]},`,
+    t('Hi {value},', { value: name.split(' ')[0] }),
     '',
-    ...(overdue.length ? ['OVERDUE', ...overdue.map((i) => `- ${line(i)}`), ''] : []),
-    ...(due.length ? ['COMING UP', ...due.map((i) => `- ${line(i)}`), ''] : []),
-    ...(other.length ? ['ALSO', ...other.map((i) => `- ${line(i)}`), ''] : []),
-    `Open Penny: ${appUrl()}/notifications`,
-    ...(unsubscribeUrl ? ['', `Turn e-mail alerts off: ${unsubscribeUrl}`] : []),
+    ...(overdue.length ? [t('OVERDUE'), ...overdue.map((i) => `- ${line(i)}`), ''] : []),
+    ...(due.length ? [t('COMING UP'), ...due.map((i) => `- ${line(i)}`), ''] : []),
+    ...(other.length ? [t('ALSO'), ...other.map((i) => `- ${line(i)}`), ''] : []),
+    t('Open Penny: {appUrl}/notifications', { appUrl: appUrl() }),
+    ...(unsubscribeUrl ? ['', t('Turn e-mail alerts off: {unsubscribeUrl}', { unsubscribeUrl })] : []),
   ].join('\n');
   return { subject, html, text };
 }
@@ -152,70 +153,70 @@ export function alertEmail({ name, items, today, unsubscribeUrl }) {
 export function verificationEmail({ name, link }) {
   const first = name.split(' ')[0];
   return {
-    subject: 'Confirm your e-mail address',
+    subject: t('Confirm your e-mail address'),
     html: shell(
-      'Confirm your e-mail address',
-      `${para(`Hi ${esc(first)}, confirm this address so Penny can send you payment alerts.`)}${button(link, 'Confirm e-mail address')}${small('This link works once and expires in 24 hours. If you did not ask for it, you can ignore this message.')}${linkFallback(link)}`,
+      t('Confirm your e-mail address'),
+      `${para(t('Hi {esc}, confirm this address so Penny can send you payment alerts.', { esc: esc(first) }))}${button(link, t('Confirm e-mail address'))}${small(t('This link works once and expires in 24 hours. If you did not ask for it, you can ignore this message.'))}${linkFallback(link)}`,
       footerFor(null),
-      { preheader: 'One tap to confirm your address and switch on payment alerts.' },
+      { preheader: t('One tap to confirm your address and switch on payment alerts.') },
     ),
-    text: `Hi ${first},\n\nConfirm this address so Penny can send you payment alerts:\n${link}\n\nThe link works once and expires in 24 hours. If you did not ask for it, ignore this message.`,
+    text: t('Hi {first},\n\nConfirm this address so Penny can send you payment alerts:\n{link}\n\nThe link works once and expires in 24 hours. If you did not ask for it, ignore this message.', { first, link }),
   };
 }
 
 export function testEmail({ name, unsubscribeUrl }) {
   const first = name.split(' ')[0];
   return {
-    subject: 'Test alert from Penny',
+    subject: t('Test alert from Penny'),
     html: shell(
-      'It works',
-      `${para(`Hi ${esc(first)}, this is a test. Your e-mail alerts are set up correctly.`)}${button(`${appUrl()}/notifications?tab=settings`, 'Alert settings')}`,
+      t('It works'),
+      `${para(t('Hi {esc}, this is a test. Your e-mail alerts are set up correctly.', { esc: esc(first) }))}${button(`${appUrl()}/notifications?tab=settings`, t('Alert settings'))}`,
       footerFor(unsubscribeUrl),
-      { preheader: 'Your e-mail alerts are set up correctly.' },
+      { preheader: t('Your e-mail alerts are set up correctly.') },
     ),
-    text: `Hi ${first},\n\nThis is a test. Your e-mail alerts are set up correctly.\n${appUrl()}/notifications?tab=settings${unsubscribeUrl ? `\n\nTurn e-mail alerts off: ${unsubscribeUrl}` : ''}`,
+    text: unsubscribeUrl ? t('Hi {first},\n\nThis is a test. Your e-mail alerts are set up correctly.\n{appUrl}/notifications?tab=settings\n\nTurn e-mail alerts off: {unsubscribeUrl}', { first, appUrl: appUrl(), unsubscribeUrl }) : t('Hi {first},\n\nThis is a test. Your e-mail alerts are set up correctly.\n{appUrl}/notifications?tab=settings', { first, appUrl: appUrl() }),
   };
 }
 
 export function passwordResetEmail({ name, link, minutes = 60 }) {
   const first = name.split(' ')[0];
   return {
-    subject: 'Reset your Penny password',
+    subject: t('Reset your Penny password'),
     html: shell(
-      'Reset your password',
-      `${para(`Hi ${esc(first)}, someone asked to reset the password of your Penny account. If that was you, choose a new one here.`)}${button(link, 'Choose a new password')}${small(`This link works once and expires in ${minutes} minutes. If you did not ask for it, you can ignore this message: your password stays the same.`)}${linkFallback(link)}`,
+      t('Reset your password'),
+      `${para(t('Hi {esc}, someone asked to reset the password of your Penny account. If that was you, choose a new one here.', { esc: esc(first) }))}${button(link, t('Choose a new password'))}${small(t('This link works once and expires in {minutes} minutes. If you did not ask for it, you can ignore this message: your password stays the same.', { minutes }))}${linkFallback(link)}`,
       footerFor(null),
-      { preheader: `Choose a new password. The link works for ${minutes} minutes.` },
+      { preheader: t('Choose a new password. The link works for {minutes} minutes.', { minutes }) },
     ),
-    text: `Hi ${first},\n\nSomeone asked to reset the password of your Penny account. If that was you, choose a new one here:\n${link}\n\nThe link works once and expires in ${minutes} minutes. If you did not ask for it, ignore this message: your password stays the same.`,
+    text: t('Hi {first},\n\nSomeone asked to reset the password of your Penny account. If that was you, choose a new one here:\n{link}\n\nThe link works once and expires in {minutes} minutes. If you did not ask for it, ignore this message: your password stays the same.', { first, link, minutes }),
   };
 }
 
 export function passwordChangedEmail({ name }) {
   const first = name.split(' ')[0];
   return {
-    subject: 'Your Penny password was changed',
+    subject: t('Your Penny password was changed'),
     html: shell(
-      'Your password was changed',
-      `${para(`Hi ${esc(first)}, the password of your Penny account was just reset with a link sent to this address, and every device was signed out.`)}${para('If this was you, there is nothing to do.')}${callout('<strong>Not you?</strong> Ask for another reset right away, and check that nobody else can read your e-mail.', 'warn')}${button(`${appUrl()}/forgot-password`, 'Reset it again')}`,
+      t('Your password was changed'),
+      `${para(t('Hi {esc}, the password of your Penny account was just reset with a link sent to this address, and every device was signed out.', { esc: esc(first) }))}${para(t('If this was you, there is nothing to do.'))}${callout(`<strong>${esc(t('Not you?'))}</strong> ${esc(t('Ask for another reset right away, and check that nobody else can read your e-mail.'))}`, 'warn')}${button(`${appUrl()}/forgot-password`, t('Reset it again'))}`,
       footerFor(null),
-      { preheader: 'Your password was reset and every device was signed out.' },
+      { preheader: t('Your password was reset and every device was signed out.') },
     ),
-    text: `Hi ${first},\n\nThe password of your Penny account was just reset with a link sent to this address, and every device was signed out.\n\nIf this was you, there is nothing to do. If it was not, ask for another reset right away: ${appUrl()}/forgot-password`,
+    text: t('Hi {first},\n\nThe password of your Penny account was just reset with a link sent to this address, and every device was signed out.\n\nIf this was you, there is nothing to do. If it was not, ask for another reset right away: {appUrl}/forgot-password', { first, appUrl: appUrl() }),
   };
 }
 
 export function accountDeletedEmail({ name }) {
   const first = name.split(' ')[0];
   return {
-    subject: 'Your Penny account was deleted',
+    subject: t('Your Penny account was deleted'),
     html: shell(
-      'Your account was deleted',
-      `${para(`Hi ${esc(first)}, your Penny account and everything in it was deleted, as you asked.`)}${para('Copies kept in our backups are overwritten within about six months.')}${callout(`<strong>Did not ask for this?</strong> Reply to this e-mail or <a class="lnk" href="${esc(appUrl())}/contact" style="color:${VIOLET}">contact the person who runs the site</a> right away.`, 'warn')}`,
+      t('Your account was deleted'),
+      `${para(t('Hi {esc}, your Penny account and everything in it was deleted, as you asked.', { esc: esc(first) }))}${para(t('Copies kept in our backups are overwritten within about six months.'))}${callout(`<strong>${esc(t('Did not ask for this?'))}</strong> ${t('Reply to this e-mail or {link} right away.', { link: `<a class="lnk" href="${esc(appUrl())}/contact" style="color:${VIOLET}">${esc(t('contact the person who runs the site'))}</a>` })}`, 'warn')}`,
       footerFor(null),
-      { preheader: 'Your account and everything in it was deleted, as you asked.' },
+      { preheader: t('Your account and everything in it was deleted, as you asked.') },
     ),
-    text: `Hi ${first},\n\nYour Penny account and everything in it was deleted, as you asked.\n\nCopies kept in our backups are overwritten within about six months. If you did not do this, contact the person who runs the site right away.`,
+    text: t('Hi {first},\n\nYour Penny account and everything in it was deleted, as you asked.\n\nCopies kept in our backups are overwritten within about six months. If you did not do this, contact the person who runs the site right away.', { first }),
   };
 }
 
@@ -227,13 +228,13 @@ export function contactReplyEmail({ name, reply, original, topic }) {
     .map((l) => `> ${l}`)
     .join('\n');
   return {
-    subject: `Re: your message to Penny (${topic})`,
+    subject: t('Re: your message to Penny ({topic})', { topic }),
     html: shell(
-      `Hi ${first}`,
-      `<div class="ink2" style="font-size:16px;line-height:1.65;color:#3b3c42;white-space:pre-wrap">${esc(reply)}</div><div class="quote" style="margin-top:24px;padding:2px 0 2px 14px;border-left:3px solid #d9d0f3"><div class="muted" style="margin-bottom:4px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#7a7a72">You wrote</div><div class="muted" style="font-size:14px;line-height:1.6;color:#6b6a65;white-space:pre-wrap">${esc(original)}</div></div>`,
-      'You get this because you wrote to Penny through the contact form. Just reply to this e-mail to answer.',
+      t('Hi {first}', { first }),
+      `<div class="ink2" style="font-size:16px;line-height:1.65;color:#3b3c42;white-space:pre-wrap">${esc(reply)}</div><div class="quote" style="margin-top:24px;padding:2px 0 2px 14px;border-left:3px solid #d9d0f3"><div class="muted" style="margin-bottom:4px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#7a7a72">${esc(t('You wrote'))}</div><div class="muted" style="font-size:14px;line-height:1.6;color:#6b6a65;white-space:pre-wrap">${esc(original)}</div></div>`,
+      t('You get this because you wrote to Penny through the contact form. Just reply to this e-mail to answer.'),
       { preheader: reply.replace(/\s+/g, ' ').slice(0, 110) },
     ),
-    text: `Hi ${first},\n\n${reply}\n\n---\nYou wrote:\n${quoted}\n`,
+    text: t('Hi {first},\n\n{reply}\n\n---\nYou wrote:\n{quoted}\n', { first, reply, quoted }),
   };
 }

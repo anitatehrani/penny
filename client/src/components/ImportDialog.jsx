@@ -5,6 +5,9 @@ import { dateLabel, dateLong, monthLabel, todayYMD } from '../format.js';
 import { commitRows, flipType, includeNotBooked, needsLook, previewLines, sameMerchant, sectionOnByDefault, setAction, setCategory, setSection, setText, span, startReview, summary, visible, WHY } from '../importReview.js';
 import Select from './ds/Select.jsx';
 import { Empty, ErrorBox, Icon, Modal, Switch } from './ui.jsx';
+import { N_, t, tn } from '../i18n/translate.js';
+import { tRich } from '../i18n/react.jsx';
+import { catName } from '../categoryNames.js';
 
 // Reading a statement (docs/DESIGN.md section 41). The file is opened in this browser and never sent anywhere; what is sent for a preview
 // and what is saved is only the list of lines shown here.
@@ -42,7 +45,7 @@ const todayParts = () => {
   return { y, m, d };
 };
 
-const KINDS = { csv: 'CSV file', xlsx: 'Excel file', pdf: 'PDF', html: 'table' };
+const KINDS = { get csv() { return t('CSV file'); }, get xlsx() { return t('Excel file'); }, pdf: 'PDF', html: 'table' };
 const PAGE = 100;
 
 export default function ImportDialog({ onClose, onDone }) {
@@ -83,7 +86,7 @@ export default function ImportDialog({ onClose, onDone }) {
         setStep('password');
         return;
       }
-      setError(e?.name === 'ImportError' ? e.message : 'Penny could not read that file.');
+      setError(e?.name === 'ImportError' ? e.message : t('Penny could not read that file.'));
       setStep('pick');
     }
   }
@@ -131,7 +134,7 @@ export default function ImportDialog({ onClose, onDone }) {
     if (!done?.batch_id) return;
     try {
       const r = await api.del(`/import/batches/${done.batch_id}`);
-      notify(`Import undone: ${r.removed} payment${r.removed === 1 ? '' : 's'} removed`);
+      notify(tn(r.removed, 'Import undone: {n} payment removed', 'Import undone: {n} payments removed'));
       onDone();
       onClose();
     } catch (e) {
@@ -139,7 +142,7 @@ export default function ImportDialog({ onClose, onDone }) {
     }
   }
 
-  const title = memory ? 'What Penny remembers' : { pick: 'Import a bank statement', reading: 'Reading…', password: 'Password needed', map: 'Match the columns', review: 'Check the payments', saving: 'Saving…', done: 'Done' }[step];
+  const title = memory ? t('What Penny remembers') : { pick: t('Import a bank statement'), reading: t('Reading…'), password: t('Password needed'), map: t('Match the columns'), review: t('Check the payments'), saving: t('Saving…'), done: t('Done') }[step];
   return (
     <Modal title={title} onClose={onClose} wide>
       {memory && <Memory onClose={() => setMemory(false)} />}
@@ -147,7 +150,7 @@ export default function ImportDialog({ onClose, onDone }) {
       {step === 'pick' && <Pick onFile={begin} error={error} onChanged={onDone} onMemory={() => setMemory(true)} />}
       {step === 'reading' && (
         <div className="imp-wait" role="status">
-          <span className="spinner" aria-hidden="true" /> Reading the statement on your device…
+          <span className="spinner" aria-hidden="true" /> {t('Reading the statement on your device…')}
         </div>
       )}
       {step === 'password' && <Password wrong={pending?.wrong} onSubmit={(pw) => begin(pending.file, pw)} onCancel={() => setStep('pick')} />}
@@ -188,7 +191,7 @@ export default function ImportDialog({ onClose, onDone }) {
       )}
       {step === 'saving' && (
         <div className="imp-wait" role="status">
-          <span className="spinner" aria-hidden="true" /> Saving…
+          <span className="spinner" aria-hidden="true" /> {t('Saving…')}
         </div>
       )}
       {step === 'done' && done && <Finished done={done} onUndo={undo} onShow={() => { onDone(done.last_date ?? done.span?.last); onClose(); }} />}
@@ -215,10 +218,10 @@ function Pick({ onFile, error, onChanged, onMemory }) {
     if (f) onFile(f);
   };
   async function undo(b) {
-    if (!window.confirm(`Remove the ${b.remaining} payment${b.remaining === 1 ? '' : 's'} this import added${b.settled ? ' and put back the scheduled ones it marked as paid' : ''}?`)) return;
+    if (!window.confirm(b.settled ? tn(b.remaining, 'Remove the {n} payment this import added and put back the scheduled ones it marked as paid?', 'Remove the {n} payments this import added and put back the scheduled ones it marked as paid?') : tn(b.remaining, 'Remove the {n} payment this import added?', 'Remove the {n} payments this import added?'))) return;
     try {
       await api.del(`/import/batches/${b.id}`);
-      notify('Import undone');
+      notify(t('Import undone'));
       loadRecent();
       onChanged();
     } catch (e) {
@@ -241,33 +244,33 @@ function Pick({ onFile, error, onChanged, onMemory }) {
         }}
       >
         <Icon name="upload" size={28} />
-        <strong>Drop a statement here</strong>
-        <span className="muted">A PDF or a spreadsheet (CSV or Excel) from your bank, from any bank</span>
+        <strong>{t('Drop a statement here')}</strong>
+        <span className="muted">{t('A PDF or a spreadsheet (CSV or Excel) from your bank, from any bank')}</span>
         <button type="button" className="btn primary" onClick={() => input.current?.click()}>
-          Choose a file
+          {t('Choose a file')}
         </button>
-        <input ref={input} type="file" hidden accept=".csv,.tsv,.txt,.xlsx,.pdf,.html,.htm,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(e) => { take(e.target.files); e.target.value = ''; }} aria-label="Bank statement file" />
+        <input ref={input} type="file" hidden accept=".csv,.tsv,.txt,.xlsx,.pdf,.html,.htm,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(e) => { take(e.target.files); e.target.value = ''; }} aria-label={t('Bank statement file')} />
       </div>
       {error && <ErrorBox error={{ message: error }} />}
       <div className="imp-safe">
         <Icon name="shield" size={18} />
         <p>
-          <strong>Your statement stays on your device.</strong> Penny reads it here, in your browser, and never uploads the file. Only the payment lines you see in the next step are sent, with account and card numbers taken out, and only when you press Import.
+          <strong>{t('Your statement stays on your device.')}</strong> {t('Penny reads it here, in your browser, and never uploads the file. Only the payment lines you see in the next step are sent, with account and card numbers taken out, and only when you press Import.')}
         </p>
       </div>
       {recent?.length > 0 && (
         <section className="imp-recent">
-          <h3>Recent imports</h3>
+          <h3>{t('Recent imports')}</h3>
           <ul>
             {recent.map((b) => (
               <li key={b.id}>
                 <span>
-                  <strong>{b.added} payment{b.added === 1 ? '' : 's'}</strong>
-                  {b.settled > 0 && <> + {b.settled} marked paid</>}
-                  <span className="muted"> · {b.first_date ? `${dateLabel(b.first_date)} to ${dateLabel(b.last_date)} · ` : ''}imported {dateLong(b.created_at.slice(0, 10))}{b.by ? ` by ${b.by}` : ''}</span>
+                  <strong>{tn(b.added, '{n} payment', '{n} payments')}</strong>
+                  {b.settled > 0 && <> {t('+ {settled} marked paid', { settled: b.settled })}</>}
+                  <span className="muted"> · {b.first_date ? t('{from} to {to}', { from: dateLabel(b.first_date), to: dateLabel(b.last_date) }) + ' · ' : ''}{b.by ? t('imported {date} by {by}', { date: dateLong(b.created_at.slice(0, 10)), by: b.by }) : t('imported {date}', { date: dateLong(b.created_at.slice(0, 10)) })}</span>
                 </span>
                 <button type="button" className="btn sm" onClick={() => undo(b)}>
-                  <Icon name="undo" size={14} /> Undo
+                  <Icon name="undo" size={14} /> {t('Undo')}
                 </button>
               </li>
             ))}
@@ -275,7 +278,7 @@ function Pick({ onFile, error, onChanged, onMemory }) {
         </section>
       )}
       <p className="muted small imp-foot">
-        Penny learns the categories you choose. <button type="button" className="link-quiet" onClick={onMemory}>What Penny remembers</button>
+        {t('Penny learns the categories you choose.')} <button type="button" className="link-quiet" onClick={onMemory}>{t('What Penny remembers')}</button>
       </p>
     </div>
   );
@@ -285,15 +288,15 @@ function Password({ wrong, onSubmit, onCancel }) {
   const [pw, setPw] = useState('');
   return (
     <form className="imp-body" onSubmit={(e) => { e.preventDefault(); onSubmit(pw); }}>
-      <p>{wrong ? 'That password is not right. Try again.' : 'This PDF is protected with a password. Banks often use a code you set up for statements.'}</p>
+      <p>{wrong ? t('That password is not right. Try again.') : t('This PDF is protected with a password. Banks often use a code you set up for statements.')}</p>
       <label className="field">
-        <span className="field-label">PDF password</span>
+        <span className="field-label">{t('PDF password')}</span>
         <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="off" autoFocus />
-        <span className="field-hint">It is used on your device to open the file and goes nowhere else.</span>
+        <span className="field-hint">{t('It is used on your device to open the file and goes nowhere else.')}</span>
       </label>
       <div className="modal-actions">
-        <button type="button" className="btn" onClick={onCancel}>Back</button>
-        <button className="btn primary" disabled={!pw}>Open</button>
+        <button type="button" className="btn" onClick={onCancel}>{t('Back')}</button>
+        <button className="btn primary" disabled={!pw}>{t('Open')}</button>
       </div>
     </form>
   );
@@ -304,10 +307,10 @@ function Password({ wrong, onSubmit, onCancel }) {
 // ---------------------------------------------------------------------------------------------------------------------------------
 
 const SIGNS = [
-  ['signed', 'A minus sign means money out'],
-  ['positiveOut', 'Plain numbers are money I spent'],
-  ['positiveIn', 'Plain numbers are money I received'],
-  ['direction', 'Another column says in or out'],
+  ['signed', N_('A minus sign means money out')],
+  ['positiveOut', N_('Plain numbers are money I spent')],
+  ['positiveIn', N_('Plain numbers are money I received')],
+  ['direction', N_('Another column says in or out')],
 ];
 
 function MapColumns({ opened, index, onUse, onBack, importer }) {
@@ -349,7 +352,7 @@ function MapColumns({ opened, index, onUse, onBack, importer }) {
     };
   }, [mapping]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!mapping) return <div className="imp-wait"><span className="spinner" aria-hidden="true" /> Looking…</div>;
+  if (!mapping) return <div className="imp-wait"><span className="spinner" aria-hidden="true" /> {t('Looking…')}</div>;
   const width = roles.length;
   const sample = grid.rows.slice(0, 14);
   const set = (i, role) => setRoles((r) => r.map((x, k) => (k === i ? role : x)));
@@ -357,7 +360,7 @@ function MapColumns({ opened, index, onUse, onBack, importer }) {
   return (
     <div className="imp-body">
       <p>
-        Penny could not tell by itself which column is which. Choose the role of each column below. The first lines it would import show underneath, so you can see that it is right. Next time a file with the same headings is matched for you.
+        {t('Penny could not tell by itself which column is which. Choose the role of each column below. The first lines it would import show underneath, so you can see that it is right. Next time a file with the same headings is matched for you.')}
       </p>
       <div className="imp-scroll">
         <table className="imp-grid">
@@ -365,14 +368,14 @@ function MapColumns({ opened, index, onUse, onBack, importer }) {
             <tr>
               {roles.map((role, i) => (
                 <th key={i}>
-                  <Select label={`Column ${i + 1}`} variant="inline" value={role} onChange={(v) => set(i, v)} options={ROLES.map((r) => ({ value: r.role, label: r.label }))} />
+                  <Select label={t('Column {value}', { value: i + 1 })} variant="inline" value={role} onChange={(v) => set(i, v)} options={ROLES.map((r) => ({ value: r.role, label: r.label }))} />
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
             {sample.map((r, ri) => (
-              <tr key={ri} className={ri === m.headerRow ? 'is-head' : ri < m.headerRow ? 'is-above' : ''} onClick={() => setM({ ...m, headerRow: ri === m.headerRow ? -1 : ri })} title="Click a line to say it holds the headings">
+              <tr key={ri} className={ri === m.headerRow ? 'is-head' : ri < m.headerRow ? 'is-above' : ''} onClick={() => setM({ ...m, headerRow: ri === m.headerRow ? -1 : ri })} title={t('Click a line to say it holds the headings')}>
                 {Array.from({ length: width }, (_v, i) => (
                   <td key={i}>{r[i] ?? ''}</td>
                 ))}
@@ -381,20 +384,20 @@ function MapColumns({ opened, index, onUse, onBack, importer }) {
           </tbody>
         </table>
       </div>
-      <p className="muted small">Click the line that holds the headings (or the same line again if the file has none). Lines above it are ignored.</p>
+      <p className="muted small">{t('Click the line that holds the headings (or the same line again if the file has none). Lines above it are ignored.')}</p>
       <div className="imp-opts">
         <label className="field">
-          <span className="field-label">Dates are written</span>
-          <Select label="Dates" value={m.dateOrder} onChange={(v) => setM({ ...m, dateOrder: v })} options={[{ value: 'dmy', label: 'Day, month, year (31/12/2026)' }, { value: 'mdy', label: 'Month, day, year (12/31/2026)' }]} />
+          <span className="field-label">{t('Dates are written')}</span>
+          <Select label={t('Dates')} value={m.dateOrder} onChange={(v) => setM({ ...m, dateOrder: v })} options={[{ value: 'dmy', label: t('Day, month, year (31/12/2026)') }, { value: 'mdy', label: t('Month, day, year (12/31/2026)') }]} />
         </label>
         <label className="field">
-          <span className="field-label">Decimals are written</span>
-          <Select label="Decimals" value={m.decimal} onChange={(v) => setM({ ...m, decimal: v })} options={[{ value: ',', label: 'With a comma (1.234,56)' }, { value: '.', label: 'With a dot (1,234.56)' }]} />
+          <span className="field-label">{t('Decimals are written')}</span>
+          <Select label={t('Decimals')} value={m.decimal} onChange={(v) => setM({ ...m, decimal: v })} options={[{ value: ',', label: t('With a comma (1.234,56)') }, { value: '.', label: t('With a dot (1,234.56)') }]} />
         </label>
         {single && (
           <label className="field">
-            <span className="field-label">The amounts</span>
-            <Select label="Amounts" value={m.sign} onChange={(v) => setM({ ...m, sign: v })} options={SIGNS.map(([value, label]) => ({ value, label }))} />
+            <span className="field-label">{t('The amounts')}</span>
+            <Select label={t('Amounts')} value={m.sign} onChange={(v) => setM({ ...m, sign: v })} options={SIGNS.map(([value, label]) => ({ value, label: t(label) }))} />
           </label>
         )}
       </div>
@@ -403,7 +406,7 @@ function MapColumns({ opened, index, onUse, onBack, importer }) {
           <div className="banner warn">{live.problem}</div>
         ) : live?.rows.length ? (
           <>
-            <strong>{live.count} payment{live.count === 1 ? '' : 's'} found</strong>
+            <strong>{tn(live.count, '{n} payment found', '{n} payments found')}</strong>
             <ul>
               {live.rows.map((r) => (
                 <li key={r.id}>
@@ -415,13 +418,13 @@ function MapColumns({ opened, index, onUse, onBack, importer }) {
             </ul>
           </>
         ) : (
-          <span className="muted">No payments found with these choices yet.</span>
+          <span className="muted">{t('No payments found with these choices yet.')}</span>
         )}
       </div>
       <div className="modal-actions">
-        <button type="button" className="btn" onClick={onBack}>Back</button>
+        <button type="button" className="btn" onClick={onBack}>{t('Back')}</button>
         <button type="button" className="btn primary" disabled={!live || !!live.problem || !live.count} onClick={() => onUse(mapping)}>
-          Use this
+          {t('Use this')}
         </button>
       </div>
     </div>
@@ -433,10 +436,10 @@ function MapColumns({ opened, index, onUse, onBack, importer }) {
 // ---------------------------------------------------------------------------------------------------------------------------------
 
 function categoryOptions(categories, type, extra) {
-  const mine = categories.filter((c) => c.kind === type).map((c) => ({ value: String(c.id), label: c.name, dot: c.color }));
-  const out = [{ value: '', label: 'No category' }, ...mine];
-  if (extra?.isNew) out.push({ value: `new:${extra.name}`, label: `${extra.name} (new)`, dot: extra.color });
-  out.push({ value: '__new', label: 'New category…' });
+  const mine = categories.filter((c) => c.kind === type).map((c) => ({ value: String(c.id), label: catName(c.name), dot: c.color }));
+  const out = [{ value: '', label: t('No category') }, ...mine];
+  if (extra?.isNew) out.push({ value: `new:${extra.name}`, label: t('{name} (new)', { name: extra.name }), dot: extra.color });
+  out.push({ value: '__new', label: t('New category…') });
   return out;
 }
 
@@ -456,7 +459,7 @@ function Review({ rows, setRows, read, sectionOn, setSectionOn, remember, setRem
   const choose = (row, value) => {
     let category;
     if (value === '__new') {
-      const name = window.prompt(`Name of the new category for ${row.type === 'income' ? 'income' : 'spending'}:`)?.trim();
+      const name = window.prompt(t('Name of the new category for {value}:', { value: row.type === 'income' ? 'income' : 'spending' }))?.trim();
       if (!name) return;
       category = categories.find((c) => c.kind === row.type && c.name.toLowerCase() === name.toLowerCase());
       category = category ? { id: category.id, name: category.name, kind: category.kind } : { id: null, name: name.slice(0, 60), kind: row.type, isNew: true };
@@ -491,11 +494,11 @@ function Review({ rows, setRows, read, sectionOn, setSectionOn, remember, setRem
   const allSelected = allShown.length > 0 && allShown.every((r) => selected.has(r.i));
 
   const views = [
-    ['all', 'All', s.total],
-    ['check', 'To check', s.check + s.none],
-    ['skipped', 'Left out', s.skipped],
-    ...(s.duplicates ? [['duplicates', 'Duplicates', s.duplicates]] : []),
-    ...(s.transfers ? [['transfers', 'Transfers', s.transfers]] : []),
+    ['all', t('All'), s.total],
+    ['check', t('To check'), s.check + s.none],
+    ['skipped', t('Left out'), s.skipped],
+    ...(s.duplicates ? [['duplicates', t('Duplicates'), s.duplicates]] : []),
+    ...(s.transfers ? [['transfers', t('Transfers'), s.transfers]] : []),
   ];
   const hasNotBooked = rows.some((r) => r.action === 'skip' && r.why === 'notbooked');
   const nothing = s.importing + s.settling === 0;
@@ -504,23 +507,21 @@ function Review({ rows, setRows, read, sectionOn, setSectionOn, remember, setRem
     <div className="imp-body imp-review">
       <div className="imp-top">
         <div className="imp-sum">
-          <strong>{s.total} line{s.total === 1 ? '' : 's'} found</strong>
+          <strong>{tn(s.total, '{n} line found', '{n} lines found')}</strong>
           <span className="muted">
-            {s.importing} to import · <span className="num">−{money(s.out)}</span> · <span className="num pos">+{money(s.in)}</span>
-            {s.settling > 0 && <> · {s.settling} scheduled marked paid</>}
+            {tRich('{importing} to import · {out} · {incoming}', { importing: s.importing, out: <span className="num">−{money(s.out)}</span>, incoming: <span className="num pos">+{money(s.in)}</span> })}
+            {s.settling > 0 && <> {t('· {settling} scheduled marked paid', { settling: s.settling })}</>}
           </span>
         </div>
-        <button type="button" className="btn sm ghost" onClick={onFix}>How Penny read this file</button>
+        <button type="button" className="btn sm ghost" onClick={onFix}>{t('How Penny read this file')}</button>
       </div>
       {read.check.checked >= 3 && (
         <p className={`imp-note ${read.check.agree / read.check.checked >= 0.9 ? 'ok' : 'warn'}`}>
           <Icon name={read.check.agree / read.check.checked >= 0.9 ? 'check' : 'alert'} size={14} />{' '}
-          {read.check.agree / read.check.checked >= 0.9
-            ? `Checked against the statement's own balance column: ${read.check.agree} of ${read.check.checked} lines add up.`
-            : `Only ${read.check.agree} of ${read.check.checked} lines add up with the statement's balance column. Check that money in and money out were not swapped.`}
+          {read.check.agree / read.check.checked >= 0.9 ? t('Checked against the statement\'s own balance column: {agree} of {checked} lines add up.', { agree: read.check.agree, checked: read.check.checked }) : t('Only {agree} of {checked} lines add up with the statement\'s balance column. Check that money in and money out were not swapped.', { agree: read.check.agree, checked: read.check.checked })}
         </p>
       )}
-      {foreign && <div className="banner warn">This statement is in {read.currency} but this budget uses {currency}. Amounts are imported as they are, without converting.</div>}
+      {foreign && <div className="banner warn">{t('This statement is in {currency} but this budget uses {currency2}. Amounts are imported as they are, without converting.', { currency: read.currency, currency2: currency })}</div>}
       {read.sections.some((x) => x.notes?.length) && (
         <ul className="imp-notes">
           {[...new Set(read.sections.flatMap((x) => x.notes ?? []))].map((n) => <li key={n}>{n}</li>)}
@@ -528,13 +529,13 @@ function Review({ rows, setRows, read, sectionOn, setSectionOn, remember, setRem
       )}
       {read.notes.map((n) => <div key={n} className="banner warn">{n}</div>)}
       {s.newCategories.length > 0 && (
-        <p className="imp-note"><Icon name="tag" size={14} /> New categories will be created for the lines that use them: {s.newCategories.map((c) => c.name).join(', ')}.</p>
+        <p className="imp-note"><Icon name="tag" size={14} /> {t('New categories will be created for the lines that use them: {join}.', { join: s.newCategories.map((c) => c.name).join(', ') })}</p>
       )}
       {sections.length > 1 && (
-        <div className="imp-sections" role="group" aria-label="Parts of the statement">
+        <div className="imp-sections" role="group" aria-label={t('Parts of the statement')}>
           {sections.map((x) => (
             <label key={x.id} className="imp-sec">
-              <Switch checked={!!sectionOn[x.id]} label={`Include ${x.title}`} onChange={(on) => { setSectionOn({ ...sectionOn, [x.id]: on }); setRows(setSection(rows, x.id, on)); }} />
+              <Switch checked={!!sectionOn[x.id]} label={t('Include {title}', { title: x.title })} onChange={(on) => { setSectionOn({ ...sectionOn, [x.id]: on }); setRows(setSection(rows, x.id, on)); }} />
               <span>{x.title.replace(/ from .*$/i, '')} <span className="muted">({x.count})</span></span>
             </label>
           ))}
@@ -542,13 +543,13 @@ function Review({ rows, setRows, read, sectionOn, setSectionOn, remember, setRem
       )}
       {hasNotBooked && (
         <p className="imp-note">
-          Some lines are not booked by the bank yet, so they may still change; they are left out.{' '}
-          <button type="button" className="link-quiet" onClick={() => setRows(includeNotBooked(rows))}>Include them anyway</button>
+          {t('Some lines are not booked by the bank yet, so they may still change; they are left out.')}{' '}
+          <button type="button" className="link-quiet" onClick={() => setRows(includeNotBooked(rows))}>{t('Include them anyway')}</button>
         </p>
       )}
 
       <div className="imp-bar">
-        <div className="chips" role="group" aria-label="Show">
+        <div className="chips" role="group" aria-label={t('Show')}>
           {views.map(([v, label, n]) => (
             <button key={v} type="button" className={`chip${view === v ? ' active' : ''}`} onClick={() => { setView(v); setShown(PAGE); }}>
               {label} <span className="seg-count">{n}</span>
@@ -557,31 +558,31 @@ function Review({ rows, setRows, read, sectionOn, setSectionOn, remember, setRem
         </div>
         <label className="search-box imp-search">
           <Icon name="search" size={16} />
-          <input type="search" placeholder="Search" value={q} onChange={(e) => { setQ(e.target.value); setShown(PAGE); }} aria-label="Search the lines" />
+          <input type="search" placeholder={t('Search')} value={q} onChange={(e) => { setQ(e.target.value); setShown(PAGE); }} aria-label={t('Search the lines')} />
         </label>
       </div>
 
       <div className="imp-bulk" data-active={selected.size > 0}>
         <label className="imp-check">
-          <input type="checkbox" checked={allSelected} onChange={() => setSelected(allSelected ? new Set() : new Set(allShown.map((r) => r.i)))} aria-label="Select all shown" />
-          <span>{selected.size ? `${selected.size} selected` : 'Select'}</span>
+          <input type="checkbox" checked={allSelected} onChange={() => setSelected(allSelected ? new Set() : new Set(allShown.map((r) => r.i)))} aria-label={t('Select all shown')} />
+          <span>{selected.size ? t('{size} selected', { size: selected.size }) : t('Select')}</span>
         </label>
         {selected.size > 0 && (
           <>
             <Select
-              label="Set category"
+              label={t('Set category')}
               variant="inline"
               value=""
               onChange={bulkCategory}
               options={[
-                { value: '', label: 'Set category…' },
-                ...categories.filter((c) => c.kind === 'expense').map((c) => ({ value: String(c.id), label: c.name, dot: c.color, group: 'Spending' })),
-                ...categories.filter((c) => c.kind === 'income').map((c) => ({ value: String(c.id), label: c.name, dot: c.color, group: 'Income' })),
+                { value: '', label: t('Set category…') },
+                ...categories.filter((c) => c.kind === 'expense').map((c) => ({ value: String(c.id), label: catName(c.name), dot: c.color, group: t('Spending') })),
+                ...categories.filter((c) => c.kind === 'income').map((c) => ({ value: String(c.id), label: catName(c.name), dot: c.color, group: t('Income') })),
               ]}
             />
-            <button type="button" className="btn sm" onClick={() => bulk((ids) => setAction(rows, ids, 'skip'))}>Leave out</button>
-            <button type="button" className="btn sm" onClick={() => bulk((ids) => setAction(rows, ids, 'import'))}>Bring back</button>
-            <button type="button" className="btn sm" onClick={() => bulk((ids) => flipType(rows, ids))} title="For lines whose money in and out were read the wrong way round">Swap in / out</button>
+            <button type="button" className="btn sm" onClick={() => bulk((ids) => setAction(rows, ids, 'skip'))}>{t('Leave out')}</button>
+            <button type="button" className="btn sm" onClick={() => bulk((ids) => setAction(rows, ids, 'import'))}>{t('Bring back')}</button>
+            <button type="button" className="btn sm" onClick={() => bulk((ids) => flipType(rows, ids))} title={t('For lines whose money in and out were read the wrong way round')}>{t('Swap in / out')}</button>
           </>
         )}
       </div>
@@ -589,15 +590,15 @@ function Review({ rows, setRows, read, sectionOn, setSectionOn, remember, setRem
       {offer && (
         <div className="imp-offer" role="status">
           <span>
-            Use <strong>{offer.category.name}</strong> for the {offer.ids.length} other line{offer.ids.length === 1 ? '' : 's'} from <strong>{offer.merchant}</strong> too?
+            {tRich(offer.ids.length === 1 ? 'Use {category} for the other line from {merchant} too?' : 'Use {category} for the {n} other lines from {merchant} too?', { category: <strong>{offer.category.name}</strong>, merchant: <strong>{offer.merchant}</strong>, n: offer.ids.length })}
           </span>
-          <button type="button" className="btn sm primary" onClick={() => { setRows(setCategory(rows, offer.ids, offer.category)); setOffer(null); }}>Yes</button>
-          <button type="button" className="btn sm" onClick={() => setOffer(null)}>No</button>
+          <button type="button" className="btn sm primary" onClick={() => { setRows(setCategory(rows, offer.ids, offer.category)); setOffer(null); }}>{t('Yes')}</button>
+          <button type="button" className="btn sm" onClick={() => setOffer(null)}>{t('No')}</button>
         </div>
       )}
 
       {list.length === 0 ? (
-        <Empty title="Nothing here" icon="search">{q ? 'No line matches your search.' : view === 'check' ? 'Everything has a category you are happy with.' : 'No lines in this view.'}</Empty>
+        <Empty title={t('Nothing here')} icon="search">{q ? t('No line matches your search.') : view === 'check' ? t('Everything has a category you are happy with.') : t('No lines in this view.')}</Empty>
       ) : (
         <ul className="imp-list">
           {allShown.map((r) => (
@@ -606,29 +607,28 @@ function Review({ rows, setRows, read, sectionOn, setSectionOn, remember, setRem
         </ul>
       )}
       {list.length > shown && (
-        <button type="button" className="btn" onClick={() => setShown(shown + PAGE)}>Show {Math.min(PAGE, list.length - shown)} more of {list.length - shown}</button>
+        <button type="button" className="btn" onClick={() => setShown(shown + PAGE)}>{t('Show {min} more of {value}', { min: Math.min(PAGE, list.length - shown), value: list.length - shown })}</button>
       )}
 
       <div className="imp-foot-bar">
         <div className="imp-remember">
-          <Switch checked={remember} onChange={setRemember} label="Remember my category choices" />
-          <span>Remember my category choices</span>
-          <button type="button" className="link-quiet" onClick={onMemory}>What Penny remembers</button>
+          <Switch checked={remember} onChange={setRemember} label={t('Remember my category choices')} />
+          <span>{t('Remember my category choices')}</span>
+          <button type="button" className="link-quiet" onClick={onMemory}>{t('What Penny remembers')}</button>
         </div>
         <div className="modal-actions">
-          <button type="button" className="btn" onClick={onBack}>Back</button>
+          <button type="button" className="btn" onClick={onBack}>{t('Back')}</button>
           <button type="button" className="btn primary" disabled={nothing} onClick={onSave}>
-            Import {s.importing} payment{s.importing === 1 ? '' : 's'}
-            {s.settling > 0 ? ` and mark ${s.settling} paid` : ''}
+            {s.settling > 0 ? tn(s.importing, 'Import {n} payment and mark {settling} paid', 'Import {n} payments and mark {settling} paid', { settling: s.settling }) : tn(s.importing, 'Import {n} payment', 'Import {n} payments')}
           </button>
         </div>
-        {s.none > 0 && <p className="muted small">{s.none} line{s.none === 1 ? ' has' : 's have'} no category. They are imported without one; you can pick one now or later.</p>}
+        {s.none > 0 && <p className="muted small">{tn(s.none, '{n} line has no category. They are imported without one; you can pick one now or later.', '{n} lines have no category. They are imported without one; you can pick one now or later.')}</p>}
       </div>
     </div>
   );
 }
 
-const MARK = { check: ['Check', 'Penny is not sure about this one.'], none: ['Needs a category', 'Penny has no idea what this is.'] };
+const MARK = { get check() { return [t('Check'), t('Penny is not sure about this one.')]; }, get none() { return [t('Needs a category'), t('Penny has no idea what this is.')]; } };
 
 function Line({ r, categories, selected, onSelect, onCategory, onText, onAction, money }) {
   const [open, setOpen] = useState(false);
@@ -638,30 +638,30 @@ function Line({ r, categories, selected, onSelect, onCategory, onText, onAction,
   const value = r.category ? (r.category.isNew ? `new:${r.category.name}` : String(r.category.id)) : '';
   return (
     <li className={`imp-line${off ? ' off' : ''}${selected ? ' sel' : ''}`}>
-      <input type="checkbox" className="imp-pick" checked={selected} onChange={onSelect} aria-label={`Select ${r.description}`} />
+      <input type="checkbox" className="imp-pick" checked={selected} onChange={onSelect} aria-label={t('Select {description}', { description: r.description })} />
       <div className="imp-date">
         <strong>{dateLabel(r.date)}</strong>
-        {r.guessedYear && <span className="muted" title="The statement does not say the year">year assumed</span>}
+        {r.guessedYear && <span className="muted" title={t('The statement does not say the year')}>{t('year assumed')}</span>}
       </div>
       <div className="imp-what">
-        <input className="imp-desc" value={r.description} onChange={(e) => onText({ description: e.target.value })} aria-label="Description" maxLength={200} />
+        <input className="imp-desc" value={r.description} onChange={(e) => onText({ description: e.target.value })} aria-label={t('Description')} maxLength={200} />
         <div className="imp-badges">
-          {off && <span className="badge">{WHY[r.why] ?? 'Left out'}</span>}
-          {r.action === 'settle' && <span className="badge ok" title={`Matches your scheduled payment "${r.duplicate?.tx?.description}" on ${r.duplicate?.tx ? dateLabel(r.duplicate.tx.date) : ''}. Penny will mark that one as paid instead of adding another.`}>Marks “{r.duplicate?.tx?.description}” as paid</span>}
+          {off && <span className="badge">{WHY[r.why] ?? t('Left out')}</span>}
+          {r.action === 'settle' && <span className="badge ok" title={t('Matches your scheduled payment "{description}" on {value}. Penny will mark that one as paid instead of adding another.', { description: r.duplicate?.tx?.description, value: r.duplicate?.tx ? dateLabel(r.duplicate.tx.date) : '' })}>{t('Marks “{description}” as paid', { description: r.duplicate?.tx?.description })}</span>}
           {r.duplicate && r.action !== 'settle' && (
             <span className="badge tone-warn" title={`${r.duplicate.tx.description}, ${dateLabel(r.duplicate.tx.date)}, ${money(r.duplicate.tx.amount)}`}>
-              {r.duplicate.kind === 'imported' ? 'Already imported' : r.duplicate.kind === 'similar' ? 'Similar payment exists' : 'Possible duplicate'}
+              {r.duplicate.kind === 'imported' ? t('Already imported') : r.duplicate.kind === 'similar' ? t('Similar payment exists') : t('Possible duplicate')}
             </span>
           )}
-          {r.transfer && !off && <span className="badge" title="A movement of money between accounts or people">Transfer</span>}
+          {r.transfer && !off && <span className="badge" title={t('A movement of money between accounts or people')}>{t('Transfer')}</span>}
           {mark && <span className={`badge ${r.category === null ? 'danger' : 'tone-warn'}`} title={r.reason}>{mark[0]}</span>}
-          {r.description !== r.original && <button type="button" className="link-quiet imp-orig" onClick={() => onText({ description: r.original })} title="Use the bank's words">bank: {r.original.slice(0, 40)}</button>}
-          <button type="button" className="link-quiet" onClick={() => setOpen(!open)} aria-expanded={open}>{open ? 'Less' : 'More'}</button>
+          {r.description !== r.original && <button type="button" className="link-quiet imp-orig" onClick={() => onText({ description: r.original })} title={t('Use the bank\'s words')}>{t('bank: {slice}', { slice: r.original.slice(0, 40) })}</button>}
+          <button type="button" className="link-quiet" onClick={() => setOpen(!open)} aria-expanded={open}>{open ? t('Less') : t('More')}</button>
         </div>
         {open && (
           <div className="imp-more">
             <label className="field">
-              <span className="field-label">Note</span>
+              <span className="field-label">{t('Note')}</span>
               <input value={r.note} onChange={(e) => onText({ note: e.target.value.slice(0, 300) })} maxLength={300} />
             </label>
             <p className="muted small">{r.reason}</p>
@@ -669,10 +669,10 @@ function Line({ r, categories, selected, onSelect, onCategory, onText, onAction,
         )}
       </div>
       <div className="imp-cat">
-        <Select label={`Category for ${r.description}`} variant="inline" value={value} onChange={onCategory} options={options} disabled={off} />
+        <Select label={t('Category for {description}', { description: r.description })} variant="inline" value={value} onChange={onCategory} options={options} disabled={off} />
       </div>
       <div className={`imp-amount num ${r.type === 'income' ? 'pos' : ''}`}>{r.type === 'income' ? '+' : '−'}{money(r.amount)}</div>
-      <button type="button" className="btn icon ghost sm imp-toggle" onClick={() => onAction(off ? (r.duplicate?.action === 'settle' ? 'settle' : 'import') : 'skip')} aria-label={off ? `Bring back ${r.description}` : `Leave out ${r.description}`} title={off ? 'Bring back' : 'Leave out'}>
+      <button type="button" className="btn icon ghost sm imp-toggle" onClick={() => onAction(off ? (r.duplicate?.action === 'settle' ? 'settle' : 'import') : 'skip')} aria-label={off ? t('Bring back {description}', { description: r.description }) : t('Leave out {description}', { description: r.description })} title={off ? t('Bring back') : t('Leave out')}>
         <Icon name={off ? 'undo' : 'x'} size={16} />
       </button>
     </li>
@@ -689,23 +689,23 @@ function Finished({ done, onUndo, onShow }) {
     <div className="imp-body imp-done">
       <span className="empty-icon" aria-hidden="true"><Icon name="check" size={22} /></span>
       <h3>
-        {done.added} payment{done.added === 1 ? '' : 's'} added{done.settled > 0 ? `, ${done.settled} scheduled marked paid` : ''}
+        {done.settled > 0 ? tn(done.added, '{n} payment added, {settled} scheduled marked paid', '{n} payments added, {settled} scheduled marked paid', { settled: done.settled }) : tn(done.added, '{n} payment added', '{n} payments added')}
       </h3>
       <p className="muted">
-        {done.first_date && <>From {dateLong(done.first_date)} to {dateLong(done.last_date)}. </>}
-        Money in <span className="num pos">+{money(done.total_in)}</span>, money out <span className="num">−{money(done.total_out)}</span>.
-        {done.skipped > 0 && <> {done.skipped} line{done.skipped === 1 ? ' was' : 's were'} already there and left alone.</>}
-        {done.created_categories.length > 0 && <> New categories: {done.created_categories.map((c) => c.name).join(', ')}.</>}
-        {done.learned > 0 && <> Penny will remember {done.learned} of your category choices.</>}
+        {done.first_date && <>{t('From {dateLong} to {dateLong2}.', { dateLong: dateLong(done.first_date), dateLong2: dateLong(done.last_date) })} </>}
+        {tRich('Money in {span}, money out {span2}.', { span: <span className="num pos">+{money(done.total_in)}</span>, span2: <span className="num">−{money(done.total_out)}</span> })}
+        {done.skipped > 0 && <> {tn(done.skipped, '{n} line was already there and left alone.', '{n} lines were already there and left alone.')}</>}
+        {done.created_categories.length > 0 && <> {t('New categories: {join}.', { join: done.created_categories.map((c) => c.name).join(', ') })}</>}
+        {done.learned > 0 && <> {t('Penny will remember {learned} of your category choices.', { learned: done.learned })}</>}
       </p>
       <div className="modal-actions">
         {done.batch_id && (
           <button type="button" className="btn" onClick={onUndo}>
-            <Icon name="undo" size={14} /> Undo this import
+            <Icon name="undo" size={14} /> {t('Undo this import')}
           </button>
         )}
         <button type="button" className="btn primary" onClick={onShow}>
-          {done.last_date ? `Show ${monthLabel(done.last_date.slice(0, 7))}` : 'Close'}
+          {done.last_date ? t('Show {monthLabel}', { monthLabel: monthLabel(done.last_date.slice(0, 7)) }) : t('Close')}
         </button>
       </div>
     </div>
@@ -732,7 +732,7 @@ function Memory({ onClose }) {
     }
   };
   const forgetAll = async () => {
-    if (!window.confirm('Forget every category Penny learned from your imports? Your payments stay as they are.')) return;
+    if (!window.confirm(t('Forget every category Penny learned from your imports? Your payments stay as they are.'))) return;
     try {
       await api.del('/import/rules');
       load();
@@ -743,25 +743,25 @@ function Memory({ onClose }) {
   return (
     <>
       <div className="imp-body">
-        <p className="muted">When you change a category while importing, Penny keeps the shop and the category (nothing else: no amounts, no dates) and prefers it next time. It is kept for this budget only.</p>
+        <p className="muted">{t('When you change a category while importing, Penny keeps the shop and the category (nothing else: no amounts, no dates) and prefers it next time. It is kept for this budget only.')}</p>
         {!rules ? (
-          <div className="imp-wait"><span className="spinner" aria-hidden="true" /> Loading…</div>
+          <div className="imp-wait"><span className="spinner" aria-hidden="true" /> {t('Loading…')}</div>
         ) : rules.length === 0 ? (
-          <Empty title="Nothing yet" icon="tag">Choose a category for a line while importing and Penny will remember it.</Empty>
+          <Empty title={t('Nothing yet')} icon="tag">{t('Choose a category for a line while importing and Penny will remember it.')}</Empty>
         ) : (
           <ul className="imp-rules">
             {rules.map((r) => (
               <li key={r.id}>
-                <span><strong>{r.merchant_key}</strong> <span className="muted">({r.kind === 'income' ? 'income' : 'spending'})</span></span>
-                <span className="cat"><span className="dot" style={{ background: r.category_color }} /> {r.category_name}</span>
-                <button type="button" className="btn icon ghost sm" onClick={() => forget(r.id)} aria-label={`Forget ${r.merchant_key}`}><Icon name="x" size={14} /></button>
+                <span><strong>{r.merchant_key}</strong> <span className="muted">({r.kind === 'income' ? t('income') : t('spending')})</span></span>
+                <span className="cat"><span className="dot" style={{ background: r.category_color }} /> {catName(r.category_name)}</span>
+                <button type="button" className="btn icon ghost sm" onClick={() => forget(r.id)} aria-label={t('Forget {merchant_key}', { merchant_key: r.merchant_key })}><Icon name="x" size={14} /></button>
               </li>
             ))}
           </ul>
         )}
         <div className="modal-actions">
-          {rules?.length > 0 && <button type="button" className="btn" onClick={forgetAll}>Forget everything</button>}
-          <button type="button" className="btn primary" onClick={onClose}>Back</button>
+          {rules?.length > 0 && <button type="button" className="btn" onClick={forgetAll}>{t('Forget everything')}</button>}
+          <button type="button" className="btn primary" onClick={onClose}>{t('Back')}</button>
         </div>
       </div>
     </>

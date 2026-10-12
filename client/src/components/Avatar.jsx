@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { usePresenceOf } from '../presence.jsx';
 import { avatarTone, initialsOf } from './avatar/identity.js';
+import { t } from '../i18n/translate.js';
 
 export { avatarTone, initialsOf };
 
@@ -24,7 +25,7 @@ export function Avatar({ user, size = 32, status, showStatus = true }) {
           {initialsOf(user.name)}
         </span>
       )}
-      {state && <span className={`presence ${state}`} role="img" aria-label={state === 'online' ? 'Active now' : 'Away'} />}
+      {state && <span className={`presence ${state}`} role="img" aria-label={state === 'online' ? t('Active now') : t('Away')} />}
     </span>
   );
 }

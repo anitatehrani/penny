@@ -6,6 +6,8 @@ import { addDays, addMonthsYM, monthOf, monthStart, todayYMD } from './dates.js'
 import { budgetForMonth } from './budget.js';
 import { buildInsights, gatherFacts, makeFmt, monthName, periodFigures } from './insights.js';
 import { signToken } from './secret.js';
+import { catName } from './categoryNames.js';
+import { languageOfUser, localeOf, runForUser, runWithLanguage, t, tn } from './i18n.js';
 
 /** Which in-app switch controls each kind of notification (null = always shown). */
 export const KIND_PREF = {
@@ -56,13 +58,18 @@ export async function getSettings(userId, db = pool) {
 
 const isPaused = (s) => !!s.paused_until && new Date(s.paused_until) > new Date();
 
+/** A title or body may be a function: it is called when the notification is stored, in the language of the person who gets it. */
 async function insertNotification(db, userId, n) {
+  const lang = await languageOfUser(userId);
+  const text = (v) => (typeof v === 'function' ? runWithLanguage(lang, v) : v);
+  const title = text(n.title);
+  const body = text(n.body);
   const { rows } = await db.query(
     `INSERT INTO notifications (user_id, kind, title, body, link, data, dedupe_key)
      VALUES ($1, $2, $3, $4, $5, $6, $7)
      ON CONFLICT (user_id, dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING
      RETURNING id`,
-    [userId, n.kind, n.title.slice(0, 200), n.body?.slice(0, 500) ?? null, n.link ?? null, JSON.stringify(n.data ?? {}), n.dedupeKey ?? null],
+    [userId, n.kind, title.slice(0, 200), body?.slice(0, 500) ?? null, n.link ?? null, JSON.stringify(n.data ?? {}), n.dedupeKey ?? null],
   );
   return rows[0]?.id ?? null;
 }
@@ -122,12 +129,12 @@ const timers = new Map();
 /** Instant mode: wait a moment so several events that arrive together go out as one e-mail. */
 function scheduleInstantEmail(userId) {
   if (timers.has(userId)) return;
-  const t = setTimeout(() => {
+  const tt = setTimeout(() => {
     timers.delete(userId);
     sendPendingEmails(userId, { trigger: 'instant' }).catch((e) => console.error('instant e-mail failed:', e.message));
   }, 1500);
-  t.unref?.();
-  timers.set(userId, t);
+  tt.unref?.();
+  timers.set(userId, tt);
 }
 
 async function localTime(tz) {
@@ -144,6 +151,10 @@ async function logEmail(userId, to, subject, kind, status, error = null) {
  * trigger: 'scan' (the periodic job: sends the daily digest when it is time, or instant mail) | 'instant' (just after an event).
  */
 export async function sendPendingEmails(userId, { trigger = 'scan' } = {}) {
+  return runForUser(userId, () => sendPendingEmailsIn(userId, trigger));
+}
+
+async function sendPendingEmailsIn(userId, trigger) {
   return withTransaction(async (client) => {
     const lock = await client.query('SELECT pg_try_advisory_xact_lock(7002, $1) AS ok', [userId]);
     if (!lock.rows[0].ok) return { sent: 0, reason: 'busy' };
@@ -192,7 +203,7 @@ export async function sendPendingEmails(userId, { trigger = 'scan' } = {}) {
 // ------------------------------------------------------------------------------------------------
 // the periodic scan
 // ------------------------------------------------------------------------------------------------
-const nice = (date) => new Date(`${date}T12:00:00Z`).toLocaleDateString('en', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+const nice = (date) => new Date(`${date}T12:00:00Z`).toLocaleDateString(localeOf(), { day: 'numeric', month: 'short', timeZone: 'UTC' });
 
 /**
  * Look for payments that are due soon or overdue, and budgets heading below zero, and notify the people concerned.
@@ -237,11 +248,17 @@ export async function runAlertScan({ userId = null } = {}) {
     const overdue = r.days_left < 0;
     if (overdue ? !r.want_overdue : !r.want_due || r.days_left > r.days) continue;
     const data = { transaction_id: r.transaction_id, description: r.description, amount: r.amount, currency: r.currency, type: r.type, date: r.date, workspace_id: r.workspace_id, workspace: r.workspace_kind === 'group' ? r.workspace : null };
-    const money = formatMoney(r.amount, r.currency);
     const id = await insertNotification(pool, r.user_id, {
       kind: overdue ? 'payment_overdue' : 'payment_due',
-      title: overdue ? `${r.description} is overdue` : `${r.description} is due ${r.days_left === 0 ? 'today' : r.days_left === 1 ? 'tomorrow' : `on ${nice(r.date)}`}`,
-      body: `${money}${r.workspace_kind === 'group' ? ` · ${r.workspace}` : ''}`,
+      title: () =>
+        overdue
+          ? t('{description} is overdue', { description: r.description })
+          : r.days_left === 0
+            ? t('{description} is due today', { description: r.description })
+            : r.days_left === 1
+              ? t('{description} is due tomorrow', { description: r.description })
+              : t('{description} is due on {date}', { description: r.description, date: nice(r.date) }),
+      body: () => `${formatMoney(r.amount, r.currency)}${r.workspace_kind === 'group' ? ` · ${r.workspace}` : ''}`,
       link: `/payments?month=${r.date.slice(0, 7)}`,
       data,
       dedupeKey: `${overdue ? 'overdue' : 'due'}:${r.transaction_id}:${r.date}`,
@@ -281,24 +298,25 @@ async function scanBudgets(userId) {
   for (const w of spaces) {
     if (!w.users.length) continue;
     const view = await budgetForMonth(w.id, month);
-    const monthText = new Date(`${month}-15T12:00:00Z`).toLocaleDateString('en', { month: 'long', timeZone: 'UTC' });
     for (const l of view.lines) {
       if (l.budget === null || l.id === null) continue;
       const over = l.spent > l.budget + 0.005;
       const near = !over && l.budget > 0 && l.spent >= 0.8 * l.budget;
       if (!over && !near) continue;
-      const where = w.kind === 'group' ? ` · ${w.name}` : '';
-      const n = over
-        ? { level: 100, title: `${l.name} is over its budget`, body: `${formatMoney(l.spent, view.currency)} spent of ${formatMoney(l.budget, view.currency)} for ${monthText}.${where}` }
-        : { level: 80, title: `${l.name} has used ${l.percent}% of its budget`, body: `${formatMoney(l.left, view.currency)} left of ${formatMoney(l.budget, view.currency)} for ${monthText}.${where}` };
+      const level = over ? 100 : 80;
       for (const uid of w.users) {
+        const monthText = () => new Date(`${month}-15T12:00:00Z`).toLocaleDateString(localeOf(), { month: 'long', timeZone: 'UTC' });
+        const where = () => (w.kind === 'group' ? ` · ${w.name}` : '');
         const id = await insertNotification(pool, uid, {
           kind: 'budget_alert',
-          title: n.title,
-          body: n.body,
+          title: () => (over ? t('{name} is over its budget', { name: catName(l.name) }) : t('{name} has used {percent}% of its budget', { name: catName(l.name), percent: l.percent })),
+          body: () =>
+            over
+              ? t('{spent} spent of {budget} for {month}.{where}', { spent: formatMoney(l.spent, view.currency), budget: formatMoney(l.budget, view.currency), month: monthText(), where: where() })
+              : t('{left} left of {budget} for {month}.{where}', { left: formatMoney(l.left, view.currency), budget: formatMoney(l.budget, view.currency), month: monthText(), where: where() }),
           link: '/budget',
-          data: { workspace_id: w.id, category_id: l.id, month, level: n.level, spent: l.spent, budget: l.budget },
-          dedupeKey: `budget:${w.id}:${l.id}:${month}:${n.level}`,
+          data: { workspace_id: w.id, category_id: l.id, month, level, spent: l.spent, budget: l.budget },
+          dedupeKey: `budget:${w.id}:${l.id}:${month}:${level}`,
         });
         if (id) created += 1;
       }
@@ -323,7 +341,6 @@ async function scanBalances(userId) {
   );
   for (const w of wanting) {
     const f = await forecastForWorkspace(w.workspace_id, { past: 0, months: 6 });
-    const label = w.kind === 'group' ? w.name : 'Your balance';
     const warn = f.insights.firstNegativeMonth;
     const now = f.months[0];
     for (const u of w.users) {
@@ -331,8 +348,8 @@ async function scanBalances(userId) {
         if (!u.low) continue;
         const id = await insertNotification(pool, u.id, {
           kind: 'balance_warning',
-          title: `${label} is below zero`,
-          body: `Currently ${formatMoney(f.currentBalance, f.currency)}${w.kind === 'group' ? ` in ${w.name}` : ''}.`,
+          title: () => t('{label} is below zero', { label: w.kind === 'group' ? w.name : t('Your balance') }),
+          body: () => (w.kind === 'group' ? t('Currently {amount} in {name}.', { amount: formatMoney(f.currentBalance, f.currency), name: w.name }) : t('Currently {amount}.', { amount: formatMoney(f.currentBalance, f.currency) })),
           link: '/forecast',
           data: { workspace_id: w.workspace_id, month: now.month, balance: f.currentBalance },
           dedupeKey: `negnow:${w.workspace_id}:${now.month}`,
@@ -342,19 +359,19 @@ async function scanBalances(userId) {
         if (!u.low) continue;
         const id = await insertNotification(pool, u.id, {
           kind: 'balance_warning',
-          title: `${label} is below your safety buffer`,
-          body: `Currently ${formatMoney(f.currentBalance, f.currency)}; your buffer is ${formatMoney(f.minBalance, f.currency)}${w.kind === 'group' ? ` in ${w.name}` : ''}.`,
+          title: () => t('{label} is below your safety buffer', { label: w.kind === 'group' ? w.name : t('Your balance') }),
+          body: () => (w.kind === 'group' ? t('Currently {amount}; your buffer is {buffer} in {name}.', { amount: formatMoney(f.currentBalance, f.currency), buffer: formatMoney(f.minBalance, f.currency), name: w.name }) : t('Currently {amount}; your buffer is {buffer}.', { amount: formatMoney(f.currentBalance, f.currency), buffer: formatMoney(f.minBalance, f.currency) })),
           link: '/forecast',
           data: { workspace_id: w.workspace_id, month: now.month, balance: f.currentBalance, buffer: f.minBalance },
           dedupeKey: `lowbuffer:${w.workspace_id}:${now.month}`,
         });
         if (id) created += 1;
       } else if (warn && u.forecast) {
-        const monthLabel = new Date(`${warn.month}-15T12:00:00Z`).toLocaleDateString('en', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+        const monthLabel = () => new Date(`${warn.month}-15T12:00:00Z`).toLocaleDateString(localeOf(), { month: 'long', year: 'numeric', timeZone: 'UTC' });
         const id = await insertNotification(pool, u.id, {
           kind: 'forecast_warning',
-          title: warn.balance < 0 ? `${w.kind === 'group' ? w.name : 'Your balance'} is projected to go negative in ${monthLabel}` : `${w.kind === 'group' ? w.name : 'Your balance'} is projected to go below your safety buffer in ${monthLabel}`,
-          body: `Expected to reach ${formatMoney(warn.balance, f.currency)}. Review upcoming payments in the forecast.`,
+          title: () => warn.balance < 0 ? t('{value} is projected to go negative in {monthLabel}', { value: w.kind === 'group' ? w.name : t('Your balance'), monthLabel: monthLabel() }) : t('{value} is projected to go below your safety buffer in {monthLabel}', { value: w.kind === 'group' ? w.name : t('Your balance'), monthLabel: monthLabel() }),
+          body: () => t('Expected to reach {formatMoney}. Review upcoming payments in the forecast.', { formatMoney: formatMoney(warn.balance, f.currency) }),
           link: '/forecast',
           data: { workspace_id: w.workspace_id, month: warn.month, balance: warn.balance },
           dedupeKey: `balance:${w.workspace_id}:${warn.month}`,
@@ -396,7 +413,16 @@ async function scanInsights(userId) {
     [userId],
   );
   for (const r of rows) {
-    if (!r.ws) continue;
+    created += await runForUser(r.user_id, () => insightsFor(r));
+  }
+  return created;
+}
+
+/** The insights and summaries for one person (called in their language). */
+async function insightsFor(r) {
+  let created = 0;
+  {
+    if (!r.ws) return created;
     let facts = null;
     const getFacts = async () => (facts ??= await gatherFacts(r.ws, { today: r.today }));
 
@@ -434,8 +460,18 @@ async function scanInsights(userId) {
         const change = before.expenses >= 20 ? Math.round(((last.expenses - before.expenses) / before.expenses) * 100) : null;
         const id = await notify(r.user_id, {
           kind: 'summary_weekly',
-          title: 'Your week in review',
-          body: `You spent ${fmt(last.expenses)} across ${last.expenseCount} payment${last.expenseCount === 1 ? '' : 's'}${change === null ? '' : ` (${change >= 0 ? '+' : '−'}${Math.abs(change)}% vs the week before)`} and received ${fmt(last.income)}. ${ahead.length ? `${ahead.length} payment${ahead.length === 1 ? ' is' : 's are'} due in the coming week (${fmt(aheadTotal)}).` : 'Nothing is due in the coming week.'}`,
+          title: () => t('Your week in review'),
+          body: () => {
+            const spent = fmt(last.expenses);
+            const received = fmt(last.income);
+            const pct = change === null ? null : `${change >= 0 ? '+' : '−'}${Math.abs(change)}%`;
+            const first =
+              pct === null
+                ? tn(last.expenseCount, 'You spent {spent} across {n} payment and received {received}.', 'You spent {spent} across {n} payments and received {received}.', { spent, received })
+                : tn(last.expenseCount, 'You spent {spent} across {n} payment ({pct} vs the week before) and received {received}.', 'You spent {spent} across {n} payments ({pct} vs the week before) and received {received}.', { spent, received, pct });
+            const second = ahead.length ? tn(ahead.length, '{n} payment is due in the coming week ({total}).', '{n} payments are due in the coming week ({total}).', { total: fmt(aheadTotal) }) : t('Nothing is due in the coming week.');
+            return `${first} ${second}`;
+          },
           link: '/',
           data: { workspace_id: r.ws, from: addDays(boundary, -7), to: boundary },
           dedupeKey: `weekly:${boundary}`,
@@ -462,8 +498,15 @@ async function scanInsights(userId) {
         const change = earlier.expenses >= 50 ? Math.round(((cur.expenses - earlier.expenses) / earlier.expenses) * 100) : null;
         const id = await notify(r.user_id, {
           kind: 'summary_monthly',
-          title: `${monthName(prev)} in review`,
-          body: `${fmt(cur.income)} came in and ${fmt(cur.expenses)} went out${change === null ? '' : ` (${change >= 0 ? '+' : '−'}${Math.abs(change)}% vs the month before)`}, which left ${fmt(cur.income - cur.expenses)}.${top ? ` Biggest category: ${top.name} (${fmt(top.total)}).` : ''}`,
+          title: () => t('{monthName} in review', { monthName: monthName(prev) }),
+          body: () => {
+            const income = fmt(cur.income);
+            const expenses = fmt(cur.expenses);
+            const left = fmt(cur.income - cur.expenses);
+            const pct = change === null ? null : `${change >= 0 ? '+' : '−'}${Math.abs(change)}%`;
+            const first = pct === null ? t('{income} came in and {expenses} went out, which left {left}.', { income, expenses, left }) : t('{income} came in and {expenses} went out ({pct} vs the month before), which left {left}.', { income, expenses, left, pct });
+            return top ? `${first} ${t('Biggest category: {name} ({amount}).', { name: catName(top.name), amount: fmt(top.total) })}` : first;
+          },
           link: '/',
           data: { workspace_id: r.ws, month: prev },
           dedupeKey: `monthly:${prev}`,

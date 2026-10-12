@@ -5,6 +5,7 @@ import { rateLimit } from '../lib/auth.js';
 import { HttpError, idParam, wrap } from '../lib/http.js';
 import { notify, removeByData, resolveByData } from '../lib/notifications.js';
 import { briefUser, normalizePhone, usernameField } from '../lib/profile.js';
+import { t } from '../lib/i18n.js';
 
 const router = Router();
 
@@ -14,7 +15,7 @@ const lookupLimiter = rateLimit({
   windowMs: 60_000,
   max: 40,
   keyFn: (req) => `lookup:${req.user.id}`,
-  message: 'Too many searches. Please wait a minute.',
+  get message() { return t('Too many searches. Please wait a minute.'); },
 });
 
 /** What the person looking sees of their relationship with `otherId`. */
@@ -66,7 +67,7 @@ router.get(
   wrap(async (req, res) => {
     const { user, hint, by } = await findVisibleUser(String(req.query.q ?? '').slice(0, 120));
     if (!user) return res.json({ result: null, by, hint: hint ?? null });
-    if (user.id === req.user.id) return res.json({ result: null, by, hint: 'That is your own profile.' });
+    if (user.id === req.user.id) return res.json({ result: null, by, hint: t('That is your own profile.') });
     res.json({ result: { ...briefUser(user), connection: await connectionWith(req.user.id, user.id) }, by });
   }),
 );
@@ -82,7 +83,7 @@ router.get(
       : { rows: [] };
     const user = rows[0];
     const self = user?.id === req.user.id;
-    if (!user || (!user.discoverable && !self)) throw new HttpError(404, 'This profile does not exist or is private.');
+    if (!user || (!user.discoverable && !self)) throw new HttpError(404, t('This profile does not exist or is private.'));
     res.json({ profile: { ...briefUser(user), self, connection: self ? null : await connectionWith(req.user.id, user.id) } });
   }),
 );
@@ -115,8 +116,8 @@ router.get(
 async function announceRequest(from, toId, connectionId, relation) {
   await notify(toId, {
     kind: 'connection_request',
-    title: `${from.name} wants to connect with you`,
-    body: `They added you as their ${relation === 'other' ? 'contact' : relation}.`,
+    title: () => t('{name} wants to connect with you', { name: from.name }),
+    body: () => ({ partner: t('They added you as their partner.'), family: t('They added you as their family.'), friend: t('They added you as their friend.') })[relation] ?? t('They added you as their contact.'),
     link: '/people',
     data: { connection_id: connectionId, from: briefUser(from), relation },
     dedupeKey: `conn:${connectionId}:${Date.now()}`,
@@ -125,8 +126,8 @@ async function announceRequest(from, toId, connectionId, relation) {
 async function announceAccepted(by, requesterId, connectionId) {
   await notify(requesterId, {
     kind: 'connection_accepted',
-    title: `${by.name} accepted your request`,
-    body: 'You can now add each other to payments and invite each other to shared budgets.',
+    title: () => t('{name} accepted your request', { name: by.name }),
+    body: () => t('You can now add each other to payments and invite each other to shared budgets.'),
     link: '/people',
     data: { connection_id: connectionId, from: briefUser(by) },
     dedupeKey: `connacc:${connectionId}:${Date.now()}`,
@@ -140,8 +141,8 @@ router.post(
     const me = req.user.id;
     const { rows: found } = await query(`SELECT id FROM users WHERE lower(username) = $1 AND discoverable`, [body.username]);
     const target = found[0];
-    if (!target) throw new HttpError(404, 'No visible user with that username.');
-    if (target.id === me) throw new HttpError(400, 'You cannot add yourself.');
+    if (!target) throw new HttpError(404, t('No visible user with that username.'));
+    if (target.id === me) throw new HttpError(400, t('You cannot add yourself.'));
 
     const { rows } = await query(
       `SELECT * FROM connections
@@ -154,8 +155,8 @@ router.post(
       await announceRequest(req.user, target.id, created.rows[0].id, body.relation);
       return res.status(201).json({ status: 'request_sent' });
     }
-    if (existing.status === 'accepted') throw new HttpError(409, 'You are already connected.');
-    if (existing.requester_id === me) throw new HttpError(409, 'You already sent this person a request.');
+    if (existing.status === 'accepted') throw new HttpError(409, t('You are already connected.'));
+    if (existing.requester_id === me) throw new HttpError(409, t('You already sent this person a request.'));
     // They asked me first (or I declined them earlier).
     if (existing.status === 'pending') {
       await query(`UPDATE connections SET status = 'accepted', relation = $2, responded_at = now() WHERE id = $1`, [existing.id, body.relation]);
@@ -182,7 +183,7 @@ router.post(
        WHERE id = $1 AND addressee_id = $2 AND status = 'pending' RETURNING id, requester_id`,
       [idParam(req), req.user.id, relation ?? null],
     );
-    if (!rows[0]) throw new HttpError(404, 'Request not found.');
+    if (!rows[0]) throw new HttpError(404, t('Request not found.'));
     await resolveByData(req.user.id, 'connection_request', 'connection_id', rows[0].id);
     await announceAccepted(req.user, rows[0].requester_id, rows[0].id);
     res.json({ status: 'connected' });
@@ -197,7 +198,7 @@ router.post(
        WHERE id = $1 AND addressee_id = $2 AND status = 'pending' RETURNING id`,
       [idParam(req), req.user.id],
     );
-    if (!rows[0]) throw new HttpError(404, 'Request not found.');
+    if (!rows[0]) throw new HttpError(404, t('Request not found.'));
     await resolveByData(req.user.id, 'connection_request', 'connection_id', rows[0].id); // declining is quiet: the sender is not told
     res.status(204).end();
   }),
@@ -212,7 +213,7 @@ router.put(
        WHERE id = $1 AND status = 'accepted' AND (requester_id = $2 OR addressee_id = $2)`,
       [idParam(req), req.user.id, relation],
     );
-    if (!rowCount) throw new HttpError(404, 'Connection not found.');
+    if (!rowCount) throw new HttpError(404, t('Connection not found.'));
     res.json({ relation });
   }),
 );
@@ -229,7 +230,7 @@ router.delete(
         [id, req.user.id],
       );
       const c = rows[0];
-      if (!c) throw new HttpError(404, 'Connection not found.');
+      if (!c) throw new HttpError(404, t('Connection not found.'));
       if (c.status === 'pending' && c.requester_id === req.user.id) {
         // the sender withdrew the request: it disappears from the other person's notifications
         await removeByData(c.addressee_id, 'connection_request', 'connection_id', c.id);

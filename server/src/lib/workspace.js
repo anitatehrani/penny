@@ -1,5 +1,6 @@
 import { query } from '../db.js';
 import { HttpError } from './http.js';
+import { t } from './i18n.js';
 
 /**
  * Pick the budget (workspace) this request is about: the `X-Workspace` header (or `?ws=` for plain
@@ -21,7 +22,7 @@ export async function resolveWorkspace(req, _res, next) {
       ).rows[0];
     } else {
       const id = Number(raw);
-      if (!Number.isInteger(id) || id <= 0) throw new HttpError(400, 'Invalid workspace.');
+      if (!Number.isInteger(id) || id <= 0) throw new HttpError(400, t('Invalid workspace.'));
       row = (
         await query(
           `SELECT w.id, w.name, w.kind, m.role FROM workspaces w
@@ -30,9 +31,9 @@ export async function resolveWorkspace(req, _res, next) {
           [req.user.id, id],
         )
       ).rows[0];
-      if (!row) throw new HttpError(403, 'You are not a member of that budget.');
+      if (!row) throw new HttpError(403, t('You are not a member of that budget.'));
     }
-    if (!row) throw new HttpError(500, 'Your personal budget is missing.');
+    if (!row) throw new HttpError(500, t('Your personal budget is missing.'));
     req.workspace = row;
     next();
   } catch (err) {
@@ -46,5 +47,5 @@ export async function assertMember(workspaceId, userId) {
     workspaceId,
     userId,
   ]);
-  if (!rowCount) throw new HttpError(400, 'That person is not a member of this budget.');
+  if (!rowCount) throw new HttpError(400, t('That person is not a member of this budget.'));
 }

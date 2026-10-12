@@ -1,6 +1,7 @@
 import express, { Router } from 'express';
 import { secretMatches, takeIncoming } from '../lib/inbound.js';
 import { HttpError, wrap } from '../lib/http.js';
+import { t } from '../lib/i18n.js';
 
 /**
  * Where Brevo delivers parsed incoming e-mail (docs/DESIGN.md section 40). No session, no origin check: it is not a browser. Brevo does not sign
@@ -13,7 +14,7 @@ router.post(
   '/mail/:secret',
   express.json({ limit: '3mb' }),
   wrap(async (req, res) => {
-    if (!secretMatches(req.params.secret)) throw new HttpError(404, 'Not found');
+    if (!secretMatches(req.params.secret)) throw new HttpError(404, t('Not found'));
     const items = Array.isArray(req.body?.items) ? req.body.items.slice(0, 20) : [];
     const results = [];
     for (const item of items) {

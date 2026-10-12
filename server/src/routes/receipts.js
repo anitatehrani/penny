@@ -2,6 +2,7 @@ import express, { Router } from 'express';
 import { query } from '../db.js';
 import { HttpError, idParam, wrap } from '../lib/http.js';
 import { cleanFilename, detectType, RECEIPT_MAX_BYTES, RECEIPT_TYPES, RECEIPTS_PER_PAYMENT } from '../lib/images.js';
+import { t } from '../lib/i18n.js';
 
 /** Budget-scoped: list, upload and delete the receipts of a payment. */
 const router = Router();
@@ -13,7 +14,7 @@ const META = 'id, transaction_id, filename, mime, size_bytes, created_at, upload
 async function ownTransaction(req) {
   const id = idParam(req);
   const { rows } = await query('SELECT id FROM transactions WHERE id = $1 AND workspace_id = $2', [id, req.workspace.id]);
-  if (!rows[0]) throw new HttpError(404, 'Payment not found.');
+  if (!rows[0]) throw new HttpError(404, t('Payment not found.'));
   return id;
 }
 
@@ -32,11 +33,11 @@ router.post(
   wrap(async (req, res) => {
     const txId = await ownTransaction(req);
     const buf = req.body;
-    if (!Buffer.isBuffer(buf) || !buf.length) throw new HttpError(415, 'Attach a JPEG, PNG, WebP image or a PDF.');
+    if (!Buffer.isBuffer(buf) || !buf.length) throw new HttpError(415, t('Attach a JPEG, PNG, WebP image or a PDF.'));
     const mime = detectType(buf); // trust the bytes, not what the client claims
-    if (!RECEIPT_TYPES.includes(mime)) throw new HttpError(415, 'That file is not a JPEG, PNG, WebP image or PDF.');
+    if (!RECEIPT_TYPES.includes(mime)) throw new HttpError(415, t('That file is not a JPEG, PNG, WebP image or PDF.'));
     const { rows: count } = await query('SELECT count(*)::int AS n FROM receipts WHERE transaction_id = $1', [txId]);
-    if (count[0].n >= RECEIPTS_PER_PAYMENT) throw new HttpError(409, `A payment can have at most ${RECEIPTS_PER_PAYMENT} receipts.`);
+    if (count[0].n >= RECEIPTS_PER_PAYMENT) throw new HttpError(409, t('A payment can have at most {RECEIPTS_PER_PAYMENT} receipts.', { RECEIPTS_PER_PAYMENT }));
     const filename = cleanFilename(req.headers['x-filename'], mime);
     const { rows } = await query(
       `INSERT INTO receipts (transaction_id, workspace_id, uploaded_by, filename, mime, size_bytes, data)
@@ -51,7 +52,7 @@ router.delete(
   '/receipts/:id',
   wrap(async (req, res) => {
     const { rowCount } = await query('DELETE FROM receipts WHERE id = $1 AND workspace_id = $2', [idParam(req), req.workspace.id]);
-    if (!rowCount) throw new HttpError(404, 'Receipt not found.');
+    if (!rowCount) throw new HttpError(404, t('Receipt not found.'));
     res.status(204).end();
   }),
 );
@@ -65,7 +66,7 @@ fileRouter.get(
       [idParam(req), req.user.id],
     );
     const r = rows[0];
-    if (!r) throw new HttpError(404, 'Receipt not found.');
+    if (!r) throw new HttpError(404, t('Receipt not found.'));
     const disposition = req.query.download === '1' ? 'attachment' : 'inline';
     const headers = {
       'Content-Type': r.mime,

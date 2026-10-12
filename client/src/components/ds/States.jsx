@@ -1,5 +1,6 @@
 import { Icon } from '../ui.jsx';
 import { useOnline } from './hooks.js';
+import { t } from '../../i18n/translate.js';
 
 /**
  * What a place looks like when there is nothing in it, or something went wrong.
@@ -68,18 +69,18 @@ export function EmptyState({ icon, art, title, children, action, compact }) {
 }
 
 /** Something failed to load: say what, offer a retry, and be calm about it. */
-export function ErrorState({ error, onRetry, title = 'This did not load', compact }) {
+export function ErrorState({ error, onRetry, title = t('This did not load'), compact }) {
   const offline = typeof navigator !== 'undefined' && !navigator.onLine;
   const network = offline || /failed to fetch|networkerror|load failed/i.test(error?.message ?? '');
   return (
     <div className={`state error${compact ? ' compact' : ''}`} role="alert">
       <span className="state-art">{ART[network ? 'offline' : 'error']}</span>
-      <strong>{network ? 'Can’t reach the server' : title}</strong>
-      <p className="muted small">{network ? 'Check your connection. Nothing is lost; your data is safe.' : (error?.message ?? 'Something went wrong. Please try again.')}</p>
+      <strong>{network ? t('Can’t reach the server') : title}</strong>
+      <p className="muted small">{network ? t('Check your connection. Nothing is lost; your data is safe.') : error?.message ?? t('Something went wrong. Please try again.')}</p>
       {onRetry && (
         <div className="state-action">
           <button className="btn sm" onClick={onRetry}>
-            <Icon name="repeat" size={14} /> Try again
+            <Icon name="repeat" size={14} /> {t('Try again')}
           </button>
         </div>
       )}
@@ -94,7 +95,7 @@ export function OfflineBanner() {
   return (
     <div className="offline-banner" role="status">
       <Icon name="alert" size={16} />
-      <span>You are offline. What you see may be out of date, and changes will not be saved until you reconnect.</span>
+      <span>{t('You are offline. What you see may be out of date, and changes will not be saved until you reconnect.')}</span>
     </div>
   );
 }

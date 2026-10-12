@@ -10,6 +10,7 @@ import { safeLine } from '../../safeLogic.js';
 import { useQuick } from '../../quick.jsx';
 import { useWorkspace } from '../../workspace.jsx';
 import { BalanceTrend } from '../charts.jsx';
+import { t } from '../../i18n/translate.js';
 
 /**
  * Where you stand: today's balance as the biggest thing on the page, how it moved, where the month should end,
@@ -22,7 +23,7 @@ export default function HeroWidget({ summary, forecast, size, safe }) {
   const [pinned, setPinned] = useState(false);
   const [hover, setHover] = useState(false);
   const s = summary;
-  const t = s.totals;
+  const tt = s.totals;
   const month = currentMonth();
   const months = forecast?.months ?? [];
   const idx = months.findIndex((m) => m.kind === 'current');
@@ -39,30 +40,30 @@ export default function HeroWidget({ summary, forecast, size, safe }) {
   const [matching, setMatching] = useState(false);
 
   const rows = [
-    ['Starting balance', money(Number(settings?.opening_balance ?? 0)), ''],
-    ['Income and spending since', `${netSince >= 0 ? '+' : '−'}${money(Math.abs(netSince))}`, netSince < 0 ? 'neg' : 'pos'],
-    ['Balance today', money(s.balance), negative ? 'neg' : '', true],
-    ['Income still expected this month', `+${money(t.incomePending)}`, 'pos'],
-    ['Payments still to make this month', `−${money(t.expensePending)}`, 'neg'],
-    [`Expected at the end of ${monthLabel(month, { month: 'long' })}`, money(s.projectedMonthEnd), s.projectedMonthEnd < 0 ? 'neg' : '', true],
+    [t('Starting balance'), money(Number(settings?.opening_balance ?? 0)), ''],
+    [t('Income and spending since'), `${netSince >= 0 ? '+' : '−'}${money(Math.abs(netSince))}`, netSince < 0 ? 'neg' : 'pos'],
+    [t('Balance today'), money(s.balance), negative ? 'neg' : '', true],
+    [t('Income still expected this month'), `+${money(tt.incomePending)}`, 'pos'],
+    [t('Payments still to make this month'), `−${money(tt.expensePending)}`, 'neg'],
+    [t('Expected at the end of {monthLabel}', { monthLabel: monthLabel(month, { month: 'long' }) }), money(s.projectedMonthEnd), s.projectedMonthEnd < 0 ? 'neg' : '', true],
   ];
 
   return (
     <div className={`hero hero-${size}`}>
       <div className="hero-figure">
-        <div className="eyebrow">{isGroup ? 'Our balance today' : 'Balance today'}</div>
-        <div className={`hero-balance num${negative ? ' neg' : ''}`} tabIndex={0} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} onFocus={() => setHover(true)} onBlur={() => setHover(false)} aria-label={`Balance today ${money(s.balance)}. Press to see how it is made up.`} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), setPinned((p) => !p))} onClick={() => setPinned((p) => !p)}>
+        <div className="eyebrow">{isGroup ? t('Our balance today') : t('Balance today')}</div>
+        <div className={`hero-balance num${negative ? ' neg' : ''}`} tabIndex={0} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} onFocus={() => setHover(true)} onBlur={() => setHover(false)} aria-label={t('Balance today {money}. Press to see how it is made up.', { money: money(s.balance) })} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), setPinned((p) => !p))} onClick={() => setPinned((p) => !p)}>
           <AnimatedNumber value={s.balance} format={money} />
           {negative && <Icon name="alert" size={22} />}
         </div>
         {look && (
           <div className={`hero-status ${look.status === 'ok' ? 'ok' : look.status === 'under' || look.status === 'low' ? 'caution' : 'warn'}`}>
             <Icon name={look.status === 'ok' ? 'check' : 'alert'} size={14} />
-            {look.status === 'below' && 'Below zero today'}
-            {look.status === 'under' && `Below your ${money(buffer)} buffer today`}
-            {look.status === 'dip' && `Dips below zero in ${monthLabel(look.firstNegative.month, { month: 'long' })}`}
-            {look.status === 'low' && `Dips below your buffer in ${monthLabel(look.firstLow.month, { month: 'long' })}`}
-            {look.status === 'ok' && `No dip ahead, lowest ${money(look.lowest.balance)} in ${monthLabel(look.lowest.month, { month: 'long' })}`}
+            {look.status === 'below' && t('Below zero today')}
+            {look.status === 'under' && t('Below your {money} buffer today', { money: money(buffer) })}
+            {look.status === 'dip' && t('Dips below zero in {monthLabel}', { monthLabel: monthLabel(look.firstNegative.month, { month: 'long' }) })}
+            {look.status === 'low' && t('Dips below your buffer in {monthLabel}', { monthLabel: monthLabel(look.firstLow.month, { month: 'long' }) })}
+            {look.status === 'ok' && t('No dip ahead, lowest {money} in {monthLabel}', { money: money(look.lowest.balance), monthLabel: monthLabel(look.lowest.month, { month: 'long' }) })}
           </div>
         )}
         {spend && (
@@ -79,20 +80,20 @@ export default function HeroWidget({ summary, forecast, size, safe }) {
                 {moved >= 0 ? '+' : '−'}
                 {money(Math.abs(moved))}
               </span>
-              <span className="muted"> since the end of {prevName}</span>
+              <span className="muted"> {t('since the end of {prevName}', { prevName })}</span>
             </span>
           )}
           <span className="hero-end">
-            <span className="muted">Expected month end </span>
+            <span className="muted">{t('Expected month end')} </span>
             <span className={`num forecast-text${s.projectedMonthEnd < 0 ? ' neg' : ''}`}>{money(s.projectedMonthEnd)}</span>
           </span>
         </div>
         <div className="hero-links">
           <button className="hero-why" onClick={() => setPinned((p) => !p)} aria-expanded={open} aria-controls="hero-breakdown">
-            How is this made up? <Icon name="chevron" size={13} />
+            {t('How is this made up?')} <Icon name="chevron" size={13} />
           </button>
           <button className="hero-why" onClick={() => setMatching(true)}>
-            Match my bank balance
+            {t('Match my bank balance')}
           </button>
         </div>
         <div className={`hero-breakdown${open ? ' open' : ''}`} id="hero-breakdown">
@@ -109,12 +110,12 @@ export default function HeroWidget({ summary, forecast, size, safe }) {
       {size !== 's' && (
         <div className="hero-chart">
           <div className="hero-chart-head">
-            <span className="eyebrow">Balance history &amp; forecast</span>
+            <span className="eyebrow">{t('Balance history & forecast')}</span>
             <span className="legend-inline">
-              <i className="line solid" /> Actual <i className="line dashed" /> Forecast
+              <i className="line solid" /> {t('Actual')} <i className="line dashed" /> {t('Forecast')}
             </span>
             <Link to="/forecast" className="link-quiet">
-              Full forecast
+              {t('Full forecast')}
             </Link>
           </div>
           {forecast ? <BalanceTrend months={months} buffer={buffer} height={size === 'm' ? 150 : 176} /> : <Skeleton w="100%" h={160} r={8} />}

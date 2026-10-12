@@ -11,8 +11,8 @@ const fmt = (y, m, d) => `${y}-${pad(m)}-${pad(d)}`;
 
 function addDays(ymd, n) {
   const { y, m, d } = parse(ymd);
-  const t = new Date(Date.UTC(y, m - 1, d + n));
-  return fmt(t.getUTCFullYear(), t.getUTCMonth() + 1, t.getUTCDate());
+  const tt = new Date(Date.UTC(y, m - 1, d + n));
+  return fmt(tt.getUTCFullYear(), tt.getUTCMonth() + 1, tt.getUTCDate());
 }
 
 /** Months later, keeping the anchor day but never past the end of a short month (31st becomes 30th or 28th). */

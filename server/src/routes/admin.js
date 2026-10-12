@@ -15,6 +15,7 @@ import { notify } from '../lib/notifications.js';
 import { signupsOpen } from '../lib/signups.js';
 import { verifyPassword } from '../lib/password.js';
 import { deleteUserAccount, sharedBudgetCount } from '../lib/userAdmin.js';
+import { t, tn } from '../lib/i18n.js';
 
 /**
  * The admin dashboard's API (docs/DESIGN.md section 33). Everything here is about accounts and how the service is running: there is no route
@@ -105,12 +106,12 @@ router.get(
 
     const b = backupStatus();
     const checks = [
-      { id: 'cookie', ok: process.env.COOKIE_SECURE === 'true', text: 'Secure cookies are on', hint: 'Set COOKIE_SECURE=true in .env once the site is served over HTTPS.' },
-      { id: 'url', ok: !/localhost|127\.0\.0\.1/.test(appUrl()), text: 'The public address is set', hint: 'Set APP_URL to the real address, or the links in e-mails point at your own computer.' },
-      { id: 'mail', ok: mailMode() === 'smtp', text: 'A real mail server is set', hint: 'Set SMTP_HOST (and the other SMTP_ settings). Without it e-mails are only saved in a folder, so nobody receives them, and "Forgot password" stays switched off.' },
-      { id: 'legal', ok: !!legalConfig().operatorName, text: 'The terms and privacy pages say who runs the site', hint: 'Set OPERATOR_NAME in .env, so the two pages name you (people are asked to accept them when they sign up). They already point to the contact form; CONTACT_EMAIL is optional and adds an address.' },
-      { id: 'backups', ok: !!b.enabled && !b.problem && !!b.last_at, text: 'Backups are on and recent', hint: b.problem || 'Backups are off or none has been made yet.' },
-      { id: 'proxy', ok: !!process.env.TRUST_PROXY, text: 'The proxy setting is present', hint: 'Set TRUST_PROXY=1 when a web server sits in front of Penny, or every visitor looks like one address to the rate limits and the activity log.' },
+      { id: 'cookie', ok: process.env.COOKIE_SECURE === 'true', text: t('Secure cookies are on'), hint: t('Set COOKIE_SECURE=true in .env once the site is served over HTTPS.') },
+      { id: 'url', ok: !/localhost|127\.0\.0\.1/.test(appUrl()), text: t('The public address is set'), hint: t('Set APP_URL to the real address, or the links in e-mails point at your own computer.') },
+      { id: 'mail', ok: mailMode() === 'smtp', text: t('A real mail server is set'), hint: t('Set SMTP_HOST (and the other SMTP_ settings). Without it e-mails are only saved in a folder, so nobody receives them, and "Forgot password" stays switched off.') },
+      { id: 'legal', ok: !!legalConfig().operatorName, text: t('The terms and privacy pages say who runs the site'), hint: t('Set OPERATOR_NAME in .env, so the two pages name you (people are asked to accept them when they sign up). They already point to the contact form; CONTACT_EMAIL is optional and adds an address.') },
+      { id: 'backups', ok: !!b.enabled && !b.problem && !!b.last_at, text: t('Backups are on and recent'), hint: b.problem || t('Backups are off or none has been made yet.') },
+      { id: 'proxy', ok: !!process.env.TRUST_PROXY, text: t('The proxy setting is present'), hint: t('Set TRUST_PROXY=1 when a web server sits in front of Penny, or every visitor looks like one address to the rate limits and the activity log.') },
     ];
 
     res.json({
@@ -162,7 +163,7 @@ router.get(
   wrap(async (req, res) => {
     const id = idParam(req);
     const row = (await query(`${USER_SELECT} WHERE u.id = $1`, [id])).rows[0];
-    if (!row) throw new HttpError(404, 'Person not found');
+    if (!row) throw new HttpError(404, t('Person not found'));
     const [devices, events, shared] = await Promise.all([
       query('SELECT count(*)::int AS n, max(created_at) AS latest FROM sessions WHERE user_id = $1 AND expires_at > now()', [id]),
       query(`SELECT id, at, kind, detail, source FROM audit_events WHERE user_id = $1 ORDER BY at DESC, id DESC LIMIT 15`, [id]),
@@ -184,9 +185,9 @@ router.get(
 async function actionTarget(req) {
   const id = idParam(req);
   const row = (await query(`${USER_SELECT} WHERE u.id = $1`, [id])).rows[0];
-  if (!row) throw new HttpError(404, 'Person not found');
-  if (row.id === req.user.id) throw new HttpError(400, 'You cannot do this to your own account.');
-  if (row.is_admin) throw new HttpError(400, 'This person is an admin. Take their admin role away first (.\\penny remove-admin).');
+  if (!row) throw new HttpError(404, t('Person not found'));
+  if (row.id === req.user.id) throw new HttpError(400, t('You cannot do this to your own account.'));
+  if (row.is_admin) throw new HttpError(400, t('This person is an admin. Take their admin role away first (.\\penny remove-admin).'));
   return row;
 }
 
@@ -219,7 +220,7 @@ router.post(
 // "View as" (docs/DESIGN.md section 33). This is the one way an admin can see a person's money, so it has the most care: the admin must say why
 // and type their own password again, it lasts 30 minutes, it is read-only unless the admin chooses otherwise (and even then only budget data
 // can change, see impersonationGuard), it is in the activity log, and the person is told in the app. Admins cannot be viewed.
-const viewAsLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, keyFn: (req) => `viewas:${req.user.id}`, message: 'Too many tries. Wait a few minutes and try again.' });
+const viewAsLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, keyFn: (req) => `viewas:${req.user.id}`, get message() { return t('Too many tries. Wait a few minutes and try again.'); } });
 router.post(
   '/admin/users/:id/view-as',
   viewAsLimiter,
@@ -234,14 +235,14 @@ router.post(
     const row = await actionTarget(req);
     if (req.user.password_hash) {
       const ok = body.password ? await verifyPassword(body.password, req.user.password_hash) : false;
-      if (!ok) throw new HttpError(403, 'That password is not correct.'); // 403, not 401: a wrong password here must not sign the admin out
+      if (!ok) throw new HttpError(403, t('That password is not correct.')); // 403, not 401: a wrong password here must not sign the admin out
     }
     await query('UPDATE sessions SET acting_as = $2, acting_started_at = now(), acting_read_only = $3, acting_reason = $4 WHERE token_hash = $1', [req.sessionHash, row.id, body.read_only, body.reason]);
     await record('admin_impersonate_start', { req, userId: row.id, actorId: req.user.id, detail: `${body.read_only ? 'read-only' : 'could make changes'}: ${body.reason}` });
     await notify(row.id, {
       kind: 'security',
-      title: 'An admin viewed your account',
-      body: `A Penny admin signed in to your account to help with: "${body.reason}". It was ${body.read_only ? 'read-only, so nothing was changed' : 'allowed to change budget data'}. If you do not expect this, contact support.`,
+      title: () => t('An admin viewed your account'),
+      body: () => (body.read_only ? t('A Penny admin signed in to your account to help with: "{reason}". It was read-only, so nothing was changed. If you do not expect this, contact support.', { reason: body.reason }) : t('A Penny admin signed in to your account to help with: "{reason}". It was allowed to change budget data. If you do not expect this, contact support.', { reason: body.reason })),
       link: '/settings?tab=account',
       dedupeKey: `admin-view:${Date.now()}`,
     });
@@ -264,12 +265,12 @@ router.delete(
   wrap(async (req, res) => {
     const { confirm } = z.object({ confirm: z.string().trim().max(100) }).parse(req.body ?? {});
     const row = await actionTarget(req);
-    if (confirm.toLowerCase() !== row.username.toLowerCase()) throw new HttpError(400, 'Type their username to confirm.');
+    if (confirm.toLowerCase() !== row.username.toLowerCase()) throw new HttpError(400, t('Type their username to confirm.'));
     const shared = await sharedBudgetCount(row.id);
     if (shared > 0) {
       throw new HttpError(
         409,
-        `This person is in ${shared} shared budget${shared === 1 ? '' : 's'} with other people. Deleting them would remove their payments, or the budget itself, from those people. Suspend the account instead, or ask them to leave the shared budgets first.`,
+        tn(shared, 'This person is in {n} shared budget with other people. Deleting them would remove their payments, or the budget itself, from those people. Suspend the account instead, or ask them to leave the shared budgets first.', 'This person is in {n} shared budgets with other people. Deleting them would remove their payments, or the budget itself, from those people. Suspend the account instead, or ask them to leave the shared budgets first.'),
       );
     }
     await deleteUserAccount(row.id);
@@ -368,7 +369,7 @@ const setMark = (column) =>
     const { value } = flag.parse(req.body ?? {});
     // the mark keeps its first time when set again; clearing it makes the message unread / restored
     const { rows } = await query(`UPDATE contact_messages SET ${column} = ${value ? `COALESCE(${column}, now())` : 'NULL'} WHERE id = $1 RETURNING *`, [id]);
-    if (!rows[0]) throw new HttpError(404, 'Not found');
+    if (!rows[0]) throw new HttpError(404, t('Not found'));
     res.json({ message: shapeMessage(rows[0], (await threadsFor([id])).get(id)), unread: await unreadCount() });
   });
 router.post('/admin/messages/:id/read', setMark('read_at'));
@@ -376,7 +377,7 @@ router.post('/admin/messages/:id/archive', setMark('archived_at'));
 
 // An answer, sent by e-mail from the address Penny sends from, with the admin's own address as "reply to" so the writer's next message
 // reaches the admin directly. Only an admin can do this, and only to the address the writer gave in the form.
-const replyLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 30, keyFn: (req) => `contact-reply:${req.user.id}`, message: 'You have sent a lot of replies this hour. Try again later.' });
+const replyLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 30, keyFn: (req) => `contact-reply:${req.user.id}`, get message() { return t('You have sent a lot of replies this hour. Try again later.'); } });
 router.post(
   '/admin/messages/:id/reply',
   replyLimiter,
@@ -384,8 +385,8 @@ router.post(
     const id = idParam(req);
     const { reply } = replyBody.parse(req.body ?? {});
     const m = (await query('SELECT * FROM contact_messages WHERE id = $1', [id])).rows[0];
-    if (!m) throw new HttpError(404, 'Not found');
-    const latest = (await threadsFor([id])).get(id).filter((t) => t.direction === 'in').at(-1);
+    if (!m) throw new HttpError(404, t('Not found'));
+    const latest = (await threadsFor([id])).get(id).filter((tt) => tt.direction === 'in').at(-1);
     const mail = contactReplyEmail({ name: m.name, reply, original: latest?.body ?? m.message, topic: shapeMessage(m).topic_label });
     // with replies by e-mail set up they come back into this tab; otherwise they go to the admin's own mailbox
     const replyTo = (await replyAddress(id)) ? `Penny <${await replyAddress(id)}>` : `${req.user.name.replace(/[\r\n"<>]/g, '')} <${req.user.email}>`;
@@ -394,7 +395,7 @@ router.post(
       sent = await sendMail({ to: m.email, subject: mail.subject, text: mail.text, html: mail.html, headers: { 'Reply-To': replyTo } });
     } catch (err) {
       await query(`INSERT INTO email_log (user_id, to_email, subject, kind, status, error) VALUES ($1, $2, $3, 'contact-reply', 'failed', $4)`, [m.user_id, m.email, mail.subject, String(err.message).slice(0, 300)]);
-      throw new HttpError(502, 'The e-mail could not be sent. Nothing was saved; try again in a moment.');
+      throw new HttpError(502, t('The e-mail could not be sent. Nothing was saved; try again in a moment.'));
     }
     await query(`INSERT INTO email_log (user_id, to_email, subject, kind, status) VALUES ($1, $2, $3, 'contact-reply', $4)`, [m.user_id, m.email, mail.subject, sent.status]);
     const { rows } = await query('UPDATE contact_messages SET reply = $2, replied_at = now(), replied_by = $3, read_at = COALESCE(read_at, now()) WHERE id = $1 RETURNING *', [id, reply, req.user.id]);
@@ -407,7 +408,7 @@ router.delete(
   '/admin/messages/:id',
   wrap(async (req, res) => {
     const { rowCount } = await query('DELETE FROM contact_messages WHERE id = $1', [idParam(req)]);
-    if (!rowCount) throw new HttpError(404, 'Not found');
+    if (!rowCount) throw new HttpError(404, t('Not found'));
     res.json({ ok: true, unread: await unreadCount() });
   }),
 );

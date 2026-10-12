@@ -3,6 +3,7 @@ import { query } from '../db.js';
 import { addDays, isValidYM, monthEnd, monthOf, monthStart, todayYMD } from '../lib/dates.js';
 import { forecastForWorkspace, workspaceSettings } from '../lib/forecastService.js';
 import { HttpError, wrap } from '../lib/http.js';
+import { t } from '../lib/i18n.js';
 
 const router = Router();
 
@@ -24,7 +25,7 @@ router.get(
     const uid = req.workspace.id;
     const today = todayYMD();
     const month = req.query.month ?? monthOf(today);
-    if (!isValidYM(month)) throw new HttpError(400, 'month must be YYYY-MM');
+    if (!isValidYM(month)) throw new HttpError(400, t('month must be YYYY-MM'));
     const [start, end] = [monthStart(month), monthEnd(month)];
 
     const [settings, totals, balanceRow, projectedRow, overdue, upcoming, byCategory] = await Promise.all([
@@ -61,9 +62,9 @@ router.get(
       ),
     ]);
 
-    const t = { incomePaid: 0, incomePending: 0, expensePaid: 0, expensePending: 0 };
+    const tt = { incomePaid: 0, incomePending: 0, expensePaid: 0, expensePending: 0 };
     for (const r of totals.rows) {
-      t[`${r.type}${r.status === 'paid' ? 'Paid' : 'Pending'}`] = r.total;
+      tt[`${r.type}${r.status === 'paid' ? 'Paid' : 'Pending'}`] = r.total;
     }
     const cents = (v) => Math.round(v * 100);
     const opening = cents(settings.opening_balance);
@@ -97,8 +98,8 @@ router.get(
       balance,
       projectedMonthEnd: (cents(balance) + cents(projectedRow.rows[0].net)) / 100,
       totals: {
-        ...t,
-        net: (cents(t.incomePaid) + cents(t.incomePending) - cents(t.expensePaid) - cents(t.expensePending)) / 100,
+        ...tt,
+        net: (cents(tt.incomePaid) + cents(tt.incomePending) - cents(tt.expensePaid) - cents(tt.expensePending)) / 100,
       },
       overdue: {
         count: overdue.rows.length,

@@ -1,23 +1,24 @@
+import { t, tn } from './i18n/translate.js';
 /**
  * The "safe to spend" line on the balance card (docs/DESIGN.md section 27): what GET /api/safe-to-spend says, in words.
  * `money` formats an amount and `dateLabel` a 'YYYY-MM-DD' day ('10 Nov'); both are passed in so this stays plain and testable.
  */
 export function safeLine(safe, { money, dateLabel }) {
   if (!safe) return null;
-  const until = safe.until_kind === 'income' && safe.next_income ? `${safe.next_income.description} on ${dateLabel(safe.next_income.date)}` : 'the end of the month';
-  const dayWord = `${safe.days} day${safe.days === 1 ? '' : 's'}`;
+  const until = safe.until_kind === 'income' && safe.next_income ? t('{description} on {dateLabel}', { description: safe.next_income.description, dateLabel: dateLabel(safe.next_income.date) }) : t('the end of the month');
+  const dayWord = tn(safe.days, '{n} day', '{n} days');
   const arithmetic = [
-    ['Balance today', money(safe.balance)],
-    [`Still to pay until ${dateLabel(safe.until)}${safe.bills_count ? ` (${safe.bills_count} payment${safe.bills_count === 1 ? '' : 's'})` : ''}`, `−${money(safe.bills)}`],
-    ...(safe.buffer > 0 ? [['Safety buffer', `−${money(safe.buffer)}`]] : []),
-    [safe.available >= 0 ? 'Left to spend' : 'Short', money(Math.abs(safe.available))],
-    [`Over ${dayWord}`, safe.per_day > 0 ? `${money(safe.per_day)} a day` : '—'],
+    [t('Balance today'), money(safe.balance)],
+    [t('Still to pay until {dateLabel}{value}', { dateLabel: dateLabel(safe.until), value: safe.bills_count ? tn(safe.bills_count, ' ({n} payment)', ' ({n} payments)') : '' }), `−${money(safe.bills)}`],
+    ...(safe.buffer > 0 ? [[t('Safety buffer'), `−${money(safe.buffer)}`]] : []),
+    [safe.available >= 0 ? t('Left to spend') : t('Short'), money(Math.abs(safe.available))],
+    [t('Over {dayWord}', { dayWord }), safe.per_day > 0 ? t('{money} a day', { money: money(safe.per_day) }) : '—'],
   ];
   if (safe.per_day > 0) {
-    return { tone: 'ok', text: `Safe to spend ${money(safe.per_day)} a day for ${dayWord}, until ${until}`, arithmetic };
+    return { tone: 'ok', text: t('Safe to spend {money} a day for {dayWord}, until {until}', { money: money(safe.per_day), dayWord, until }), arithmetic };
   }
   if (safe.short > 0) {
-    return { tone: 'short', text: `${money(safe.short)} short before ${until}`, arithmetic };
+    return { tone: 'short', text: t('{money} short before {until}', { money: money(safe.short), until }), arithmetic };
   }
-  return { tone: 'none', text: `Nothing spare before ${until}`, arithmetic };
+  return { tone: 'none', text: t('Nothing spare before {until}', { until }), arithmetic };
 }

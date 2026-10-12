@@ -6,13 +6,15 @@ import { useApp } from '../context.jsx';
 import GoogleButton from './GoogleButton.jsx';
 import PasswordField from './PasswordField.jsx';
 import { Field, Icon, Modal } from './ui.jsx';
+import { getLanguage, t } from '../i18n/translate.js';
+import { tRich } from '../i18n/react.jsx';
 
 /** Download what Penny holds about you, as a file. (It is a normal download, not an API call, so the browser saves it.) */
 async function downloadMyData() {
-  const res = await fetch('/api/auth/account/export', { credentials: 'same-origin' });
+  const res = await fetch('/api/auth/account/export', { credentials: 'same-origin', headers: { 'X-Language': getLanguage() } });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || `The download failed (${res.status}).`);
+    throw new Error(data.error || t('The download failed ({status}).', { status: res.status }));
   }
   const blob = await res.blob();
   const name = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') || '')?.[1] ?? 'penny-data.json';
@@ -47,7 +49,7 @@ function DeleteDialog({ onClose }) {
   }
 
   return (
-    <Modal title="Delete my account" onClose={onClose}>
+    <Modal title={t('Delete my account')} onClose={onClose}>
       <form onSubmit={submit} className="form">
         {error && (
           <div className="banner danger" role="alert">
@@ -55,37 +57,36 @@ function DeleteDialog({ onClose }) {
             <div>{error.message}</div>
           </div>
         )}
-        <p>This deletes your account <strong>for good</strong>, straight away:</p>
+        <p>{tRich('This deletes your account {bold}, straight away:', { bold: <strong>{t('for good')}</strong> })}</p>
         <ul className="delete-list">
-          <li>your payments, recurring items, installments, debts, categories and receipts;</li>
-          <li>your personal budget, and your profile, photo, settings and notifications;</li>
-          <li>your sign-in on every device.</li>
+          <li>{t('your payments, recurring items, installments, debts, categories and receipts;')}</li>
+          <li>{t('your personal budget, and your profile, photo, settings and notifications;')}</li>
+          <li>{t('your sign-in on every device.')}</li>
         </ul>
         <p className="muted">
-          It cannot be undone. Copies in the backups are overwritten within about six months. If you share a budget with other people, leave it first,
-          otherwise their payments would be taken away. You may want to <button type="button" className="inline-link" onClick={() => downloadMyData().catch((err) => setError(err))}>download your data</button> first.
+          {tRich('It cannot be undone. Copies in the backups are overwritten within about six months. If you share a budget with other people, leave it first, otherwise their payments would be taken away. You may want to {download} first.', { download: <button type="button" className="inline-link" onClick={() => downloadMyData().catch((err) => setError(err))}>{t('download your data')}</button> })}
         </p>
         {user.has_password ? (
-          <PasswordField label="Your password" value={password} onChange={setPassword} autoComplete="current-password" />
+          <PasswordField label={t('Your password')} value={password} onChange={setPassword} autoComplete="current-password" />
         ) : googleClientId ? (
-          <Field label="Confirm it is you" hint={credential ? 'Confirmed with Google.' : 'This account has no password, so confirm with Google.'}>
+          <Field label={t('Confirm it is you')} hint={credential ? t('Confirmed with Google.') : t('This account has no password, so confirm with Google.')}>
             <GoogleButton clientId={googleClientId} text="continue_with" onCredential={setCredential} onError={(err) => setError(err)} />
           </Field>
         ) : (
           <div className="banner danger" role="alert">
             <Icon name="alert" />
-            <div>This account has no password and Google sign-in is not set up here. Set a password first (Account, then Set password).</div>
+            <div>{t('This account has no password and Google sign-in is not set up here. Set a password first (Account, then Set password).')}</div>
           </div>
         )}
-        <Field label="Type DELETE to confirm">
+        <Field label={t('Type DELETE to confirm')}>
           <input value={typed} onChange={(e) => setTyped(e.target.value)} autoComplete="off" autoCapitalize="characters" spellCheck={false} />
         </Field>
         <div className="form-actions left">
           <button className="btn danger" disabled={busy || typed !== 'DELETE' || !proof}>
-            {busy ? 'Deleting…' : 'Delete my account'}
+            {busy ? t('Deleting…') : t('Delete my account')}
           </button>
           <button type="button" className="btn" onClick={onClose}>
-            Cancel
+            {t('Cancel')}
           </button>
         </div>
       </form>
@@ -103,7 +104,7 @@ export default function YourDataCard() {
     setBusy(true);
     try {
       await downloadMyData();
-      notify('Your data was downloaded');
+      notify(t('Your data was downloaded'));
     } catch (err) {
       notify(err.message, 'error');
     }
@@ -114,27 +115,27 @@ export default function YourDataCard() {
     <>
       <section className="card your-data" aria-labelledby="your-data-h">
         <div className="card-head">
-          <h2 id="your-data-h">Your data</h2>
+          <h2 id="your-data-h">{t('Your data')}</h2>
         </div>
         <p className="muted">
-          What Penny keeps about you and why is in the <Link to="/privacy">privacy policy</Link>; the rules for using it are the <Link to="/terms">terms of use</Link>. Questions? Use the <Link to="/contact">contact form</Link>.
+          {tRich('What Penny keeps about you and why is in the {link}; the rules for using it are the {link2}. Questions? Use the {link3}.', { link: <Link to="/privacy">{t('privacy policy')}</Link>, link2: <Link to="/terms">{t('terms of use')}</Link>, link3: <Link to="/contact">{t('contact form')}</Link> })}
         </p>
         <div className="row-actions">
           <button className="btn" onClick={download} disabled={busy}>
-            <Icon name="download" size={16} /> {busy ? 'Preparing…' : 'Download my data'}
+            <Icon name="download" size={16} /> {busy ? t('Preparing…') : t('Download my data')}
           </button>
         </div>
-        <p className="muted small">A file with everything in your account: your details, your budgets and what is in them. Your photo and receipt files are not included.</p>
+        <p className="muted small">{t('A file with everything in your account: your details, your budgets and what is in them. Your photo and receipt files are not included.')}</p>
       </section>
 
       <section className="card danger-zone" aria-labelledby="delete-h">
         <div className="card-head">
-          <h2 id="delete-h">Delete my account</h2>
+          <h2 id="delete-h">{t('Delete my account')}</h2>
         </div>
-        <p className="muted">Removes your account and everything in it, straight away. This cannot be undone.</p>
+        <p className="muted">{t('Removes your account and everything in it, straight away. This cannot be undone.')}</p>
         <div className="row-actions">
           <button className="btn danger" onClick={() => setAsking(true)}>
-            <Icon name="trash" size={16} /> Delete my account…
+            <Icon name="trash" size={16} /> {t('Delete my account…')}
           </button>
         </div>
       </section>

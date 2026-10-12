@@ -14,6 +14,9 @@ import { useQuick } from '../quick.jsx';
 import { useAuth } from '../auth.jsx';
 import { useTheme } from '../theme.js';
 import { rank } from './fuzzy.js';
+import { N_, t, tn } from '../i18n/translate.js';
+import { LANGUAGES } from '../i18n/core.js';
+import { tRich, useLang } from '../i18n/react.jsx';
 
 const Ctx = createContext({ openPalette: () => {} });
 export const useCommand = () => useContext(Ctx);
@@ -43,7 +46,7 @@ export function CommandProvider({ children }) {
   );
 }
 
-const GROUP_ORDER = ['Suggested', 'Payments', 'People', 'Actions', 'Go to', 'Appearance', 'Account', 'Ask'];
+const GROUP_ORDER = [N_('Suggested'), N_('Payments'), N_('People'), N_('Actions'), N_('Go to'), N_('Appearance'), N_('Account'), N_('Ask')];
 
 function Highlight({ text, indexes }) {
   if (!indexes?.length) return text;
@@ -57,6 +60,7 @@ function Palette({ initialQuery, onClose }) {
   const { money } = useApp();
   const [theme, setTheme] = useTheme();
   const { prefs, setPrefs } = usePrefs();
+  const { lang } = useLang();
   const { openAddPayment } = useQuick();
   const { openAssistant } = useAssistant();
   const { unread, reload } = useNotifications();
@@ -86,51 +90,52 @@ function Palette({ initialQuery, onClose }) {
   const go = (to) => () => navigate(to);
   const commands = useMemo(
     () => [
-      { id: 'add', group: 'Suggested', label: 'Add payment', icon: 'plus', keywords: 'new expense income create record spend', run: () => openAddPayment() },
-      { id: 'ask', group: 'Suggested', label: 'Ask the assistant', icon: 'signal', keywords: 'ai question insight help chat', hint: 'Ctrl J', run: () => openAssistant() },
-      { id: 'add-recurring', group: 'Actions', label: 'Add recurring payment', icon: 'repeat', keywords: 'subscription rent salary monthly weekly', run: go('/recurring?new=1') },
-      { id: 'add-debt', group: 'Actions', label: 'Add a debt', icon: 'debt', keywords: 'owe loan borrowed friend pay back', run: go('/debts?new=1') },
-      { id: 'add-owed-to-me', group: 'Actions', label: 'Someone owes me money', icon: 'debt', keywords: 'lent loan lend friend owes me pay me back reimburse', run: go('/debts?show=lent&new=1') },
-      { id: 'add-installment', group: 'Actions', label: 'Add installment plan', icon: 'card', keywords: 'loan split pay later', run: go('/installments?new=1') },
-      { id: 'customize', group: 'Actions', label: 'Customise dashboard', icon: 'layout', keywords: 'widgets rearrange hide resize layout', run: go('/?customize=1') },
+      { id: 'add', group: t('Suggested'), label: t('Add payment'), icon: 'plus', keywords: 'new expense income create record spend', run: () => openAddPayment() },
+      { id: 'ask', group: t('Suggested'), label: t('Ask the assistant'), icon: 'signal', keywords: 'ai question insight help chat', hint: t('Ctrl J'), run: () => openAssistant() },
+      { id: 'add-recurring', group: t('Actions'), label: t('Add recurring payment'), icon: 'repeat', keywords: 'subscription rent salary monthly weekly', run: go('/recurring?new=1') },
+      { id: 'add-debt', group: t('Actions'), label: t('Add a debt'), icon: 'debt', keywords: 'owe loan borrowed friend pay back', run: go('/debts?new=1') },
+      { id: 'add-owed-to-me', group: t('Actions'), label: t('Someone owes me money'), icon: 'debt', keywords: 'lent loan lend friend owes me pay me back reimburse', run: go('/debts?show=lent&new=1') },
+      { id: 'add-installment', group: t('Actions'), label: t('Add installment plan'), icon: 'card', keywords: 'loan split pay later', run: go('/installments?new=1') },
+      { id: 'customize', group: t('Actions'), label: t('Customise dashboard'), icon: 'layout', keywords: 'widgets rearrange hide resize layout', run: go('/?customize=1') },
       ...(unread > 0
         ? [
             {
               id: 'read-all',
-              group: 'Actions',
-              label: `Mark ${unread} notification${unread === 1 ? '' : 's'} as read`,
+              group: t('Actions'),
+              label: tn(unread, 'Mark {n} notification as read', 'Mark {n} notifications as read'),
               icon: 'check',
               keywords: 'clear inbox',
               run: () => api.post('/notifications/read-all').then(reload).catch(() => {}),
             },
           ]
         : []),
-      { id: 'g-dashboard', group: 'Go to', label: 'Dashboard', icon: 'home', keywords: 'home overview', run: go('/') },
-      { id: 'g-payments', group: 'Go to', label: 'Payments', icon: 'list', keywords: 'transactions history', run: go('/payments') },
-      { id: 'g-budget', group: 'Go to', label: 'Monthly budget', icon: 'target', keywords: 'budget limits spending plan categories how much left month over under', run: go('/budget') },
-      { id: 'g-recurring', group: 'Go to', label: 'Recurring payments', icon: 'repeat', keywords: 'regular repeat', run: go('/recurring') },
-      { id: 'g-subs', group: 'Go to', label: 'View subscriptions', icon: 'repeat', keywords: 'netflix spotify streaming recurring', run: go('/recurring') },
-      { id: 'g-debts', group: 'Go to', label: 'Debts', icon: 'debt', keywords: 'owe loans borrowed lent owed to me', run: go('/debts') },
-      { id: 'g-installments', group: 'Go to', label: 'Installments', icon: 'card', keywords: 'plans loans', run: go('/installments') },
-      { id: 'g-forecast', group: 'Go to', label: 'Open forecast', icon: 'trend', keywords: 'future predict balance outlook projection', run: go('/forecast') },
-      { id: 'g-people', group: 'Go to', label: 'People & shared budgets', icon: 'users', keywords: 'friends partner family groups connections', run: go('/people') },
-      { id: 'g-settings', group: 'Go to', label: 'Settings', icon: 'gear', keywords: 'categories currency balance preferences', run: go('/settings') },
-      ...(user?.is_admin ? [{ id: 'g-admin', group: 'Go to', label: 'Admin dashboard', icon: 'shield', keywords: 'admin users people sign-ups activity system health backups suspend', run: go('/admin') }] : []),
-      { id: 'g-notif', group: 'Go to', label: 'Notifications', icon: 'bell', keywords: 'inbox alerts', run: go('/notifications') },
-      { id: 'g-notif-settings', group: 'Go to', label: 'Notification settings', icon: 'bell', keywords: 'email alerts reminders preferences', run: go('/settings?tab=notifications') },
-      { id: 'g-profile', group: 'Go to', label: 'Your profile', icon: 'user', keywords: 'avatar username share', run: go('/profile') },
+      { id: 'g-dashboard', group: t('Go to'), label: t('Dashboard'), icon: 'home', keywords: 'home overview', run: go('/') },
+      { id: 'g-payments', group: t('Go to'), label: t('Payments'), icon: 'list', keywords: 'transactions history', run: go('/payments') },
+      { id: 'g-budget', group: t('Go to'), label: t('Monthly budget'), icon: 'target', keywords: 'budget limits spending plan categories how much left month over under', run: go('/budget') },
+      { id: 'g-recurring', group: t('Go to'), label: t('Recurring payments'), icon: 'repeat', keywords: 'regular repeat', run: go('/recurring') },
+      { id: 'g-subs', group: t('Go to'), label: t('View subscriptions'), icon: 'repeat', keywords: 'netflix spotify streaming recurring', run: go('/recurring') },
+      { id: 'g-debts', group: t('Go to'), label: t('Debts'), icon: 'debt', keywords: 'owe loans borrowed lent owed to me', run: go('/debts') },
+      { id: 'g-installments', group: t('Go to'), label: t('Installments'), icon: 'card', keywords: 'plans loans', run: go('/installments') },
+      { id: 'g-forecast', group: t('Go to'), label: t('Open forecast'), icon: 'trend', keywords: 'future predict balance outlook projection', run: go('/forecast') },
+      { id: 'g-people', group: t('Go to'), label: t('People & shared budgets'), icon: 'users', keywords: 'friends partner family groups connections', run: go('/people') },
+      { id: 'g-settings', group: t('Go to'), label: t('Settings'), icon: 'gear', keywords: 'categories currency balance preferences', run: go('/settings') },
+      ...(user?.is_admin ? [{ id: 'g-admin', group: t('Go to'), label: t('Admin dashboard'), icon: 'shield', keywords: 'admin users people sign-ups activity system health backups suspend', run: go('/admin') }] : []),
+      { id: 'g-notif', group: t('Go to'), label: t('Notifications'), icon: 'bell', keywords: 'inbox alerts', run: go('/notifications') },
+      { id: 'g-notif-settings', group: t('Go to'), label: t('Notification settings'), icon: 'bell', keywords: 'email alerts reminders preferences', run: go('/settings?tab=notifications') },
+      { id: 'g-profile', group: t('Go to'), label: t('Your profile'), icon: 'user', keywords: 'avatar username share', run: go('/profile') },
       ...[
-        ['light', 'Light', 'sun'],
-        ['dark', 'Dark', 'moon'],
-        ['system', 'System', 'monitor'],
-      ].map(([v, l, icon]) => ({ id: `theme-${v}`, group: 'Appearance', label: `Theme: ${l}`, icon, keywords: 'change mode colour scheme', run: () => setTheme(v), current: theme === v })),
-      { id: 'density', group: 'Appearance', label: prefs.density === 'compact' ? 'Use comfortable layout' : 'Use compact layout', icon: 'sliders', keywords: 'density spacing', run: () => setPrefs({ density: prefs.density === 'compact' ? 'comfortable' : 'compact' }) },
-      { id: 'sidebar', group: 'Appearance', label: prefs.sidebar_collapsed ? 'Expand sidebar' : 'Collapse sidebar', icon: 'sidebar', keywords: 'navigation menu', run: () => setPrefs({ sidebar_collapsed: !prefs.sidebar_collapsed }) },
-      ...ACCENTS.filter(([id]) => id !== prefs.accent).map(([id, name]) => ({ id: `accent-${id}`, group: 'Appearance', label: `Accent colour: ${name}`, icon: 'palette', keywords: 'color personalise', run: () => setPrefs({ accent: id }) })),
-      { id: 'logout', group: 'Account', label: 'Sign out', icon: 'logout', keywords: 'log out exit', run: logout },
+        ['light', t('Light'), 'sun'],
+        ['dark', t('Dark'), 'moon'],
+        ['system', t('System'), 'monitor'],
+      ].map(([v, l, icon]) => ({ id: `theme-${v}`, group: t('Appearance'), label: t('Theme: {l}', { l }), icon, keywords: 'change mode colour scheme', run: () => setTheme(v), current: theme === v })),
+      ...LANGUAGES.filter((l) => l.code !== (prefs.language ?? lang)).map((l) => ({ id: `lang-${l.code}`, group: t('Appearance'), label: `${t('Language')}: ${l.name}`, icon: 'globe', keywords: 'language lingua italiano english italian inglese', run: () => setPrefs({ language: l.code }) })),
+      { id: 'density', group: t('Appearance'), label: prefs.density === 'compact' ? t('Use comfortable layout') : t('Use compact layout'), icon: 'sliders', keywords: 'density spacing', run: () => setPrefs({ density: prefs.density === 'compact' ? 'comfortable' : 'compact' }) },
+      { id: 'sidebar', group: t('Appearance'), label: prefs.sidebar_collapsed ? t('Expand sidebar') : t('Collapse sidebar'), icon: 'sidebar', keywords: 'navigation menu', run: () => setPrefs({ sidebar_collapsed: !prefs.sidebar_collapsed }) },
+      ...ACCENTS.filter(([id]) => id !== prefs.accent).map(([id, name]) => ({ id: `accent-${id}`, group: t('Appearance'), label: t('Accent colour: {name}', { name: t(name) }), icon: 'palette', keywords: 'color personalise', run: () => setPrefs({ accent: id }) })),
+      { id: 'logout', group: t('Account'), label: t('Sign out'), icon: 'logout', keywords: 'log out exit', run: logout },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [unread, theme, prefs.density, prefs.sidebar_collapsed, prefs.accent, user?.is_admin],
+    [unread, theme, lang, prefs.language, prefs.density, prefs.sidebar_collapsed, prefs.accent, user?.is_admin],
   );
 
   const q = query.trim();
@@ -142,7 +147,7 @@ function Palette({ initialQuery, onClose }) {
       return undefined;
     }
     let alive = true;
-    const t = setTimeout(() => {
+    const tt = setTimeout(() => {
       api
         .get(`/transactions${qs({ q, status: '' })}`)
         .then((rows) => alive && setFound(rows.slice(0, 5)))
@@ -150,7 +155,7 @@ function Palette({ initialQuery, onClose }) {
     }, 180);
     return () => {
       alive = false;
-      clearTimeout(t);
+      clearTimeout(tt);
     };
   }, [q]);
 
@@ -162,25 +167,25 @@ function Palette({ initialQuery, onClose }) {
     } else {
       const peopleHits = rank(q, people.map((p) => ({ label: p.name, keywords: p.username, person: p })))
         .slice(0, 4)
-        .map((r) => ({ id: `person-${r.item.person.username}`, group: 'People', label: r.item.person.name, indexes: r.indexes, person: r.item.person, run: () => navigate(`/u/${r.item.person.username}`) }));
-      const payHits = found.map((t) => ({
-        id: `tx-${t.id}`,
-        group: 'Payments',
-        label: t.description,
+        .map((r) => ({ id: `person-${r.item.person.username}`, group: t('People'), label: r.item.person.name, indexes: r.indexes, person: r.item.person, run: () => navigate(`/u/${r.item.person.username}`) }));
+      const payHits = found.map((tt) => ({
+        id: `tx-${tt.id}`,
+        group: t('Payments'),
+        label: tt.description,
         indexes: [],
-        sub: `${dateLabel(t.date)} · ${t.type === 'income' ? '+' : '−'}${money(t.amount)}`,
+        sub: `${dateLabel(tt.date)} · ${tt.type === 'income' ? '+' : '−'}${money(tt.amount)}`,
         icon: 'list',
-        run: () => navigate(`/payments${qs({ q: t.description, month: t.date.slice(0, 7), status: '' })}`),
+        run: () => navigate(`/payments${qs({ q: tt.description, month: tt.date.slice(0, 7), status: '' })}`),
       }));
-      const search = { id: 'search', group: 'Payments', label: `Search payments for “${q}”`, icon: 'search', indexes: [], run: () => navigate(`/payments${qs({ q, status: '' })}`) };
-      const askIt = { id: 'ask-q', group: 'Ask', label: `Ask the assistant: “${q}”`, icon: 'signal', indexes: [], run: () => openAssistant({ ask: q }) };
+      const search = { id: 'search', group: t('Payments'), label: t('Search payments for “{q}”', { q }), icon: 'search', indexes: [], run: () => navigate(`/payments${qs({ q, status: '' })}`) };
+      const askIt = { id: 'ask-q', group: t('Ask'), label: t('Ask the assistant: “{q}”', { q }), icon: 'signal', indexes: [], run: () => openAssistant({ ask: q }) };
       const questionish = /\?$|^(how|what|why|when|will|can|do|am|is|where|which|give|show|tell)\b/i.test(q);
       items = questionish ? [askIt, ...ranked, ...peopleHits, ...payHits, search] : [...ranked, ...peopleHits, ...payHits, search, ...(q.length >= 4 && q.includes(' ') ? [askIt] : [])];
     }
     // group, keeping the order of first appearance when searching and the fixed order when browsing
     const byGroup = new Map();
     for (const it of items) byGroup.set(it.group, [...(byGroup.get(it.group) ?? []), it]);
-    const order = q ? [...byGroup.keys()] : GROUP_ORDER.filter((g) => byGroup.has(g));
+    const order = q ? [...byGroup.keys()] : GROUP_ORDER.map((g) => t(g)).filter((g) => byGroup.has(g));
     return order.flatMap((g) => byGroup.get(g).map((it, i) => ({ ...it, first: i === 0 })));
   }, [q, commands, people, found, money, navigate, openAssistant]);
 
@@ -215,29 +220,29 @@ function Palette({ initialQuery, onClose }) {
 
   return createPortal(
     <div className="palette-scrim" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="palette" role="dialog" aria-modal="true" aria-label="Command palette" ref={box} onKeyDown={onKeyDown}>
+      <div className="palette" role="dialog" aria-modal="true" aria-label={t('Command palette')} ref={box} onKeyDown={onKeyDown}>
         <div className="palette-input">
           <Icon name="search" size={18} />
           <input
             ref={input}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search payments, people, pages… or ask a question"
+            placeholder={t('Search payments, people, pages… or ask a question')}
             role="combobox"
             aria-expanded="true"
             aria-controls={listId}
             aria-activedescendant={results.length ? `${listId}-${active}` : undefined}
             aria-autocomplete="list"
-            aria-label="Search or run a command"
+            aria-label={t('Search or run a command')}
             autoComplete="off"
             spellCheck="false"
           />
           <kbd className="kbd">Esc</kbd>
         </div>
-        <ul className="palette-list" id={listId} role="listbox" aria-label="Results">
+        <ul className="palette-list" id={listId} role="listbox" aria-label={t('Results')}>
           {results.length === 0 && (
             <li className="palette-empty" role="presentation">
-              Nothing matches “{q}”. Press Enter to ask the assistant instead.
+              {t('Nothing matches “{q}”. Press Enter to ask the assistant instead.', { q })}
             </li>
           )}
           {results.map((r, i) => (
@@ -264,13 +269,13 @@ function Palette({ initialQuery, onClose }) {
         </ul>
         <div className="palette-foot muted small">
           <span>
-            <kbd className="kbd">↑</kbd> <kbd className="kbd">↓</kbd> to move
+            <kbd className="kbd">↑</kbd> {tRich('{kbd} to move', { kbd: <kbd className="kbd">↓</kbd> })}
           </span>
           <span>
-            <kbd className="kbd">Enter</kbd> to run
+            <kbd className="kbd">Enter</kbd> {t('to run')}
           </span>
           <span className="spacer" />
-          <span>Tip: type a question to ask the assistant</span>
+          <span>{t('Tip: type a question to ask the assistant')}</span>
         </div>
       </div>
     </div>,

@@ -9,7 +9,8 @@
     "import": "node import.e2e.cjs",
     "ai": "node ai.e2e.cjs",
     "budget": "node budget.e2e.cjs",
-    "seo": "node seo.e2e.cjs"
+    "seo": "node seo.e2e.cjs",
+    "i18n": "node i18n.e2e.cjs"
   },
   "dependencies": {
     "pg": "^8.13.0",

@@ -6,6 +6,7 @@ import { initDb, pool } from './db.js';
 import { pruneAuditEvents } from './lib/audit.js';
 import { pruneContactMessages } from './lib/contact.js';
 import { authenticate, impersonationGuard, purgeExpiredSessions, requireAuth, sameOriginOnly } from './lib/auth.js';
+import { LANGUAGES, languageOfRequest, runWithLanguage, splitLangPath, t, withLang } from './lib/i18n.js';
 import { appUrl } from './lib/mailer.js';
 import { startBackupSchedule } from './lib/backup.js';
 import { errorHandler, wrap } from './lib/http.js';
@@ -58,6 +59,8 @@ app.use((_req, res, next) => {
   next();
 });
 app.use('/api/inbound', inbound); // parsed e-mail from Brevo: before the ordinary JSON reader, which would refuse a big mail
+// what the server writes for a person comes in their language: the app says which in X-Language (docs/DESIGN.md section 46)
+app.use('/api', (req, _res, next) => runWithLanguage(languageOfRequest(req), next));
 // a statement's lines (up to 3,000 of them) are bigger than any other request; everything else stays at 100 KB
 app.use('/api/import', express.json({ limit: '2mb' }));
 app.use(express.json({ limit: '100kb' }));
@@ -84,7 +87,7 @@ app.use('/api', requireAuth);
 for (const r of [profile, avatars, people, workspaces, notifications, receiptFiles, preferences, backups, admin]) app.use('/api', r);
 app.use('/api', resolveWorkspace);
 for (const r of [settings, carryover, cardBills, safeToSpend, reconcile, transactions, importer, receipts, recurring, installments, debts, reports, shared, insights, budgets]) app.use('/api', r);
-app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found' }));
+app.use('/api', (_req, res) => res.status(404).json({ error: t('Not found') }));
 
 // What search engines read first (docs/DESIGN.md section 44): robots.txt and the sitemap carry this site's real address.
 app.get('/robots.txt', (_req, res) => {
@@ -104,23 +107,27 @@ const dist = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../clie
 const builtIndex = () => (fs.existsSync(path.join(dist, 'index.html')) ? fs.readFileSync(path.join(dist, 'index.html'), 'utf8') : '');
 let guideStyles;
 const guideContext = () => ({ base: appUrl(), indexHtml: (guideStyles ??= builtIndex()) });
-app.get('/guides', (_req, res) => {
-  res.set('Cache-Control', 'no-cache');
-  res.type('html').send(renderGuidesIndex(guideContext()));
-});
-const guideNotFound = (res) => {
-  res.set('Cache-Control', 'no-cache');
-  res.set('X-Robots-Tag', 'noindex, nofollow');
-  res.status(404).type('html').send(renderGuideNotFound(guideContext()));
-};
-app.get('/guides/:slug', (req, res) => {
-  const page = renderGuide(req.params.slug, guideContext());
-  if (!page) return guideNotFound(res);
-  res.set('Cache-Control', 'no-cache');
-  res.type('html').send(page);
-});
-// anything else under /guides/ (an extra part, a mistyped address) is "not found" too, not the app's catch-all page
-app.get('/guides/*', (_req, res) => guideNotFound(res));
+// each guide has an address per language: /guides/x in English, /it/guides/x in Italian
+for (const lang of LANGUAGES) {
+  const at = (p) => withLang(p, lang);
+  const guideNotFound = (res) => {
+    res.set('Cache-Control', 'no-cache');
+    res.set('X-Robots-Tag', 'noindex, nofollow');
+    res.status(404).type('html').send(renderGuideNotFound({ ...guideContext(), lang }));
+  };
+  app.get(at('/guides'), (_req, res) => {
+    res.set('Cache-Control', 'no-cache');
+    res.type('html').send(renderGuidesIndex({ ...guideContext(), lang }));
+  });
+  app.get(`${at('/guides')}/:slug`, (req, res) => {
+    const page = renderGuide(req.params.slug, { ...guideContext(), lang });
+    if (!page) return guideNotFound(res);
+    res.set('Cache-Control', 'no-cache');
+    res.type('html').send(page);
+  });
+  // anything else under /guides/ (an extra part, a mistyped address) is "not found" too, not the app's catch-all page
+  app.get(`${at('/guides')}/*`, (_req, res) => guideNotFound(res));
+}
 
 if (fs.existsSync(dist)) {
   // The page itself goes through here (not through express.static) so the link-preview tags carry this site's real address.
@@ -128,7 +135,8 @@ if (fs.existsSync(dist)) {
   // each public page gets its own title, description and address; every other address gets the plain page marked "do not index"
   const pages = new Map();
   const pageHtml = (pathname) => {
-    const key = pageFor(pathname)?.path ?? '*';
+    const page = pageFor(pathname);
+    const key = page ? page.url : `*${splitLangPath(pathname).lang}`;
     if (!pages.has(key)) {
       try {
         pages.set(key, renderPage(indexHtml, pathname, appUrl()));

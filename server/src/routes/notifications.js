@@ -8,14 +8,15 @@ import { HttpError, idParam, wrap } from '../lib/http.js';
 import { mailMode, sendMail } from '../lib/mailer.js';
 import { getSettings, KINDS, oneClickUnsubscribeUrl, resolveStale, runAlertScan, unsubscribeUrlFor } from '../lib/notifications.js';
 import { verifyToken } from '../lib/secret.js';
+import { t } from '../lib/i18n.js';
 
 /** Signed-in routes: the notification list, settings and per-payment alert choices. */
 const router = Router();
 /** Public routes (the one-click unsubscribe link in every e-mail). */
 export const publicRouter = Router();
 
-const mailLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 6, keyFn: (req) => `testmail:${req.user.id}`, message: 'Too many test e-mails. Try again in an hour.' });
-const refreshLimiter = rateLimit({ windowMs: 60_000, max: 12, keyFn: (req) => `refresh:${req.user.id}`, message: 'Please wait a moment before refreshing again.' });
+const mailLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 6, keyFn: (req) => `testmail:${req.user.id}`, get message() { return t('Too many test e-mails. Try again in an hour.'); } });
+const refreshLimiter = rateLimit({ windowMs: 60_000, max: 12, keyFn: (req) => `refresh:${req.user.id}`, get message() { return t('Please wait a moment before refreshing again.'); } });
 
 // ---------------------------------------------------------------- the list
 router.get(
@@ -143,10 +144,10 @@ router.put(
     const body = settingsSchema.parse(req.body);
     const current = await getSettings(req.user.id);
     const user = (await query('SELECT id, email, email_verified_at FROM users WHERE id = $1', [req.user.id])).rows[0];
-    if (body.email_enabled && !user.email_verified_at) throw new HttpError(400, 'Confirm your e-mail address first, then turn e-mail alerts on.');
+    if (body.email_enabled && !user.email_verified_at) throw new HttpError(400, t('Confirm your e-mail address first, then turn e-mail alerts on.'));
     if (body.timezone !== undefined) {
       const ok = await query('SELECT 1 FROM pg_timezone_names WHERE name = $1', [body.timezone]);
-      if (!ok.rowCount) throw new HttpError(400, 'Unknown time zone.');
+      if (!ok.rowCount) throw new HttpError(400, t('Unknown time zone.'));
     }
     const { paused_until, ...plain } = body;
     const sets = [];
@@ -179,7 +180,7 @@ router.post(
   mailLimiter,
   wrap(async (req, res) => {
     const user = (await query('SELECT id, name, email, email_verified_at FROM users WHERE id = $1', [req.user.id])).rows[0];
-    if (!user.email_verified_at) throw new HttpError(400, 'Confirm your e-mail address first.');
+    if (!user.email_verified_at) throw new HttpError(400, t('Confirm your e-mail address first.'));
     const mail = testEmail({ name: user.name, unsubscribeUrl: await unsubscribeUrlFor(user.id) });
     try {
       const r = await sendMail({
@@ -191,7 +192,7 @@ router.post(
       res.json({ status: r.status, preview_file: r.file ? r.file.split(/[\\/]/).pop() : null });
     } catch (err) {
       await query(`INSERT INTO email_log (user_id, to_email, subject, kind, status, error) VALUES ($1, $2, $3, 'test', 'failed', $4)`, [user.id, user.email, mail.subject, err.message.slice(0, 300)]);
-      throw new HttpError(502, 'The e-mail could not be sent. Check the mail server settings.');
+      throw new HttpError(502, t('The e-mail could not be sent. Check the mail server settings.'));
     }
   }),
 );
@@ -209,7 +210,7 @@ router.post(
   '/notifications/:id/read',
   wrap(async (req, res) => {
     const { rowCount } = await query('UPDATE notifications SET read_at = COALESCE(read_at, now()) WHERE id = $1 AND user_id = $2', [idParam(req), req.user.id]);
-    if (!rowCount) throw new HttpError(404, 'Notification not found.');
+    if (!rowCount) throw new HttpError(404, t('Notification not found.'));
     res.status(204).end();
   }),
 );
@@ -217,7 +218,7 @@ router.post(
   '/notifications/:id/unread',
   wrap(async (req, res) => {
     const { rowCount } = await query('UPDATE notifications SET read_at = NULL WHERE id = $1 AND user_id = $2', [idParam(req), req.user.id]);
-    if (!rowCount) throw new HttpError(404, 'Notification not found.');
+    if (!rowCount) throw new HttpError(404, t('Notification not found.'));
     res.status(204).end();
   }),
 );
@@ -225,7 +226,7 @@ router.delete(
   '/notifications/:id',
   wrap(async (req, res) => {
     const { rowCount } = await query('DELETE FROM notifications WHERE id = $1 AND user_id = $2', [idParam(req), req.user.id]);
-    if (!rowCount) throw new HttpError(404, 'Notification not found.');
+    if (!rowCount) throw new HttpError(404, t('Notification not found.'));
     res.status(204).end();
   }),
 );
@@ -287,7 +288,7 @@ router.get(
 const overrideSchema = z.object({ mode: z.enum(['on', 'off']), days: z.number().int().min(0).max(60).nullable().optional() });
 const target = (req) => {
   const type = z.enum(Object.keys(TARGET_TABLES)).safeParse(req.params.type);
-  if (!type.success) throw new HttpError(400, 'Unknown alert target.');
+  if (!type.success) throw new HttpError(400, t('Unknown alert target.'));
   return [type.data, idParam(req)];
 };
 
@@ -296,7 +297,7 @@ router.put(
   wrap(async (req, res) => {
     const [type, id] = target(req);
     const body = overrideSchema.parse(req.body);
-    if (!(await canAccessTarget(req.user.id, type, id))) throw new HttpError(404, 'Not found.');
+    if (!(await canAccessTarget(req.user.id, type, id))) throw new HttpError(404, t('Not found.'));
     const { rows } = await query(
       `INSERT INTO alert_overrides (user_id, target_type, target_id, mode, days) VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (user_id, target_type, target_id) DO UPDATE SET mode = EXCLUDED.mode, days = EXCLUDED.days
@@ -323,7 +324,7 @@ publicRouter.post(
   wrap(async (req, res) => {
     const token = req.body?.token ?? req.query.token;
     const payload = await verifyToken(token);
-    if (!payload || payload.p !== 'unsub' || !Number.isInteger(payload.u)) throw new HttpError(400, 'This link is not valid.');
+    if (!payload || payload.p !== 'unsub' || !Number.isInteger(payload.u)) throw new HttpError(400, t('This link is not valid.'));
     await query('INSERT INTO notification_settings (user_id) VALUES ($1) ON CONFLICT DO NOTHING', [payload.u]);
     await query('UPDATE notification_settings SET email_enabled = false WHERE user_id = $1', [payload.u]);
     res.json({ ok: true });

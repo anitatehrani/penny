@@ -95,9 +95,9 @@ function readDate(s, order, ref, compact) {
   }
   // a month written out: "1 Oct 2026", "Oct 1, 2026", "01-Oct-26", "1. Oktober 2026", "2026 Oct 1", "1 octubre", "01OCT2026"
   const spaced = s.replace(/(\d)([a-z])/g, '$1 $2').replace(/([a-z])(\d)/g, '$1 $2');
-  const tokens = spaced.split(/[\s,./-]+/).filter(Boolean).filter((t) => !FILLER_WORDS.has(t));
-  const words = tokens.filter((t) => /^[a-z]+$/.test(t));
-  const nums = tokens.filter((t) => /^\d+$/.test(t));
+  const tokens = spaced.split(/[\s,./-]+/).filter(Boolean).filter((tt) => !FILLER_WORDS.has(tt));
+  const words = tokens.filter((tt) => /^[a-z]+$/.test(tt));
+  const nums = tokens.filter((tt) => /^\d+$/.test(tt));
   if (words.length !== 1 || tokens.length !== words.length + nums.length || nums.length < 1 || nums.length > 2) return null;
   const mo = MONTHS[words[0]];
   if (!mo) return null;
@@ -122,10 +122,10 @@ function readDate(s, order, ref, compact) {
 
 /** True for a cell that is plainly a date (used when looking for the date column, so it is strict about what a date looks like). */
 export const looksLikeDate = (s, opts) => {
-  const t = tidy(s);
-  if (!t || !/\d/.test(t)) return false;
-  if (/^\d{1,3}([.,]\d+)?$/.test(t)) return false; // 12 or 3,5: a quantity, not a date
-  return parseDate(t, opts) !== null;
+  const tt = tidy(s);
+  if (!tt || !/\d/.test(tt)) return false;
+  if (/^\d{1,3}([.,]\d+)?$/.test(tt)) return false; // 12 or 3,5: a quantity, not a date
+  return parseDate(tt, opts) !== null;
 };
 
 const toDays = ({ y, m, d }) => Math.round(Date.UTC(y, m - 1, d) / 86400000);
@@ -187,15 +187,15 @@ const MINUS = '-−–—';
 
 /** Which currency a cell, or the text near it, mentions: 'EUR', 'USD', ... or null. */
 export function currencyIn(s) {
-  const t = String(s ?? '');
-  const code = t.match(new RegExp(`\\b${CODE}\\b`, 'i'));
+  const tt = String(s ?? '');
+  const code = tt.match(new RegExp(`\\b${CODE}\\b`, 'i'));
   if (code) return code[0].toUpperCase();
-  if (t.includes('€')) return 'EUR';
-  if (t.includes('£')) return 'GBP';
-  if (t.includes('₹')) return 'INR';
-  if (t.includes('₽')) return 'RUB';
-  if (t.includes('₺')) return 'TRY';
-  if (t.includes('$')) return 'USD';
+  if (tt.includes('€')) return 'EUR';
+  if (tt.includes('£')) return 'GBP';
+  if (tt.includes('₹')) return 'INR';
+  if (tt.includes('₽')) return 'RUB';
+  if (tt.includes('₺')) return 'TRY';
+  if (tt.includes('$')) return 'USD';
   return null;
 }
 
@@ -308,14 +308,14 @@ export function inferDecimal(samples, hint = ',') {
 
 /** A cell that reads as a number of any kind (a whole number too). */
 export function looksLikeAmount(s, opts) {
-  const t = tidy(s);
-  return !!t && /\d/.test(t) && parseAmount(t, opts) !== null;
+  const tt = tidy(s);
+  return !!tt && /\d/.test(tt) && parseAmount(tt, opts) !== null;
 }
 
 /** A cell that is a number with decimals or a sign or a currency mark (so not a bare year, a count or an id). */
 export function looksLikeMoney(s, opts) {
-  const t = tidy(s);
-  if (!t || !/\d/.test(t)) return false;
-  if (parseAmount(t, opts) === null) return false;
-  return /[.,]\d{1,2}(?!\d)|[€$£¥₹]|^\(|^[-−+]|[-−+]$/.test(t) || new RegExp(`\\b${CODE}\\b`, 'i').test(t) || /\b(cr|dr)\b/i.test(t);
+  const tt = tidy(s);
+  if (!tt || !/\d/.test(tt)) return false;
+  if (parseAmount(tt, opts) === null) return false;
+  return /[.,]\d{1,2}(?!\d)|[€$£¥₹]|^\(|^[-−+]|[-−+]$/.test(tt) || new RegExp(`\\b${CODE}\\b`, 'i').test(tt) || /\b(cr|dr)\b/i.test(tt);
 }

@@ -4,6 +4,7 @@ import { useApp } from '../context.jsx';
 import { useNotifications } from '../notifications.jsx';
 import Select from './ds/Select.jsx';
 import { Field, Icon, Modal } from './ui.jsx';
+import { t, tn } from '../i18n/translate.js';
 
 /** A saved override ({mode, days}) or nothing, as the form's choice. */
 export const choiceFrom = (own) => (own ? { mode: own.mode, days: own.days != null ? String(own.days) : '' } : { mode: 'default', days: '' });
@@ -22,8 +23,8 @@ export async function saveAlertChoice(type, id, choice) {
 export function describeAlert(alert) {
   if (!alert) return '';
   const where = alert.source === 'default' ? 'default' : alert.source;
-  if (alert.mode === 'off') return `No alerts (${where})`;
-  const when = alert.days === 0 ? 'On the day' : `${alert.days} day${alert.days === 1 ? '' : 's'} before`;
+  if (alert.mode === 'off') return t('No alerts ({where})', { where });
+  const when = alert.days === 0 ? t('On the day') : tn(alert.days, '{n} day before', '{n} days before');
   return `${when} (${where})`;
 }
 
@@ -31,7 +32,7 @@ export function describeAlert(alert) {
  * Choose whether this item raises alerts: follow the default, always remind (optionally with its own
  * number of days before), or never. Used in the payment, recurring and installment forms and the category list.
  */
-export function AlertPicker({ value, onChange, label = 'Alerts', hint, idPrefix = 'alert' }) {
+export function AlertPicker({ value, onChange, label = t('Alerts'), hint, idPrefix = 'alert' }) {
   const { settings } = useNotifications();
   const lead = settings?.lead_days ?? 3;
   const set = (patch) => onChange({ ...value, ...patch });
@@ -45,14 +46,14 @@ export function AlertPicker({ value, onChange, label = 'Alerts', hint, idPrefix 
             value={value.mode}
             onChange={(mode) => set({ mode })}
             options={[
-              { value: 'default', label: `Follow my default (${lead === 0 ? 'on the day' : `${lead} day${lead === 1 ? '' : 's'} before`})` },
-              { value: 'on', label: 'Always remind me' },
-              { value: 'off', label: 'Never remind me' },
+              { value: 'default', label: t('Follow my default ({value})', { value: lead === 0 ? 'on the day' : `${lead} day${lead === 1 ? '' : 's'} before` }) },
+              { value: 'on', label: t('Always remind me') },
+              { value: 'off', label: t('Never remind me') },
             ]}
           />
         </Field>
         {value.mode === 'on' ? (
-          <Field label="Remind me" hint="Days before it is due. 0 = on the day.">
+          <Field label={t('Remind me')} hint={t('Days before it is due. 0 = on the day.')}>
             <input
               type="number"
               min="0"
@@ -62,7 +63,7 @@ export function AlertPicker({ value, onChange, label = 'Alerts', hint, idPrefix 
               value={value.days}
               placeholder={String(lead)}
               onChange={(e) => set({ days: e.target.value.replace(/[^\d]/g, '').slice(0, 2) })}
-              aria-label="Days before the due date"
+              aria-label={t('Days before the due date')}
             />
           </Field>
         ) : (
@@ -84,7 +85,7 @@ export function AlertBell({ tx, onChange }) {
       <button
         className={`btn icon ghost alert-bell${off ? ' off' : ''}`}
         onClick={() => setOpen(true)}
-        aria-label={`Alerts for ${tx.description}: ${describeAlert(a)}`}
+        aria-label={t('Alerts for {description}: {describeAlert}', { description: tx.description, describeAlert: describeAlert(a) })}
         title={describeAlert(a)}
       >
         <Icon name={off ? 'bellOff' : 'bell'} size={16} />
@@ -103,7 +104,7 @@ function AlertModal({ tx, onClose, onSaved }) {
     setBusy(true);
     try {
       await saveAlertChoice('transaction', tx.id, choice);
-      notify('Alert saved');
+      notify(t('Alert saved'));
       onSaved?.();
       onClose();
     } catch (e) {
@@ -114,21 +115,21 @@ function AlertModal({ tx, onClose, onSaved }) {
   const inherited = !tx.alert.own && tx.alert.source !== 'default';
 
   return (
-    <Modal title="Alerts for this payment" onClose={onClose}>
+    <Modal title={t('Alerts for this payment')} onClose={onClose}>
       <div className="modal-body form">
         <p>
           <strong>{tx.description}</strong>
         </p>
         <p className="muted small">
-          Right now: {describeAlert(tx.alert)}.{inherited && ` This comes from its ${tx.alert.source}; choose something below to override it for this payment only.`}
+          {inherited ? t('Right now: {describeAlert}. This comes from its {source}; choose something below to override it for this payment only.', { describeAlert: describeAlert(tx.alert), source: tx.alert.source }) : t('Right now: {describeAlert}.', { describeAlert: describeAlert(tx.alert) })}
         </p>
-        <AlertPicker value={choice} onChange={setChoice} label="For this payment" idPrefix="tx-alert" />
+        <AlertPicker value={choice} onChange={setChoice} label={t('For this payment')} idPrefix="tx-alert" />
         <div className="form-actions">
           <button className="btn" onClick={onClose}>
-            Cancel
+            {t('Cancel')}
           </button>
           <button className="btn primary" onClick={save} disabled={busy}>
-            Save
+            {t('Save')}
           </button>
         </div>
       </div>

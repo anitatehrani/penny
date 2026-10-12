@@ -11,13 +11,13 @@ export function useUsernameCheck(username, current = null) {
       return undefined;
     }
     setState((s) => ({ ...s, checking: true }));
-    const t = setTimeout(() => {
+    const tt = setTimeout(() => {
       api
         .get(`/auth/username-available?u=${encodeURIComponent(u)}`)
         .then((r) => setState({ checking: false, available: r.available, reason: r.reason }))
         .catch(() => setState({ checking: false, available: true, reason: null }));
     }, 350);
-    return () => clearTimeout(t);
+    return () => clearTimeout(tt);
   }, [username, current]);
   return state;
 }
@@ -42,5 +42,5 @@ export function useFetch(loader, deps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [...deps, tick]);
 
-  return { ...state, reload: () => setTick((t) => t + 1) };
+  return { ...state, reload: () => setTick((tt) => tt + 1) };
 }

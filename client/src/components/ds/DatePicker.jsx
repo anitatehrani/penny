@@ -4,6 +4,7 @@ import { addDaysYMD, addMonthsYMD, clampDate, dateChoice, daysInMonth, isYMD, mo
 import { addMonthsYM, dateLabel, monthLabel, todayYMD } from '../../format.js';
 import { Icon } from '../ui.jsx';
 import { MonthCalendar } from './MonthPicker.jsx';
+import { t } from '../../i18n/translate.js';
 
 const FULL = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
 const SHOWN = { day: 'numeric', month: 'short', year: 'numeric' };
@@ -21,7 +22,7 @@ const monthHasChoice = (ym, { min, max }) => dateChoice(`${ym}-01`, { min: '', m
  * Keyboard: arrows move a day or a week, Home and End go to the ends of the week, Page Up and Page Down change month (Shift: year),
  * Enter or Space choose, Escape closes it without closing a dialog behind it, Tab stays inside it while it is open.
  */
-export default function DatePicker({ value, onChange, min = '', max = '', label = 'Date', id, disabled = false, placeholder = 'Pick a date', compact = false, className = '' }) {
+export default function DatePicker({ value, onChange, min = '', max = '', label = t('Date'), id, disabled = false, placeholder = t('Pick a date'), compact = false, className = '' }) {
   const today = todayYMD();
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState(null);
@@ -156,7 +157,7 @@ export default function DatePicker({ value, onChange, min = '', max = '', label 
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls={open ? popId : undefined}
-        aria-label={`${label}: ${valid ? dateLabel(value, FULL) : 'not set'}`}
+        aria-label={`${label}: ${valid ? dateLabel(value, FULL) : t('not set')}`}
         onClick={() => (open ? close(false) : openIt())}
       >
         <Icon name="calendar" size={16} />
@@ -167,14 +168,14 @@ export default function DatePicker({ value, onChange, min = '', max = '', label 
         createPortal(
           <div ref={pop} id={popId} role="dialog" aria-label={label} className="date-pop" style={pos ? { '--pop-top': `${pos.top}px`, '--pop-left': `${pos.left}px` } : undefined}>
             <div className="date-head">
-              <button type="button" className="btn icon ghost" aria-label={view === 'months' ? 'Previous year' : 'Previous month'} disabled={!prevOk} onClick={() => (view === 'months' ? goYear(-step) : goMonth(-1))}>
+              <button type="button" className="btn icon ghost" aria-label={view === 'months' ? t('Previous year') : t('Previous month')} disabled={!prevOk} onClick={() => (view === 'months' ? goYear(-step) : goMonth(-1))}>
                 <Icon name="left" size={16} />
               </button>
-              <button type="button" className="date-title" aria-live="polite" aria-expanded={view === 'months'} aria-label={`${monthLabel(page)}, choose another month or year`} onClick={() => setView((v) => (v === 'days' ? 'months' : 'days'))}>
+              <button type="button" className="date-title" aria-live="polite" aria-expanded={view === 'months'} aria-label={t('{monthLabel}, choose another month or year', { monthLabel: monthLabel(page) })} onClick={() => setView((v) => (v === 'days' ? 'months' : 'days'))}>
                 {view === 'months' ? page.slice(0, 4) : monthLabel(page)}
                 <Icon name="chevron" size={13} />
               </button>
-              <button type="button" className="btn icon ghost" aria-label={view === 'months' ? 'Next year' : 'Next month'} disabled={!nextOk} onClick={() => (view === 'months' ? goYear(step) : goMonth(1))}>
+              <button type="button" className="btn icon ghost" aria-label={view === 'months' ? t('Next year') : t('Next month')} disabled={!nextOk} onClick={() => (view === 'months' ? goYear(step) : goMonth(1))}>
                 <Icon name="right" size={16} />
               </button>
             </div>
@@ -185,7 +186,7 @@ export default function DatePicker({ value, onChange, min = '', max = '', label 
                 min={min ? min.slice(0, 7) : undefined}
                 max={max ? max.slice(0, 7) : undefined}
                 showToday={false}
-                label="Choose a month"
+                label={t('Choose a month')}
                 onChange={(m) => {
                   // the same day of the chosen month (or its last day), kept inside the allowed days
                   const day = Math.min(Number(cursor.slice(8)), daysInMonth(Number(m.slice(0, 4)), Number(m.slice(5, 7))));
@@ -228,7 +229,7 @@ export default function DatePicker({ value, onChange, min = '', max = '', label 
                 </div>
                 <div className="date-foot">
                   <button type="button" className="btn sm" disabled={!todayOk} onClick={() => pick(today)}>
-                    Today
+                    {t('Today')}
                   </button>
                 </div>
               </>

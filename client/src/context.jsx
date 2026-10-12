@@ -14,10 +14,10 @@ export function AppProvider({ children }) {
   // notify(message, 'ok' | 'error', { label, run }?)  A toast with an optional action button (e.g. Undo).
   const notify = useCallback((message, kind = 'ok', action) => {
     const id = Math.random().toString(36).slice(2);
-    setToasts((t) => [...t.slice(-3), { id, message, kind, action }]);
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), kind === 'error' ? 6000 : action ? 7000 : 3200);
+    setToasts((tt) => [...tt.slice(-3), { id, message, kind, action }]);
+    setTimeout(() => setToasts((tt) => tt.filter((x) => x.id !== id)), kind === 'error' ? 6000 : action ? 7000 : 3200);
   }, []);
-  const dismissToast = useCallback((id) => setToasts((t) => t.filter((x) => x.id !== id)), []);
+  const dismissToast = useCallback((id) => setToasts((tt) => tt.filter((x) => x.id !== id)), []);
 
   const currency = settings.data?.currency ?? 'USD';
   const money = useMemo(() => makeMoney(currency), [currency]);
@@ -38,18 +38,18 @@ export function AppProvider({ children }) {
     <Ctx.Provider value={value}>
       {children}
       <div className="toasts" role="status" aria-live="polite">
-        {toasts.map((t) => (
-          <div key={t.id} className={`toast ${t.kind}`}>
-            <span>{t.message}</span>
-            {t.action && (
+        {toasts.map((tt) => (
+          <div key={tt.id} className={`toast ${tt.kind}`}>
+            <span>{tt.message}</span>
+            {tt.action && (
               <button
                 className="toast-action"
                 onClick={() => {
-                  dismissToast(t.id);
-                  t.action.run();
+                  dismissToast(tt.id);
+                  tt.action.run();
                 }}
               >
-                {t.action.label}
+                {tt.action.label}
               </button>
             )}
           </div>

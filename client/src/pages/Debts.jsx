@@ -10,6 +10,8 @@ import { balanceAfter, budgetStatus, describePlan, directionOf, ofDirection, pre
 import { addMonthsYM, currentMonth, dateLong, todayYMD } from '../format.js';
 import { useFetch } from '../hooks.js';
 import { useWorkspace } from '../workspace.jsx';
+import { t, tn } from '../i18n/translate.js';
+import { tRich } from '../i18n/react.jsx';
 
 /** A sensible first payment: next month, on today's day of the month (kept to the 28th so it exists every month). */
 const suggestedDate = () => `${addMonthsYM(currentMonth(), 1)}-${String(Math.min(Number(todayYMD().slice(8)), 28)).padStart(2, '0')}`;
@@ -57,7 +59,7 @@ function DebtForm({ initial, direction, onSaved, onCancel }) {
       };
       if (editing) await api.put(`/debts/${initial.id}`, body);
       else await api.post('/debts', body);
-      notify(editing ? (lent ? 'Updated' : 'Debt updated') : lent ? 'Added to what is owed to you' : 'Debt added');
+      notify(editing ? (lent ? t('Updated') : t('Debt updated')) : lent ? t('Added to what is owed to you') : t('Debt added'));
       onSaved();
     } catch (err) {
       notify(err.message, 'error');
@@ -67,14 +69,14 @@ function DebtForm({ initial, direction, onSaved, onCancel }) {
 
   // One sentence that says exactly what switching "count it in my budget" does for this choice of plan.
   const effect = !counted
-    ? 'Only kept on file. Nothing is added to your balance or forecast, even if you pick a plan.'
+    ? t('Only kept on file. Nothing is added to your balance or forecast, even if you pick a plan.')
     : lent
       ? plan === 'none'
-        ? 'Nothing is scheduled yet, so your forecast does not change. It is part of the "if everyone paid you back" figure.'
-        : 'Its repayments appear in Payments as money coming in, and in your forecast. It is part of the "if everyone paid you back" figure.'
+        ? t('Nothing is scheduled yet, so your forecast does not change. It is part of the "if everyone paid you back" figure.')
+        : t('Its repayments appear in Payments as money coming in, and in your forecast. It is part of the "if everyone paid you back" figure.')
       : plan === 'none'
-        ? 'Nothing is scheduled yet, so your forecast does not change. It is part of the "balance after debts" figure.'
-        : 'Its payments appear in Payments and in your forecast, and it is part of the "balance after debts" figure.';
+        ? t('Nothing is scheduled yet, so your forecast does not change. It is part of the "balance after debts" figure.')
+        : t('Its payments appear in Payments and in your forecast, and it is part of the "balance after debts" figure.');
 
   return (
     <form onSubmit={submit} className="form">
@@ -82,32 +84,32 @@ function DebtForm({ initial, direction, onSaved, onCancel }) {
         <Field label={W.name}>
           <input value={name} onChange={(e) => setName(e.target.value)} required maxLength={100} placeholder={W.namePlaceholder} />
         </Field>
-        <Field label={W.amount} hint={editing && alreadyPaid > 0 ? `${money(alreadyPaid)} has been ${W.paid} so far.` : undefined}>
+        <Field label={W.amount} hint={editing && alreadyPaid > 0 ? t('{money} has been {paid} so far.', { money: money(alreadyPaid), paid: W.paid }) : undefined}>
           <input type="number" step="0.01" min="0.01" inputMode="decimal" value={total} onChange={(e) => setTotal(e.target.value)} required placeholder="0.00" />
         </Field>
       </div>
 
       <Segmented
-        label="Repayment"
+        label={t('Repayment')}
         value={plan}
         onChange={setPlan}
         options={[
-          { value: 'none', label: 'Not scheduled yet' },
-          { value: 'once', label: 'All in one month' },
-          { value: 'monthly', label: 'Split over months' },
+          { value: 'none', label: t('Not scheduled yet') },
+          { value: 'once', label: t('All in one month') },
+          { value: 'monthly', label: t('Split over months') },
         ]}
       />
       {plan === 'once' && (
-        <Field label={lent ? 'Expected on' : 'Pay it on'}>
-          <DatePicker label={lent ? 'Expected on' : 'Pay it on'} value={firstDate} onChange={setFirstDate} />
+        <Field label={lent ? t('Expected on') : t('Pay it on')}>
+          <DatePicker label={lent ? t('Expected on') : t('Pay it on')} value={firstDate} onChange={setFirstDate} />
         </Field>
       )}
       {plan === 'monthly' && (
         <div className="form-grid">
-          <Field label={lent ? 'First repayment' : 'First payment'} hint="The later ones fall on the same day each month.">
-            <DatePicker label={lent ? 'First repayment' : 'First payment'} value={firstDate} onChange={setFirstDate} />
+          <Field label={lent ? t('First repayment') : t('First payment')} hint={t('The later ones fall on the same day each month.')}>
+            <DatePicker label={lent ? t('First repayment') : t('First payment')} value={firstDate} onChange={setFirstDate} />
           </Field>
-          <Field label="Number of months">
+          <Field label={t('Number of months')}>
             <input type="number" min="2" max="120" step="1" inputMode="numeric" value={count} onChange={(e) => setCount(e.target.value)} required />
           </Field>
         </div>
@@ -116,17 +118,15 @@ function DebtForm({ initial, direction, onSaved, onCancel }) {
         <div className="banner info" aria-live="polite">
           <span>
             {preview.count === 1 ? (
-              <>
-                One {lent ? 'repayment' : 'payment'} of <strong>{money(preview.each)}</strong> on {dateLong(preview.first)}
-              </>
+              tRich(lent ? 'One repayment of {amount} on {date}' : 'One payment of {amount} on {date}', { amount: <strong>{money(preview.each)}</strong>, date: dateLong(preview.first) })
             ) : (
               <>
-                {preview.count} {lent ? 'repayments' : 'payments'} of <strong>{money(preview.each)}</strong>
-                {!preview.even ? ` (the last one ${money(preview.eachLast)})` : ''}
-                {`, from ${dateLong(preview.first)} to ${dateLong(preview.last)}`}
+                {tRich(lent ? '{count} repayments of {amount}' : '{count} payments of {amount}', { count: preview.count, amount: <strong>{money(preview.each)}</strong> })}
+                {!preview.even ? ` (${t('the last one {amount}', { amount: money(preview.eachLast) })})` : ''}
+                {`, ${t('from {from} to {to}', { from: dateLong(preview.first), to: dateLong(preview.last) })}`}
               </>
             )}
-            {editing && alreadyPaid > 0 ? ` · covers the ${money(owed)} still owed${lent ? ' to you' : ''}` : ''}
+            {editing && alreadyPaid > 0 ? ` · ${lent ? t('covers the {money} still owed to you', { money: money(owed) }) : t('covers the {money} still owed', { money: money(owed) })}` : ''}
           </span>
         </div>
       )}
@@ -136,15 +136,15 @@ function DebtForm({ initial, direction, onSaved, onCancel }) {
           <label className="check">
             <input type="checkbox" checked={recordLoan} onChange={(e) => setRecordLoan(e.target.checked)} />
             <span>
-              Also record the money I handed over
+              {t('Also record the money I handed over')}
               <span className="muted block small">
-                Lowers your balance by {total ? money(Number(total) || 0) : 'the amount'} on the day you lent it. Leave it off if it is already in your balance. It is not counted as spending.
+                {t('Lowers your balance by {amount} on the day you lent it. Leave it off if it is already in your balance. It is not counted as spending.', { amount: total ? money(Number(total) || 0) : t('the amount') })}
               </span>
             </span>
           </label>
           {recordLoan && (
-            <Field label="Lent on">
-              <DatePicker label="Lent on" value={lentOn} onChange={setLentOn} />
+            <Field label={t('Lent on')}>
+              <DatePicker label={t('Lent on')} value={lentOn} onChange={setLentOn} />
             </Field>
           )}
         </div>
@@ -153,31 +153,31 @@ function DebtForm({ initial, direction, onSaved, onCancel }) {
         <label className="check">
           <input type="checkbox" checked={counted} onChange={(e) => setCounted(e.target.checked)} />
           <span>
-            Count it in my budget
+            {t('Count it in my budget')}
             <span className="muted block small">{effect}</span>
           </span>
         </label>
       </div>
 
       <div className="form-grid">
-        <Field label="Category" hint={lent ? 'For the money you get back.' : 'For the repayments.'}>
+        <Field label={t('Category')} hint={lent ? t('For the money you get back.') : t('For the repayments.')}>
           <CategorySelect kind={W.categoryKind} value={categoryId} onChange={setCategoryId} />
         </Field>
-        <Field label="Note (optional)">
+        <Field label={t('Note (optional)')}>
           <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={1000} />
         </Field>
       </div>
       {isGroup && (
-        <Field label="In the name of" hint={lent ? 'Repayments go into the shared balance; this records who lent it.' : 'Repayments come out of the shared balance; this records who the debt is with.'}>
-          <Select label="In the name of" value={paidBy} onChange={setPaidBy} options={members.map((m) => ({ value: m.username, label: m.username === user.username ? `${m.name} (you)` : m.name, person: m }))} />
+        <Field label={t('In the name of')} hint={lent ? t('Repayments go into the shared balance; this records who lent it.') : t('Repayments come out of the shared balance; this records who the debt is with.')}>
+          <Select label={t('In the name of')} value={paidBy} onChange={setPaidBy} options={members.map((m) => ({ value: m.username, label: m.username === user.username ? t('{name} (you)', { name: m.name }) : m.name, person: m }))} />
         </Field>
       )}
       <div className="form-actions">
         <button type="button" className="btn" onClick={onCancel}>
-          Cancel
+          {t('Cancel')}
         </button>
         <button type="submit" className="btn primary" disabled={saving}>
-          {editing ? 'Save changes' : lent ? 'Add' : 'Add debt'}
+          {editing ? t('Save changes') : lent ? t('Add') : t('Add debt')}
         </button>
       </div>
     </form>
@@ -200,11 +200,11 @@ function PaymentForm({ debt, onSaved, onCancel }) {
       notify(
         r.debt.status === 'settled'
           ? lent
-            ? `${debt.name} has paid you back in full`
-            : `${debt.name} is fully paid`
+            ? t('{name} has paid you back in full', { name: debt.name })
+            : t('{name} is fully paid', { name: debt.name })
           : lent
-            ? `Received. ${debt.name} still owes you ${money(r.debt.remaining)}`
-            : `Paid. ${money(r.debt.remaining)} left to pay ${debt.name}`,
+            ? t('Received. {name} still owes you {money}', { name: debt.name, money: money(r.debt.remaining) })
+            : t('Paid. {money} left to pay {name}', { money: money(r.debt.remaining), name: debt.name }),
       );
       onSaved();
     } catch (err) {
@@ -218,33 +218,31 @@ function PaymentForm({ debt, onSaved, onCancel }) {
       <p className="muted">
         {lent ? (
           <>
-            {debt.name} still owes you <strong className="num">{money(debt.remaining)}</strong>. This is money received, so it raises your balance
-            {debt.scheduled_count > 0 && ', and the repayments still expected will be made smaller to match'}.
+            {tRich(debt.scheduled_count > 0 ? '{name} still owes you {amount}. This is money received, so it raises your balance, and the repayments still expected will be made smaller to match.' : '{name} still owes you {amount}. This is money received, so it raises your balance.', { name: debt.name, amount: <strong className="num">{money(debt.remaining)}</strong> })}
           </>
         ) : (
           <>
-            You still owe <strong className="num">{money(debt.remaining)}</strong> to {debt.name}. This is money paid out, so it lowers your balance
-            {debt.scheduled_count > 0 && ', and the payments still planned will be made smaller to match'}.
+            {tRich(debt.scheduled_count > 0 ? 'You still owe {amount} to {name}. This is money paid out, so it lowers your balance, and the payments still planned will be made smaller to match.' : 'You still owe {amount} to {name}. This is money paid out, so it lowers your balance.', { name: debt.name, amount: <strong className="num">{money(debt.remaining)}</strong> })}
           </>
         )}
       </p>
       <div className="form-grid">
-        <Field label="Amount">
+        <Field label={t('Amount')}>
           <input type="number" step="0.01" min="0.01" max={debt.remaining} inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} required autoFocus />
         </Field>
-        <Field label={lent ? 'Received on' : 'Paid on'}>
-          <DatePicker label={lent ? 'Received on' : 'Paid on'} value={date} onChange={setDate} />
+        <Field label={lent ? t('Received on') : t('Paid on')}>
+          <DatePicker label={lent ? t('Received on') : t('Paid on')} value={date} onChange={setDate} />
         </Field>
       </div>
-      <Field label="Note (optional)">
+      <Field label={t('Note (optional)')}>
         <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={1000} />
       </Field>
       <div className="form-actions">
         <button type="button" className="btn" onClick={onCancel}>
-          Cancel
+          {t('Cancel')}
         </button>
         <button type="submit" className="btn primary" disabled={saving}>
-          {lent ? 'Record money received' : 'Record payment'}
+          {lent ? t('Record money received') : t('Record payment')}
         </button>
       </div>
     </form>
@@ -261,16 +259,16 @@ function DebtTimeline({ debt }) {
   return (
     <details className="timeline-wrap">
       <summary>
-        Repayment timeline
-        <span className="muted small"> · {done} of {steps.length} step{steps.length === 1 ? '' : 's'} done</span>
+        {t('Repayment timeline')}
+        <span className="muted small"> {tn(steps.length, '· {done} of {n} step done', '· {done} of {n} steps done', { done })}</span>
       </summary>
-      <ol className="timeline" aria-label={`Repayment timeline for ${debt.name}`}>
+      <ol className="timeline" aria-label={t('Repayment timeline for {name}', { name: debt.name })}>
         {steps.map((s) => (
           <li key={s.key} className={`tl-step ${s.state}`}>
             <span className="tl-mark" aria-hidden="true">{s.state === 'paid' && <Icon name="check" size={12} />}</span>
             <div className="tl-body">
               <span className="tl-title">
-                {s.date ? dateLong(s.date) : 'Still to plan'}
+                {s.date ? dateLong(s.date) : t('Still to plan')}
                 <span className="tl-word"> · {W.stepWord[s.state]}</span>
               </span>
               <strong className="num">{money(s.amount)}</strong>
@@ -281,7 +279,7 @@ function DebtTimeline({ debt }) {
           <li className="tl-step end">
             <span className="tl-mark" aria-hidden="true" />
             <div className="tl-body">
-              <span className="tl-title">{W.end}<span className="tl-word"> · by {dateLong(debtFree)}</span></span>
+              <span className="tl-title">{W.end}<span className="tl-word"> {t('· by {dateLong}', { dateLong: dateLong(debtFree) })}</span></span>
             </div>
           </li>
         )}
@@ -321,13 +319,13 @@ export default function Debts() {
     }
   }
   const remove = (d) => {
-    if (!window.confirm(`Delete "${d.name}"? ${directionOf(d) === 'lent' ? 'Repayments still expected' : 'Payments still to come'} are removed; ${directionOf(d) === 'lent' ? 'money already received' : 'payments already made'} stays in your history.`)) return;
-    run(api.del(`/debts/${d.id}`), directionOf(d) === 'lent' ? 'Deleted' : 'Debt deleted');
+    if (!window.confirm(directionOf(d) === 'lent' ? t('Delete "{name}"? Repayments still expected are removed; money already received stays in your history.', { name: d.name }) : t('Delete "{name}"? Payments still to come are removed; payments already made stay in your history.', { name: d.name }))) return;
+    run(api.del(`/debts/${d.id}`), directionOf(d) === 'lent' ? t('Deleted') : t('Debt deleted'));
   };
   const settle = (d) => {
     const lent = directionOf(d) === 'lent';
-    if (!window.confirm(lent ? `Mark "${d.name}" as paid back? Repayments still expected are removed; money already received stays.` : `Mark "${d.name}" as settled? Payments still to come are removed; payments already made stay.`)) return;
-    run(api.post(`/debts/${d.id}/settle`), lent ? `${d.name} marked as paid back` : `${d.name} marked as settled`);
+    if (!window.confirm(lent ? t('Mark "{name}" as paid back? Repayments still expected are removed; money already received stays.', { name: d.name }) : t('Mark "{name}" as settled? Payments still to come are removed; payments already made stay.', { name: d.name }))) return;
+    run(api.post(`/debts/${d.id}/settle`), lent ? t('{name} marked as paid back', { name: d.name }) : t('{name} marked as settled', { name: d.name }));
   };
 
   const W = WORDS[side];
@@ -343,7 +341,7 @@ export default function Debts() {
     <>
       {WORDS[dir].tab}
       {data && activeCount(dir) > 0 && (
-        <span className="seg-count" aria-label={`${activeCount(dir)} open`}>
+        <span className="seg-count" aria-label={t('{activeCount} open', { activeCount: activeCount(dir) })}>
           {activeCount(dir)}
         </span>
       )}
@@ -379,10 +377,10 @@ export default function Debts() {
           </div>
           <div className="row-actions">
             <span className={`badge ${badge.tone}`}>{badge.label}</span>
-            <button className="btn icon ghost" onClick={() => setEditing(d)} aria-label={`Edit ${d.name}`}>
+            <button className="btn icon ghost" onClick={() => setEditing(d)} aria-label={t('Edit {name}', { name: d.name })}>
               <Icon name="edit" />
             </button>
-            <button className="btn icon ghost danger-hover" onClick={() => remove(d)} aria-label={`Delete ${d.name}`}>
+            <button className="btn icon ghost danger-hover" onClick={() => remove(d)} aria-label={t('Delete {name}', { name: d.name })}>
               <Icon name="trash" />
             </button>
           </div>
@@ -393,16 +391,16 @@ export default function Debts() {
             <strong className="num">{money(d.remaining)}</strong>
           </div>
           <div>
-            <span className="muted">Of total</span>
+            <span className="muted">{t('Of total')}</span>
             <strong className="num">{money(d.total_amount)}</strong>
           </div>
           <div>
-            <span className="muted">{d.status === 'settled' ? 'Status' : dw.nextWord}</span>
-            <strong>{d.status === 'settled' ? (directionOf(d) === 'lent' ? 'Paid back' : 'Settled') : d.next_due ? `${dateLong(d.next_due)} · ${money(d.next_amount)}` : d.plan !== 'none' && !d.count_in_budget ? 'Planned, not counted' : 'No plan yet'}</strong>
+            <span className="muted">{d.status === 'settled' ? t('Status') : dw.nextWord}</span>
+            <strong>{d.status === 'settled' ? directionOf(d) === 'lent' ? t('Paid back') : t('Settled') : d.next_due ? `${dateLong(d.next_due)} · ${money(d.next_amount)}` : d.plan !== 'none' && !d.count_in_budget ? t('Planned, not counted') : t('No plan yet')}</strong>
           </div>
         </div>
         <div className="debt-progress">
-          <div className="progress" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={`${money(d.paid)} of ${money(d.total_amount)} ${dw.paid}`}>
+          <div className="progress" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={t('{money} of {money2} {paid}', { money: money(d.paid), money2: money(d.total_amount), paid: dw.paid })}>
             <div style={{ width: `${pct}%` }} />
           </div>
           <span className="debt-pct num">{pct}% {dw.paid}</span>
@@ -411,11 +409,12 @@ export default function Debts() {
         <div className="debt-actions">
           <span className="muted small">
             {money(d.paid)} {dw.paid}
-            {d.scheduled_count > 0
-              ? directionOf(d) === 'lent'
-                ? ` · ${d.scheduled_count} repayment${d.scheduled_count === 1 ? '' : 's'} expected (mark each received on the Payments page)`
-                : ` · ${d.scheduled_count} payment${d.scheduled_count === 1 ? '' : 's'} planned (mark each paid on the Payments page)`
-              : ''}
+            {d.scheduled_count > 0 && (
+              <>
+                {' · '}
+                {directionOf(d) === 'lent' ? tn(d.scheduled_count, '{n} repayment expected (mark each received on the Payments page)', '{n} repayments expected (mark each received on the Payments page)') : tn(d.scheduled_count, '{n} payment planned (mark each paid on the Payments page)', '{n} payments planned (mark each paid on the Payments page)')}
+              </>
+            )}
           </span>
           <span className="row-actions">
             {d.status === 'active' ? (
@@ -429,8 +428,8 @@ export default function Debts() {
               </>
             ) : (
               d.settled_at && (
-                <button className="btn sm" onClick={() => run(api.post(`/debts/${d.id}/reopen`), `${d.name} is open again`)}>
-                  <Icon name="undo" size={14} /> Reopen
+                <button className="btn sm" onClick={() => run(api.post(`/debts/${d.id}/reopen`), t('{name} is open again', { name: d.name }))}>
+                  <Icon name="undo" size={14} /> {t('Reopen')}
                 </button>
               )
             )}
@@ -454,7 +453,7 @@ export default function Debts() {
 
       <div className="debt-sides">
         <Segmented
-          label="Which debts"
+          label={t('Which debts')}
           value={side}
           onChange={setSide}
           options={[
@@ -478,15 +477,15 @@ export default function Debts() {
         <>
           <div className="summary-strip">
             <div>
-              <span className="muted">{side === 'lent' ? 'Owed to you' : 'Total owed'}</span>
+              <span className="muted">{side === 'lent' ? t('Owed to you') : t('Total owed')}</span>
               <strong className="num">{money(totals.owed)}</strong>
             </div>
             <div>
-              <span className="muted">{side === 'lent' ? 'Counted in your forecast' : 'Counted in your budget'}</span>
+              <span className="muted">{side === 'lent' ? t('Counted in your forecast') : t('Counted in your budget')}</span>
               <strong className="num">{money(totals.counted)}</strong>
             </div>
             <div>
-              <span className="muted">{side === 'lent' ? 'Expected in your forecast' : 'Planned in your forecast'}</span>
+              <span className="muted">{side === 'lent' ? t('Expected in your forecast') : t('Planned in your forecast')}</span>
               <strong className="num">{money(totals.scheduled)}</strong>
             </div>
             <div>
@@ -496,12 +495,11 @@ export default function Debts() {
           </div>
           {after && (
             <p className="muted debt-after">
-              Your balance today is <strong className="num">{money(after.balance)}</strong>.{' '}
-              {side === 'lent' ? 'If everyone paid you back it would be' : 'After paying every counted debt it would be'}{' '}
-              <strong className={`num ${after.after < 0 ? 'neg' : ''}`}>{money(after.after)}</strong>.
+              {tRich('Your balance today is {balance}.', { balance: <strong className="num">{money(after.balance)}</strong> })}{' '}
+              {tRich(side === 'lent' ? 'If everyone paid you back it would be {amount}.' : 'After paying every counted debt it would be {amount}.', { amount: <strong className={`num ${after.after < 0 ? 'neg' : ''}`}>{money(after.after)}</strong> })}
             </p>
           )}
-          {active.length > 0 && <h2 className="sr-only">{side === 'lent' ? 'People who owe you' : 'Debts you are paying off'}</h2>}
+          {active.length > 0 && <h2 className="sr-only">{side === 'lent' ? t('People who owe you') : t('Debts you are paying off')}</h2>}
           <div className="plans">
             {active.map((d) => (
               <Card key={d.id} d={d} />
@@ -509,7 +507,7 @@ export default function Debts() {
           </div>
           {settled.length > 0 && (
             <>
-              <h2 className="section-title">{side === 'lent' ? 'Paid back' : 'Settled'}</h2>
+              <h2 className="section-title">{side === 'lent' ? t('Paid back') : t('Settled')}</h2>
               <div className="plans">
                 {settled.map((d) => (
                   <Card key={d.id} d={d} />
@@ -534,7 +532,7 @@ export default function Debts() {
         </Modal>
       )}
       {paying && (
-        <Modal title={directionOf(paying) === 'lent' ? `${paying.name} pays you` : `Pay ${paying.name}`} onClose={() => setPaying(null)}>
+        <Modal title={directionOf(paying) === 'lent' ? t('{name} pays you', { name: paying.name }) : t('Pay {name}', { name: paying.name })} onClose={() => setPaying(null)}>
           <PaymentForm
             debt={paying}
             onCancel={() => setPaying(null)}

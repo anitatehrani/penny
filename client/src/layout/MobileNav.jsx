@@ -7,6 +7,7 @@ import { Icon } from '../components/ui.jsx';
 import { useAuth } from '../auth.jsx';
 import { useWorkspace } from '../workspace.jsx';
 import { ADMIN_NAV, MOBILE_PRIMARY, NAV, navById } from './nav.js';
+import { t } from '../i18n/translate.js';
 
 /** Bottom tab bar for phones. The four most-used places, and "More" for the rest. */
 export default function MobileNav() {
@@ -17,13 +18,13 @@ export default function MobileNav() {
   const { openAssistant } = useAssistant();
   const { openPalette } = useCommand();
   const marker = (id) => {
-    if (id === 'payments' && overdueCount) return <span className="nav-marker count neg" aria-label={`${overdueCount} overdue`}>{overdueCount}</span>;
-    if (id === 'people' && badge) return <span className="nav-marker count accent" aria-label={`${badge} waiting`}>{badge}</span>;
-    if (id === 'forecast' && hasForecastWarning) return <span className="nav-marker dot warn" role="img" aria-label="Forecast warning" />;
+    if (id === 'payments' && overdueCount) return <span className="nav-marker count neg" aria-label={t('{overdueCount} overdue', { overdueCount })}>{overdueCount}</span>;
+    if (id === 'people' && badge) return <span className="nav-marker count accent" aria-label={t('{badge} waiting', { badge })}>{badge}</span>;
+    if (id === 'forecast' && hasForecastWarning) return <span className="nav-marker dot warn" role="img" aria-label={t('Forecast warning')} />;
     return null;
   };
   return (
-    <nav className="mobile-nav" aria-label="Main">
+    <nav className="mobile-nav" aria-label={t('Main')}>
       {MOBILE_PRIMARY.map((id) => {
         const n = navById[id];
         return (
@@ -37,16 +38,16 @@ export default function MobileNav() {
         );
       })}
       <Menu
-        label="More"
+        label={t('More')}
         align="end"
         placement="top"
         width={236}
         trigger={(props, open) => (
-          <button {...props} className={`mobile-tab${open ? ' open' : ''}`} aria-label="More">
+          <button {...props} className={`mobile-tab${open ? ' open' : ''}`} aria-label={t('More')}>
             <span className="nav-icon">
               <Icon name="grip" size={22} />
             </span>
-            <span>More</span>
+            <span>{t('More')}</span>
           </button>
         )}
       >
@@ -62,13 +63,13 @@ export default function MobileNav() {
         )}
         <MenuSeparator />
         <MenuItem icon="bell" onSelect={() => navigate('/notifications')}>
-          All notifications
+          {t('All notifications')}
         </MenuItem>
         <MenuItem icon="signal" onSelect={() => openAssistant()}>
-          Ask about my finances
+          {t('Ask about my finances')}
         </MenuItem>
         <MenuItem icon="search" onSelect={() => openPalette()}>
-          Search or run a command
+          {t('Search or run a command')}
         </MenuItem>
       </Menu>
     </nav>

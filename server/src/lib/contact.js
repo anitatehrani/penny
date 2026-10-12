@@ -1,17 +1,18 @@
 import { z } from 'zod';
 import { query } from '../db.js';
 import { notify } from './notifications.js';
+import { N_, t } from './i18n.js';
 
 /**
  * The contact form (docs/DESIGN.md section 38): what people write to the person who runs the site. Stored in `contact_messages`, shown to
  * admins, kept a year. The text of a message is personal data: it is never put in the activity log or in a notification.
  */
 export const TOPICS = {
-  question: 'Question',
-  problem: 'Something is wrong',
-  idea: 'Idea',
-  account: 'My data or my account',
-  other: 'Other',
+  get question() { return t('Question'); },
+  get problem() { return t('Something is wrong'); },
+  get idea() { return t('Idea'); },
+  get account() { return t('My data or my account'); },
+  get other() { return t('Other'); },
 };
 export const MESSAGE_MIN = 10;
 export const REPLY_MAX = 4000;
@@ -21,7 +22,7 @@ export const KEEP_DAYS = 365;
 export const DAILY_CAP = 200;
 
 // Control characters are dropped (a message is text), line breaks and tabs are kept.
-const text = (max) => z.string().transform((s) => s.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').replace(/\r\n?/g, '\n').trim()).pipe(z.string().max(max, `must be at most ${max} characters`));
+const text = (max) => z.string().transform((s) => s.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').replace(/\r\n?/g, '\n').trim()).pipe(z.string().max(max, t('must be at most {max} characters', { max })));
 
 export const replyBody = z.object({ reply: text(REPLY_MAX).pipe(z.string().min(2, 'is required')) });
 export const contactBody = z.object({
@@ -46,7 +47,7 @@ export async function saveMessage({ userId, name, email, topic, message }) {
 export async function notifyAdmins(id, name, topic) {
   const admins = (await query('SELECT id FROM users WHERE is_admin AND suspended_at IS NULL')).rows;
   for (const a of admins) {
-    await notify(a.id, { kind: 'system', title: 'New message', body: `${name} wrote to you (${TOPICS[topic] ?? topic}).`, link: '/admin?tab=messages', dedupeKey: `contact:${id}` }).catch((e) => console.error('contact: could not notify an admin -', e.message));
+    await notify(a.id, { kind: 'system', title: () => t('New message'), body: () => t('{name} wrote to you ({value}).', { name, value: TOPICS[topic] ?? topic }), link: '/admin?tab=messages', dedupeKey: `contact:${id}` }).catch((e) => console.error('contact: could not notify an admin -', e.message));
   }
 }
 

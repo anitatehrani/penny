@@ -1,4 +1,5 @@
 import { query } from '../db.js';
+import { t } from './i18n.js';
 
 /**
  * Everything Penny holds about one person, as plain data they can keep (docs/DESIGN.md section 36).
@@ -69,7 +70,7 @@ export async function buildExport(userId, db = { query }) {
   const [oldSettings] = await q('SELECT opening_balance, currency FROM user_settings WHERE user_id = $1');
 
   return {
-    about: 'Everything Penny holds about you. Photos and receipt files are not included (the receipts are listed).',
+    about: t('Everything Penny holds about you. Photos and receipt files are not included (the receipts are listed).'),
     exported_at: new Date().toISOString(),
     profile,
     settings: { account: oldSettings ?? null, notifications: notificationSettings ?? null, preferences: preferences ?? null },

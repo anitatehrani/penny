@@ -9,6 +9,8 @@ import { barParts, daysLeftText, headline, parseBudget, statusOf } from '../budg
 import { currentMonth, monthLabel } from '../format.js';
 import { useFetch } from '../hooks.js';
 import { useWorkspace } from '../workspace.jsx';
+import { t, tn } from '../i18n/translate.js';
+import { catName } from '../categoryNames.js';
 
 /** One bar: what is spent, what is planned after it, where the budget is once it is passed, and where an even pace would be today. */
 export function Bar({ line, elapsed, label }) {
@@ -37,7 +39,7 @@ function BudgetEditor({ line, month, onDone, onCancel }) {
     setBusy(true);
     try {
       await api.put(`/budgets/${line.id}`, { month, amount, scope });
-      notify(amount === null ? `Budget for ${line.name} removed` : `Budget for ${line.name} saved`);
+      notify(amount === null ? t('Budget for {name} removed', { name: catName(line.name) }) : t('Budget for {name} saved', { name: catName(line.name) }));
       onDone();
     } catch (e) {
       notify(e.message, 'error');
@@ -53,43 +55,43 @@ function BudgetEditor({ line, month, onDone, onCancel }) {
         if (!bad) save(value);
       }}
     >
-      <Field label={`How much for ${line.name} each month?`} hint={bad ? 'Type an amount, like 120 or 120.50.' : 'Leave it empty to have no budget for this category.'}>
-        <input inputMode="decimal" value={text} onChange={(e) => setText(e.target.value)} autoFocus aria-invalid={bad} placeholder="For example 150" />
+      <Field label={t('How much for {name} each month?', { name: catName(line.name) })} hint={bad ? t('Type an amount, like 120 or 120.50.') : t('Leave it empty to have no budget for this category.')}>
+        <input inputMode="decimal" value={text} onChange={(e) => setText(e.target.value)} autoFocus aria-invalid={bad} placeholder={t('For example 150')} />
       </Field>
       <div className="bud-suggest">
         {line.suggested && (
           <button type="button" className="chip" onClick={() => setText(String(line.suggested))}>
-            Use {money(line.suggested)} <span className="muted">(what you usually spend)</span>
+            {t('Use {money}', { money: money(line.suggested) })} <span className="muted">{t('(what you usually spend)')}</span>
           </button>
         )}
         {line.lastMonth > 0 && (
           <button type="button" className="chip" onClick={() => setText(String(Math.ceil(line.lastMonth)))}>
-            Use {money(Math.ceil(line.lastMonth))} <span className="muted">(about last month)</span>
+            {t('Use {money}', { money: money(Math.ceil(line.lastMonth)) })} <span className="muted">{t('(about last month)')}</span>
           </button>
         )}
       </div>
       <fieldset className="bud-scope">
-        <legend className="field-label">When does it apply?</legend>
+        <legend className="field-label">{t('When does it apply?')}</legend>
         <label className="check">
           <input type="radio" name="scope" checked={scope === 'onward'} onChange={() => setScope('onward')} />
-          <span>From {monthLabel(month, { month: 'long' })} on. Earlier months keep what they had.</span>
+          <span>{t('From {monthLabel} on. Earlier months keep what they had.', { monthLabel: monthLabel(month, { month: 'long' }) })}</span>
         </label>
         <label className="check">
           <input type="radio" name="scope" checked={scope === 'month'} onChange={() => setScope('month')} />
-          <span>Only {monthLabel(month, { month: 'long' })}. The next month goes back to what it was.</span>
+          <span>{t('Only {monthLabel}. The next month goes back to what it was.', { monthLabel: monthLabel(month, { month: 'long' }) })}</span>
         </label>
       </fieldset>
       <div className="form-actions">
         <button type="button" className="btn" onClick={onCancel} disabled={busy}>
-          Cancel
+          {t('Cancel')}
         </button>
         {line.budget !== null && (
           <button type="button" className="btn" onClick={() => save(null)} disabled={busy}>
-            Remove budget
+            {t('Remove budget')}
           </button>
         )}
         <button className="btn primary" disabled={busy || bad}>
-          Save budget
+          {t('Save budget')}
         </button>
       </div>
     </form>
@@ -103,12 +105,12 @@ function Row({ line, view, month, editing, onEdit, onDone }) {
   const key = line.id ?? 'none';
   const bottom = [];
   if (has) {
-    bottom.push(line.left >= 0 ? `${money(line.left)} left` : `${money(-line.left)} over`);
-    if (line.planned > 0) bottom.push(`${money(line.planned)} still planned`);
-    if (line.perDay !== null && line.left > 0) bottom.push(`about ${money(line.perDay)} a day`);
-  } else if (line.planned > 0) bottom.push(`${money(line.planned)} still planned`);
-  if (line.lastMonth > 0) bottom.push(`last month ${money(line.lastMonth)}`);
-  if (line.typical > 0) bottom.push(`usually ${money(line.typical)}`);
+    bottom.push(line.left >= 0 ? t('{money} left', { money: money(line.left) }) : t('{money} over', { money: money(-line.left) }));
+    if (line.planned > 0) bottom.push(t('{money} still planned', { money: money(line.planned) }));
+    if (line.perDay !== null && line.left > 0) bottom.push(t('about {money} a day', { money: money(line.perDay) }));
+  } else if (line.planned > 0) bottom.push(t('{money} still planned', { money: money(line.planned) }));
+  if (line.lastMonth > 0) bottom.push(t('last month {money}', { money: money(line.lastMonth) }));
+  if (line.typical > 0) bottom.push(t('usually {money}', { money: money(line.typical) }));
   return (
     <li className={`bud-row s-${line.status}`}>
       <div className="bud-row-top">
@@ -117,26 +119,26 @@ function Row({ line, view, month, editing, onEdit, onDone }) {
         <span className="bud-nums num">
           {has ? (
             <>
-              <strong>{money(line.spent)}</strong> <span className="muted">of {money(line.budget)}</span>
+              <strong>{money(line.spent)}</strong> <span className="muted">{t('of {money}', { money: money(line.budget) })}</span>
             </>
           ) : (
             money(line.spent)
           )}
         </span>
       </div>
-      {has && <Bar line={line} elapsed={view.elapsed} label={`${line.name}: ${money(line.spent)} spent of ${money(line.budget)}${line.planned > 0 ? `, ${money(line.planned)} planned` : ''}. ${st.label}.`} />}
+      {has && <Bar line={line} elapsed={view.elapsed} label={line.planned > 0 ? t('{name}: {spent} spent of {budget}, {planned} planned. {label}.', { name: catName(line.name), spent: money(line.spent), budget: money(line.budget), planned: money(line.planned), label: st.label }) : t('{name}: {spent} spent of {budget}. {label}.', { name: catName(line.name), spent: money(line.spent), budget: money(line.budget), label: st.label })} />}
       {bottom.length > 0 && <p className="bud-row-bottom muted small">{bottom.join(' · ')}</p>}
       <div className="bud-row-actions">
         {line.id !== null ? (
           <button className="btn sm" onClick={() => onEdit(editing === key ? null : key)} aria-expanded={editing === key}>
-            {has ? 'Change budget' : 'Set a budget'}
+            {has ? t('Change budget') : t('Set a budget')}
           </button>
         ) : (
-          <span className="muted small">Payments with no category cannot have a budget. Give them a category first.</span>
+          <span className="muted small">{t('Payments with no category cannot have a budget. Give them a category first.')}</span>
         )}
         {(line.spent > 0 || line.planned > 0) && (
           <Link className="btn sm ghost" to={`/payments?month=${month}${line.id !== null ? `&category=${line.id}` : ''}`}>
-            See the payments
+            {t('See the payments')}
           </Link>
         )}
       </div>
@@ -169,7 +171,7 @@ export default function Budget() {
     setBusy(true);
     try {
       const r = await api.post('/budgets/fill', { month, source });
-      notify(r.filled ? `Budgets set for ${r.filled} ${r.filled === 1 ? 'category' : 'categories'}. Change any of them.` : 'Nothing to fill in yet: there is not enough spending in the earlier months.');
+      notify(r.filled ? tn(r.filled, 'Budgets set for {n} category. Change any of them.', 'Budgets set for {n} categories. Change any of them.') : t('Nothing to fill in yet: there is not enough spending in the earlier months.'));
       data.reload();
     } catch (e) {
       notify(e.message, 'error');
@@ -181,8 +183,8 @@ export default function Budget() {
   const header = (
     <header className="page-head">
       <div>
-        <h1>Monthly budget</h1>
-        <p className="muted">Decide how much each category may use in a month, and see how much of it is spent, now and at the end of the month.</p>
+        <h1>{t('Monthly budget')}</h1>
+        <p className="muted">{t('Decide how much each category may use in a month, and see how much of it is spent, now and at the end of the month.')}</p>
       </div>
       <MonthNav month={month} onChange={go} />
     </header>
@@ -207,7 +209,7 @@ export default function Budget() {
     );
   }
 
-  const t = view.totals;
+  const tt = view.totals;
   const top = headline(view, money);
   const budgeted = view.lines.filter((l) => l.budget !== null);
   const others = view.lines.filter((l) => l.budget === null);
@@ -219,75 +221,72 @@ export default function Budget() {
 
       {budgeted.length === 0 ? (
         <section className="card">
-          <EmptyState art="chart" title={`No budget for ${monthLabel(month, { month: 'long' })} yet`}>
-            Give each category an amount for the month. Penny then shows how much is spent, how much is left, and warns you when a category is heading over. The quickest start is to let Penny suggest amounts
-            from what you usually spend, then change any of them.
+          <EmptyState art="chart" title={t('No budget for {monthLabel} yet', { monthLabel: monthLabel(month, { month: 'long' }) })}>
+            {t('Give each category an amount for the month. Penny then shows how much is spent, how much is left, and warns you when a category is heading over. The quickest start is to let Penny suggest amounts from what you usually spend, then change any of them.')}
           </EmptyState>
           <div className="bud-start">
             <button className="btn primary" onClick={() => fill('typical')} disabled={busy}>
-              Suggest from what I usually spend
+              {t('Suggest from what I usually spend')}
             </button>
             <button className="btn" onClick={() => fill('last_month')} disabled={busy}>
-              Use last month&rsquo;s spending
+              {t('Use last month’s spending')}
             </button>
           </div>
         </section>
       ) : (
-        <section className="card bud-summary" aria-label="The month so far">
+        <section className="card bud-summary" aria-label={t('The month so far')}>
           <div className="bud-head">
             <div>
               <span className="eyebrow">{top.label}</span>
               <div className={`bud-big num ${top.tone}`}>{top.value}</div>
               <p className="muted">
-                {money(t.spent)} spent of {money(t.budget)} budgeted{t.planned > 0 ? `, and ${money(t.planned)} more is planned` : ''}.
+                {tt.planned > 0 ? t('{spent} spent of {budget} budgeted, and {planned} more is planned.', { spent: money(tt.spent), budget: money(tt.budget), planned: money(tt.planned) }) : t('{spent} spent of {budget} budgeted.', { spent: money(tt.spent), budget: money(tt.budget) })}
               </p>
             </div>
             <dl className="bud-facts">
               {view.phase === 'current' && (
                 <div>
-                  <dt>Time</dt>
+                  <dt>{t('Time')}</dt>
                   <dd>
-                    Day {view.day} of {view.days}
+                    {t('Day {day} of {days}', { day: view.day, days: view.days })}
                     <span className="muted small"> · {daysLeftText(view)}</span>
                   </dd>
                 </div>
               )}
-              {t.perDay !== null && (
+              {tt.perDay !== null && (
                 <div>
-                  <dt>You can spend about</dt>
-                  <dd className="num">{money(t.perDay)} a day</dd>
+                  <dt>{t('You can spend about')}</dt>
+                  <dd className="num">{t('{money} a day', { money: money(tt.perDay) })}</dd>
                 </div>
               )}
               <div>
-                <dt>{view.phase === 'past' ? 'Month total' : 'Expected by month end'}</dt>
+                <dt>{view.phase === 'past' ? t('Month total') : t('Expected by month end')}</dt>
                 <dd className="num">
-                  {money(t.expected)}
-                  <span className={`small ${t.expected > t.budget + 0.005 ? 'bud-warn' : 'muted'}`}> {t.expected > t.budget + 0.005 ? `${money(t.expected - t.budget)} over` : 'within budget'}</span>
+                  {money(tt.expected)}
+                  <span className={`small ${tt.expected > tt.budget + 0.005 ? 'bud-warn' : 'muted'}`}> {tt.expected > tt.budget + 0.005 ? t('{money} over', { money: money(tt.expected - tt.budget) }) : t('within budget')}</span>
                 </dd>
               </div>
             </dl>
           </div>
-          <Bar line={{ budget: t.budget, spent: t.spent, planned: t.planned }} elapsed={view.elapsed} label={`${money(t.spent)} spent of ${money(t.budget)}, ${money(t.planned)} planned.`} />
+          <Bar line={{ budget: tt.budget, spent: tt.spent, planned: tt.planned }} elapsed={view.elapsed} label={t('{money} spent of {money2}, {money3} planned.', { money: money(tt.spent), money2: money(tt.budget), money3: money(tt.planned) })} />
           {view.phase === 'current' && (
             <p className="bud-legend muted small">
-              <span className="lg spent" /> spent <span className="lg planned" /> planned, not paid yet <span className="lg pace" /> where an even pace would be today
+              <span className="lg spent" /> {t('spent')} <span className="lg planned" /> {t('planned, not paid yet')} <span className="lg pace" /> {t('where an even pace would be today')}
             </p>
           )}
           <details className="bud-help">
-            <summary>How is &ldquo;expected by month end&rdquo; worked out?</summary>
+            <summary>{t('How is “expected by month end” worked out?')}</summary>
             <p className="muted small">
-              It adds what is already paid, what is planned for the rest of the month (recurring payments, installments and anything you have entered with a later date), and the everyday spending that usually
-              follows: the payments you enter by hand, at the pace of the month so far. In the first days of a month Penny uses what you usually spend instead, because a few days say little. It is an estimate,
-              not a promise.
+              {t('It adds what is already paid, what is planned for the rest of the month (recurring payments, installments and anything you have entered with a later date), and the everyday spending that usually follows: the payments you enter by hand, at the pace of the month so far. In the first days of a month Penny uses what you usually spend instead, because a few days say little. It is an estimate, not a promise.')}
             </p>
           </details>
         </section>
       )}
 
       {view.findings.length > 0 && (
-        <section className="card bud-findings" aria-label="What stands out">
+        <section className="card bud-findings" aria-label={t('What stands out')}>
           <div className="card-head">
-            <h2>What stands out</h2>
+            <h2>{t('What stands out')}</h2>
           </div>
           <ul>
             {view.findings.map((f) => (
@@ -301,13 +300,13 @@ export default function Budget() {
       )}
 
       {budgeted.length > 0 && (
-        <section className="card" aria-label="Categories with a budget">
+        <section className="card" aria-label={t('Categories with a budget')}>
           <div className="card-head">
-            <h2>Your categories</h2>
+            <h2>{t('Your categories')}</h2>
             {canFill && (
               <div className="head-actions">
                 <button className="btn sm" onClick={() => fill('typical')} disabled={busy}>
-                  Fill in the rest from what I usually spend
+                  {t('Fill in the rest from what I usually spend')}
                 </button>
               </div>
             )}
@@ -321,9 +320,9 @@ export default function Budget() {
       )}
 
       {others.length > 0 && (
-        <section className="card" aria-label="Categories without a budget">
+        <section className="card" aria-label={t('Categories without a budget')}>
           <div className="card-head">
-            <h2>{budgeted.length ? 'No budget yet' : 'Your categories'}</h2>
+            <h2>{budgeted.length ? t('No budget yet') : t('Your categories')}</h2>
           </div>
           <ul className="bud-list">
             {others.map((l) => (

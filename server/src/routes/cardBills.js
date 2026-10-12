@@ -4,6 +4,7 @@ import { query, withTransaction } from '../db.js';
 import { addMonthsYM, isValidYM, monthEnd, monthStart } from '../lib/dates.js';
 import { HttpError, strictNumber, wrap } from '../lib/http.js';
 import { planRollover } from '../lib/rollover.js';
+import { t } from '../lib/i18n.js';
 
 const router = Router();
 
@@ -38,7 +39,7 @@ router.get(
   '/card-bills',
   wrap(async (req, res) => {
     const month = String(req.query.month ?? '');
-    if (!isValidYM(month)) throw new HttpError(400, 'month must be YYYY-MM');
+    if (!isValidYM(month)) throw new HttpError(400, t('month must be YYYY-MM'));
     const bill = await loadBill({ query }, req.workspace.id, month);
     res.json({
       month,
@@ -62,21 +63,21 @@ router.post(
   '/card-bills/rollover',
   wrap(async (req, res) => {
     const body = rolloverSchema.parse(req.body);
-    if (body.to_month <= body.bill_month) throw new HttpError(400, 'The rest has to move to a later month than this bill.');
-    if (body.to_month > addMonthsYM(body.bill_month, 12)) throw new HttpError(400, 'A card bill cannot be more than a year after this one.');
+    if (body.to_month <= body.bill_month) throw new HttpError(400, t('The rest has to move to a later month than this bill.'));
+    if (body.to_month > addMonthsYM(body.bill_month, 12)) throw new HttpError(400, t('A card bill cannot be more than a year after this one.'));
     const ws = req.workspace.id;
     const payNow = toCents(body.pay_now);
     const interest = toCents(body.interest);
 
     const result = await withTransaction(async (client) => {
       const bill = await loadBill(client, ws, body.bill_month, true);
-      if (bill.total <= 0) throw new HttpError(400, 'There is nothing left to pay on that bill.');
-      if (payNow >= bill.total) throw new HttpError(400, 'You are paying the whole bill, so there is nothing to roll over.');
+      if (bill.total <= 0) throw new HttpError(400, t('There is nothing left to pay on that bill.'));
+      if (payNow >= bill.total) throw new HttpError(400, t('You are paying the whole bill, so there is nothing to roll over.'));
       const rest = bill.total - payNow;
       if (rest > bill.movable) {
         throw new HttpError(
           400,
-          `Only ${(bill.movable / 100).toFixed(2)} of this bill can move to a later one (fixed installments, debt payments and shared payments stay). Pay at least ${((bill.total - bill.movable) / 100).toFixed(2)} now.`,
+          t('Only {toFixed} of this bill can move to a later one (fixed installments, debt payments and shared payments stay). Pay at least {toFixed2} now.', { toFixed: (bill.movable / 100).toFixed(2), toFixed2: ((bill.total - bill.movable) / 100).toFixed(2) }),
         );
       }
       const newDay = await billDay(client, ws, body.to_month);

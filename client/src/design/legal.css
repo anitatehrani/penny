@@ -20,7 +20,11 @@
 }
 .legal-nav {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
+}
+.legal-nav .lang-links {
+  margin-inline-start: 8px;
 }
 .legal-nav a {
   padding: 6px 12px;

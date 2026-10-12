@@ -10,6 +10,8 @@ import { memoryOf, ruleKey, suggest } from '../lib/importCategorize.js';
 import { LABELS, normalize } from '../lib/merchants.js';
 import { notifyMany } from '../lib/notifications.js';
 import { redact } from '../lib/redact.js';
+import { catName } from '../lib/categoryNames.js';
+import { t, tn } from '../lib/i18n.js';
 
 /**
  * Importing a bank statement (docs/DESIGN.md section 41). The browser has already read the file; what arrives here is the list of lines the
@@ -35,8 +37,8 @@ const previewLine = z.object({
 });
 const previewBody = z.object({ rows: z.array(previewLine).min(1, 'There is nothing to import.').max(MAX_LINES, `Penny imports up to ${MAX_LINES} lines at a time.`) });
 
-const previewLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 60, keyFn: (req) => `import-preview:${req.user.id}`, message: 'You have read a lot of statements this hour. Try again later.' });
-const commitLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 30, keyFn: (req) => `import-commit:${req.user.id}`, message: 'You have imported a lot this hour. Try again later.' });
+const previewLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 60, keyFn: (req) => `import-preview:${req.user.id}`, get message() { return t('You have read a lot of statements this hour. Try again later.'); } });
+const commitLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 30, keyFn: (req) => `import-commit:${req.user.id}`, get message() { return t('You have imported a lot this hour. Try again later.'); } });
 
 // ---------------------------------------------------------------------------------------------------------------------------------
 // References: how the same line is recognised the next time
@@ -87,7 +89,7 @@ async function existingFor(ws, lines, refs) {
   return rows;
 }
 
-const brief = (t) => ({ id: t.id, date: t.date, description: t.description, amount: t.amount, status: t.status, scheduled: t.source === 'recurring' || t.source === 'installment' });
+const brief = (tt) => ({ id: tt.id, date: tt.date, description: tt.description, amount: tt.amount, status: tt.status, scheduled: tt.source === 'recurring' || tt.source === 'installment' });
 const defaultAction = { imported: 'skip', same: 'skip', scheduled: 'settle', similar: 'import' };
 
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -160,8 +162,8 @@ router.post(
     const user = req.user;
     const today = todayYMD();
     for (const r of body.rows) {
-      if (r.action === 'settle' && !r.settle_id) throw new HttpError(400, 'rows: a payment to mark as paid needs its id.');
-      if (r.category_id && r.new_category) throw new HttpError(400, 'rows: a line has either a category or a new one, not both.');
+      if (r.action === 'settle' && !r.settle_id) throw new HttpError(400, t('rows: a payment to mark as paid needs its id.'));
+      if (r.category_id && r.new_category) throw new HttpError(400, t('rows: a line has either a category or a new one, not both.'));
     }
     const result = await withTransaction(async (client) => {
       // categories: the ones named by id must be this budget's and of the line's kind; the new ones are found or made
@@ -172,8 +174,8 @@ router.post(
       const categoryOf = async (r) => {
         if (r.category_id) {
           const c = byId.get(r.category_id);
-          if (!c) throw new HttpError(400, 'Unknown category.');
-          if (c.kind !== r.type) throw new HttpError(400, `${c.name} is a category for ${c.kind === 'income' ? 'income' : 'spending'}, so it cannot hold ${r.type === 'income' ? 'income' : 'an expense'}.`);
+          if (!c) throw new HttpError(400, t('Unknown category.'));
+          if (c.kind !== r.type) throw new HttpError(400, c.kind === 'income' ? t('{name} is a category for income, so it cannot hold an expense.', { name: catName(c.name) }) : t('{name} is a category for spending, so it cannot hold income.', { name: catName(c.name) }));
           return c.id;
         }
         if (!r.new_category) return null;
@@ -185,7 +187,7 @@ router.post(
           made.set(k, found);
           return found.id;
         }
-        if (created.length >= 25) throw new HttpError(400, 'This import would create too many new categories. Choose existing ones for some lines.');
+        if (created.length >= 25) throw new HttpError(400, t('This import would create too many new categories. Choose existing ones for some lines.'));
         const ins = await client.query('INSERT INTO categories (workspace_id, user_id, name, kind, color) VALUES ($1, $2, $3, $4, $5) RETURNING id, name, kind, color', [ws, user.id, name, r.type, colourOf(name)]);
         made.set(k, ins.rows[0]);
         created.push(ins.rows[0]);
@@ -249,9 +251,9 @@ router.post(
         }
       }
 
-      const totalIn = inserted.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0);
-      const totalOut = inserted.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0);
-      const dates = inserted.map((t) => t.date).sort();
+      const totalIn = inserted.filter((tt) => tt.type === 'income').reduce((s, tt) => s + tt.amount, 0);
+      const totalOut = inserted.filter((tt) => tt.type === 'expense').reduce((s, tt) => s + tt.amount, 0);
+      const dates = inserted.map((tt) => tt.date).sort();
       await client.query(
         'UPDATE import_batches SET added = $1, settled = $2, total_in = $3, total_out = $4, first_date = $5, last_date = $6 WHERE id = $7',
         [inserted.length, JSON.stringify(settled), Math.round(totalIn * 100) / 100, Math.round(totalOut * 100) / 100, dates[0] ?? null, dates[dates.length - 1] ?? null, batch],
@@ -279,8 +281,8 @@ router.post(
         .then(({ rows }) =>
           notifyMany(rows.map((r) => r.user_id), {
             kind: 'group_activity',
-            title: `${user.name} imported ${result.added} payment${result.added === 1 ? '' : 's'}`,
-            body: `From a bank statement, in ${req.workspace.name}`,
+            title: () => tn(result.added, '{name} imported {n} payment', '{name} imported {n} payments', { name: user.name }),
+            body: () => t('From a bank statement, in {name}', { name: req.workspace.name }),
             link: '/payments',
             data: { workspace_id: ws, batch_id: result.batch_id },
             dedupeKey: `import:${result.batch_id}`,
@@ -317,7 +319,7 @@ router.delete(
     const ws = req.workspace.id;
     const out = await withTransaction(async (client) => {
       const batch = (await client.query('SELECT id, settled FROM import_batches WHERE id = $1 AND workspace_id = $2 FOR UPDATE', [id, ws])).rows[0];
-      if (!batch) throw new HttpError(404, 'That import was not found. It may already be undone.');
+      if (!batch) throw new HttpError(404, t('That import was not found. It may already be undone.'));
       let restored = 0;
       for (const s of batch.settled) {
         const r = await client.query(
@@ -362,7 +364,7 @@ router.delete(
   '/import/rules/:id',
   wrap(async (req, res) => {
     const { rowCount } = await query('DELETE FROM import_rules WHERE id = $1 AND workspace_id = $2', [idParam(req), req.workspace.id]);
-    if (!rowCount) throw new HttpError(404, 'That rule was not found.');
+    if (!rowCount) throw new HttpError(404, t('That rule was not found.'));
     res.json({ removed: 1 });
   }),
 );

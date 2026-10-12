@@ -3,6 +3,7 @@ import { api } from '../api.js';
 import { useApp } from '../context.jsx';
 import { formatBytes, prepareReceipt, RECEIPT_TYPES, RECEIPTS_PER_PAYMENT } from '../images.js';
 import { Icon, Modal } from './ui.jsx';
+import { t } from '../i18n/translate.js';
 
 const fileUrl = (id, download) => `/api/receipts/${id}${download ? '?download=1' : ''}`;
 
@@ -12,7 +13,7 @@ function Thumb({ r }) {
     return (
       <span className="receipt-thumb file" aria-hidden="true">
         <Icon name="file" size={22} />
-        <small>{r.mime === 'application/pdf' ? 'PDF' : 'File'}</small>
+        <small>{r.mime === 'application/pdf' ? t('PDF') : t('File')}</small>
       </span>
     );
   }
@@ -43,7 +44,7 @@ export default function Receipts({ txId, items = [], onChange, queue = [], setQu
     let room = RECEIPTS_PER_PAYMENT - count;
     for (const file of files) {
       if (room <= 0) {
-        problems.push(`Only ${RECEIPTS_PER_PAYMENT} receipts fit on one payment.`);
+        problems.push(t('Only {RECEIPTS_PER_PAYMENT} receipts fit on one payment.', { RECEIPTS_PER_PAYMENT }));
         break;
       }
       try {
@@ -61,10 +62,10 @@ export default function Receipts({ txId, items = [], onChange, queue = [], setQu
   }
 
   async function remove(r) {
-    if (!window.confirm(`Remove the receipt “${r.filename}”?`)) return;
+    if (!window.confirm(t('Remove the receipt “{filename}”?', { filename: r.filename }))) return;
     try {
       await api.del(`/receipts/${r.id}`);
-      notify('Receipt removed');
+      notify(t('Receipt removed'));
       onChange?.();
     } catch (err) {
       setError(err.message);
@@ -77,7 +78,7 @@ export default function Receipts({ txId, items = [], onChange, queue = [], setQu
         <ul className="receipt-list">
           {items.map((r) => (
             <li key={r.id}>
-              <a href={fileUrl(r.id)} target="_blank" rel="noreferrer" className="receipt-open" aria-label={`Open receipt ${r.filename}`}>
+              <a href={fileUrl(r.id)} target="_blank" rel="noreferrer" className="receipt-open" aria-label={t('Open receipt {filename}', { filename: r.filename })}>
                 <Thumb r={r} />
               </a>
               <div className="receipt-info">
@@ -86,11 +87,11 @@ export default function Receipts({ txId, items = [], onChange, queue = [], setQu
                 </a>
                 <span className="muted small">{formatBytes(r.size_bytes)}</span>
               </div>
-              <a className="btn icon ghost" href={fileUrl(r.id, true)} aria-label={`Download ${r.filename}`} title="Download">
+              <a className="btn icon ghost" href={fileUrl(r.id, true)} aria-label={t('Download {filename}', { filename: r.filename })} title={t('Download')}>
                 <Icon name="download" size={16} />
               </a>
               {!readOnly && (
-                <button type="button" className="btn icon ghost danger-hover" onClick={() => remove(r)} aria-label={`Remove ${r.filename}`} title="Remove">
+                <button type="button" className="btn icon ghost danger-hover" onClick={() => remove(r)} aria-label={t('Remove {filename}', { filename: r.filename })} title={t('Remove')}>
                   <Icon name="trash" size={16} />
                 </button>
               )}
@@ -107,23 +108,23 @@ export default function Receipts({ txId, items = [], onChange, queue = [], setQu
               </span>
               <div className="receipt-info">
                 <span>{q.name}</span>
-                <span className="muted small">{formatBytes(q.file.size)} · uploads when you save</span>
+                <span className="muted small">{t('{formatBytes} · uploads when you save', { formatBytes: formatBytes(q.file.size) })}</span>
               </div>
-              <button type="button" className="btn icon ghost danger-hover" onClick={() => setQueue((list) => list.filter((x) => x.key !== q.key))} aria-label={`Remove ${q.name}`}>
+              <button type="button" className="btn icon ghost danger-hover" onClick={() => setQueue((list) => list.filter((x) => x.key !== q.key))} aria-label={t('Remove {name}', { name: q.name })}>
                 <Icon name="x" size={16} />
               </button>
             </li>
           ))}
         </ul>
       )}
-      {!queued && items.length === 0 && <p className="muted small">No receipts attached yet.</p>}
+      {!queued && items.length === 0 && <p className="muted small">{t('No receipts attached yet.')}</p>}
       {!readOnly && (
         <div className="receipt-add">
-          <input ref={input} type="file" multiple accept={RECEIPT_TYPES.join(',')} hidden onChange={add} aria-label="Choose receipt files" data-testid="receipt-input" />
+          <input ref={input} type="file" multiple accept={RECEIPT_TYPES.join(',')} hidden onChange={add} aria-label={t('Choose receipt files')} data-testid="receipt-input" />
           <button type="button" className="btn sm" disabled={busy || full} onClick={() => input.current.click()}>
-            <Icon name="paperclip" size={16} /> {busy ? 'Adding…' : 'Attach receipt'}
+            <Icon name="paperclip" size={16} /> {busy ? t('Adding…') : t('Attach receipt')}
           </button>
-          <span className="field-hint">{full ? `Limit of ${RECEIPTS_PER_PAYMENT} reached.` : `Photo or PDF, up to 5 MB each (max ${RECEIPTS_PER_PAYMENT}).`}</span>
+          <span className="field-hint">{full ? t('Limit of {RECEIPTS_PER_PAYMENT} reached.', { RECEIPTS_PER_PAYMENT }) : t('Photo or PDF, up to 5 MB each (max {RECEIPTS_PER_PAYMENT}).', { RECEIPTS_PER_PAYMENT })}</span>
         </div>
       )}
       {error && (
@@ -155,10 +156,10 @@ function useReceiptList(txId) {
 export function ReceiptsModal({ tx, onClose, onChange }) {
   const [data, setData] = useReceiptList(tx.id);
   return (
-    <Modal title={`Receipts · ${tx.description}`} onClose={onClose}>
+    <Modal title={t('Receipts · {description}', { description: tx.description })} onClose={onClose}>
       <div className="modal-body">
         {data === null ? (
-          <p className="muted">Loading…</p>
+          <p className="muted">{t('Loading…')}</p>
         ) : (
           <Receipts
             txId={tx.id}

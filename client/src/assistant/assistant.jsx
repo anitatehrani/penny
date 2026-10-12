@@ -30,12 +30,12 @@ export function AssistantProvider({ children }) {
       .slice(-3)
       .map((x) => ({ q: x.q, a: x.a.answer }));
     setTab('chat');
-    setThread((t) => [...t, { id, q, status: 'pending' }]);
+    setThread((tt) => [...tt, { id, q, status: 'pending' }]);
     try {
       const a = await api.post('/assistant/ask', { question: q, ...(chip ? { chip: true } : { history }) });
-      setThread((t) => t.map((x) => (x.id === id ? { ...x, status: 'done', a } : x)));
+      setThread((tt) => tt.map((x) => (x.id === id ? { ...x, status: 'done', a } : x)));
     } catch (e) {
-      setThread((t) => t.map((x) => (x.id === id ? { ...x, status: 'error', error: e.message } : x)));
+      setThread((tt) => tt.map((x) => (x.id === id ? { ...x, status: 'error', error: e.message } : x)));
     }
   }, []);
 

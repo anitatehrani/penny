@@ -4,6 +4,7 @@ import { useAssistant } from '../../assistant/assistant.jsx';
 import { useInsights } from '../../assistant/insights.jsx';
 import { ErrorState } from '../../components/ds/States.jsx';
 import { Icon, Skeleton } from '../../components/ui.jsx';
+import { t, tn } from '../../i18n/translate.js';
 
 /**
  * The assistant on the dashboard. It says something only when there is something to say: at most two insights,
@@ -19,7 +20,7 @@ export default function InsightsWidget() {
   if (error && !data) return <ErrorState error={error} onRetry={reload} compact />;
   if (loading && !data) {
     return (
-      <div className="insights-widget" aria-busy="true" aria-label="Loading insights">
+      <div className="insights-widget" aria-busy="true" aria-label={t('Loading insights')}>
         <Skeleton w="100%" h={74} r={8} />
       </div>
     );
@@ -45,17 +46,18 @@ export default function InsightsWidget() {
         </div>
       ) : (
         <p className="insights-calm">
-          <Icon name="check" size={15} /> Nothing needs your attention{data.dismissed ? ` (you dismissed ${data.dismissed})` : ''}. Spending, bills and the forecast look as expected.
+          <Icon name="check" size={15} />{' '}
+          {data.dismissed ? t('Nothing needs your attention (you dismissed {n}). Spending, bills and the forecast look as expected.', { n: data.dismissed }) : t('Nothing needs your attention. Spending, bills and the forecast look as expected.')}
         </p>
       )}
 
       <div className="insights-foot">
         <form className="ask-inline" onSubmit={submit}>
           <Icon name="signal" size={16} />
-          <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Ask about my finances…  e.g. “What changed this month?”" aria-label="Ask about my finances" maxLength={300} />
+          <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={t('Ask about my finances…  e.g. “What changed this month?”')} aria-label={t('Ask about my finances')} maxLength={300} />
           {draft.trim() && (
-            <button className="btn sm primary" aria-label="Ask">
-              Ask
+            <button className="btn sm primary" aria-label={t('Ask')}>
+              {t('Ask')}
             </button>
           )}
         </form>
@@ -66,7 +68,7 @@ export default function InsightsWidget() {
           </button>
           {more > 0 && (
             <button className="link-quiet" onClick={() => openAssistant()}>
-              {more} more insight{more === 1 ? '' : 's'}
+              {tn(more, '{n} more insight', '{n} more insights')}
             </button>
           )}
         </div>

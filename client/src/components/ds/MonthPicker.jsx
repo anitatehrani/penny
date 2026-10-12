@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { addMonthsYM, currentMonth, monthLabel } from '../../format.js';
 import { clampYM, monthChoice, monthsOfYear, nextPickable, yearHasChoice, yearOf } from '../../monthLogic.js';
 import { Icon } from '../ui.jsx';
+import { t } from '../../i18n/translate.js';
 
 /**
  * A calendar for choosing a month: a year with arrows and twelve month buttons. The current month has a ring, the chosen one is filled,
@@ -12,7 +13,7 @@ import { Icon } from '../ui.jsx';
  * Keyboard: arrows move between months (skipping the ones that cannot be chosen), Home/End go to the first/last of the year,
  * Page Up/Page Down change the year, Enter or Space choose.
  */
-export function MonthCalendar({ value, onChange, min, max, allowed, notAllowedReason, today = currentMonth(), showToday = true, label = 'Choose a month' }) {
+export function MonthCalendar({ value, onChange, min, max, allowed, notAllowedReason, today = currentMonth(), showToday = true, label = t('Choose a month') }) {
   const [year, setYear] = useState(yearOf(value || today));
   const grid = useRef(null);
   const pendingFocus = useRef(null);
@@ -70,13 +71,13 @@ export function MonthCalendar({ value, onChange, min, max, allowed, notAllowedRe
   return (
     <div className="month-cal" role="group" aria-label={label}>
       <div className="month-cal-head">
-        <button type="button" className="btn icon ghost" aria-label={`Previous year, ${year - 1}`} disabled={!yearHasChoice(year - 1, opts)} onClick={() => changeYear(-1)}>
+        <button type="button" className="btn icon ghost" aria-label={t('Previous year, {value}', { value: year - 1 })} disabled={!yearHasChoice(year - 1, opts)} onClick={() => changeYear(-1)}>
           <Icon name="left" size={16} />
         </button>
         <strong className="month-cal-year" aria-live="polite">
           {year}
         </strong>
-        <button type="button" className="btn icon ghost" aria-label={`Next year, ${year + 1}`} disabled={!yearHasChoice(year + 1, opts)} onClick={() => changeYear(1)}>
+        <button type="button" className="btn icon ghost" aria-label={t('Next year, {value}', { value: year + 1 })} disabled={!yearHasChoice(year + 1, opts)} onClick={() => changeYear(1)}>
           <Icon name="right" size={16} />
         </button>
       </div>
@@ -107,7 +108,7 @@ export function MonthCalendar({ value, onChange, min, max, allowed, notAllowedRe
       {showToday && monthChoice(today, opts).ok && (
         <div className="month-cal-foot">
           <button type="button" className="btn sm" onClick={() => onChange(today)}>
-            This month
+            {t('This month')}
           </button>
         </div>
       )}
@@ -119,7 +120,7 @@ export function MonthCalendar({ value, onChange, min, max, allowed, notAllowedRe
  * A button that shows a month and opens a MonthCalendar in a popup (a bottom sheet on a phone). The popup is drawn outside the page flow,
  * so nothing clips it; Escape closes it without also closing a dialog behind it, and Tab stays inside it while it is open.
  */
-export function MonthPicker({ value, onChange, min, max, allowed, notAllowedReason, label = 'Choose a month', className = '', children }) {
+export function MonthPicker({ value, onChange, min, max, allowed, notAllowedReason, label = t('Choose a month'), className = '', children }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState(null);
   const button = useRef(null);
@@ -227,16 +228,16 @@ export function MonthNav({ month, onChange, min = '2000-01', max = '2100-12' }) 
   const next = addMonthsYM(month, 1);
   return (
     <div className="month-nav">
-      <button className="btn icon ghost" onClick={() => onChange(prev)} disabled={prev < min} aria-label="Previous month">
+      <button className="btn icon ghost" onClick={() => onChange(prev)} disabled={prev < min} aria-label={t('Previous month')}>
         <Icon name="left" />
       </button>
-      <MonthPicker value={month} onChange={(m) => onChange(clampYM(m, min, max))} min={min} max={max} label="Go to a month" className="month-label" />
-      <button className="btn icon ghost" onClick={() => onChange(next)} disabled={next > max} aria-label="Next month">
+      <MonthPicker value={month} onChange={(m) => onChange(clampYM(m, min, max))} min={min} max={max} label={t('Go to a month')} className="month-label" />
+      <button className="btn icon ghost" onClick={() => onChange(next)} disabled={next > max} aria-label={t('Next month')}>
         <Icon name="right" />
       </button>
       {month !== now && now >= min && now <= max && (
         <button className="btn sm" onClick={() => onChange(now)}>
-          This month
+          {t('This month')}
         </button>
       )}
     </div>

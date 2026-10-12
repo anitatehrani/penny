@@ -5,6 +5,7 @@ import { todayYMD } from '../lib/dates.js';
 import { categoryId, HttpError, idParam, wrap } from '../lib/http.js';
 import { assertOwnCategory } from '../lib/ownership.js';
 import { briefUser } from '../lib/profile.js';
+import { t } from '../lib/i18n.js';
 
 const router = Router();
 
@@ -55,9 +56,9 @@ router.post(
         [id, req.user.id],
       );
       const s = rows[0];
-      if (!s) throw new HttpError(404, 'Shared payment not found.');
-      if (s.imported_transaction_id) throw new HttpError(409, 'You already added this to a budget.');
-      if (!(s.share > 0)) throw new HttpError(400, 'Your share of this payment is 0, so there is nothing to add.');
+      if (!s) throw new HttpError(404, t('Shared payment not found.'));
+      if (s.imported_transaction_id) throw new HttpError(409, t('You already added this to a budget.'));
+      if (!(s.share > 0)) throw new HttpError(400, t('Your share of this payment is 0, so there is nothing to add.'));
       const status = body.status ?? (s.date <= todayYMD() ? 'paid' : 'pending');
       const tx = (
         await client.query(

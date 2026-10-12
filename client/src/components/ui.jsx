@@ -4,6 +4,8 @@ import { useApp } from '../context.jsx';
 import { useTheme } from '../theme.js';
 import { Avatar } from './Avatar.jsx';
 import Select from './ds/Select.jsx';
+import { N_, t } from '../i18n/translate.js';
+import { catName } from '../categoryNames.js';
 
 export { Avatar };
 
@@ -31,6 +33,7 @@ const PATHS = {
   sun: 'M12 16a4 4 0 100-8 4 4 0 000 8zM12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4',
   moon: 'M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z',
   monitor: 'M3 5h18v11H3zM8 20h8M12 16v4',
+  globe: 'M12 21a9 9 0 100-18 9 9 0 000 18zM3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18',
   users: 'M16 19v-1a4 4 0 00-4-4H7a4 4 0 00-4 4v1M9.5 10a3.5 3.5 0 100-7 3.5 3.5 0 000 7zM21 19v-1a4 4 0 00-3-3.9M15.5 3.1a3.5 3.5 0 010 6.8',
   user: 'M12 12a4 4 0 100-8 4 4 0 000 8zM4 21a8 8 0 0116 0',
   share: 'M12 15V3M8 7l4-4 4 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7',
@@ -142,7 +145,7 @@ export function Modal({ title, onClose, children, wide }) {
       <div className={`modal${wide ? ' wide' : ''}`} role="dialog" aria-modal="true" aria-label={title} ref={ref}>
         <div className="modal-head">
           <h2>{title}</h2>
-          <button className="btn icon ghost" onClick={onClose} aria-label="Close">
+          <button className="btn icon ghost" onClick={onClose} aria-label={t('Close')}>
             <Icon name="x" />
           </button>
         </div>
@@ -152,13 +155,13 @@ export function Modal({ title, onClose, children, wide }) {
   );
 }
 
-export function CategorySelect({ kind, value, onChange, allowAll, allLabel = 'All categories', label = 'Category' }) {
+export function CategorySelect({ kind, value, onChange, allowAll, allLabel = t('All categories'), label = t('Category') }) {
   const { categories } = useApp();
   const list = kind ? categories.filter((c) => c.kind === kind) : categories;
   const options = [
-    { value: '', label: allowAll ? allLabel : 'No category' },
-    ...(allowAll ? [{ value: 'none', label: 'Uncategorized' }] : []),
-    ...list.map((c) => ({ value: String(c.id), label: kind ? c.name : `${c.name} (${c.kind})`, dot: c.color })),
+    { value: '', label: allowAll ? allLabel : t('No category') },
+    ...(allowAll ? [{ value: 'none', label: t('Uncategorized') }] : []),
+    ...list.map((c) => ({ value: String(c.id), label: kind ? catName(c.name) : `${catName(c.name)} (${c.kind})`, dot: c.color })),
   ];
   return <Select label={label} value={value ?? ''} onChange={onChange} options={options} />;
 }
@@ -167,7 +170,7 @@ export function CategoryDot({ color, name }) {
   return (
     <span className="cat">
       <span className="dot" style={{ background: color || 'var(--ink-3)' }} />
-      {name || 'Uncategorized'}
+      {name ? catName(name) : t('Uncategorized')}
     </span>
   );
 }
@@ -202,29 +205,29 @@ export function Segmented({ value, onChange, options, label }) {
 }
 
 const THEME_OPTIONS = [
-  ['light', 'Light', 'sun'],
-  ['dark', 'Dark', 'moon'],
-  ['system', 'System', 'monitor'],
+  ['light', N_('Light'), 'sun'],
+  ['dark', N_('Dark'), 'moon'],
+  ['system', N_('System'), 'monitor'],
 ];
 
 /** Light / Dark / System switch. `compact` shows icons only (sidebar, sign-in page). */
 export function ThemeToggle({ compact }) {
   const [pref, setPref] = useTheme();
   return (
-    <div className={`segmented theme-toggle${compact ? ' compact' : ''}`} role="radiogroup" aria-label="Theme">
+    <div className={`segmented theme-toggle${compact ? ' compact' : ''}`} role="radiogroup" aria-label={t('Theme')}>
       {THEME_OPTIONS.map(([value, label, icon]) => (
         <button
           key={value}
           type="button"
           role="radio"
           aria-checked={pref === value}
-          aria-label={`${label} theme`}
-          title={`${label}${value === 'system' ? ' (follow your device)' : ''}`}
+          aria-label={t('{label} theme', { label: t(label) })}
+          title={value === 'system' ? t('{label} (follow your device)', { label: t(label) }) : t(label)}
           className={pref === value ? 'active' : ''}
           onClick={() => setPref(value)}
         >
           <Icon name={icon} size={16} />
-          {!compact && <span>{label}</span>}
+          {!compact && <span>{t(label)}</span>}
         </button>
       ))}
     </div>
@@ -262,7 +265,7 @@ export function Empty({ title, children, icon }) {
 export function Loading() {
   return (
     <div className="loading" role="status">
-      <span className="spinner" aria-hidden="true" /> Loading…
+      <span className="spinner" aria-hidden="true" /> {t('Loading…')}
     </div>
   );
 }

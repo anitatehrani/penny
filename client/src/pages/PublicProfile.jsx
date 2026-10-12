@@ -6,6 +6,7 @@ import { useApp } from '../context.jsx';
 import { useFetch } from '../hooks.js';
 import { useWorkspace } from '../workspace.jsx';
 import { RelationSelect, relationLabel } from './People.jsx';
+import { t } from '../i18n/translate.js';
 
 /** Where a shared profile link (/u/username) lands. */
 export default function PublicProfile() {
@@ -19,10 +20,10 @@ export default function PublicProfile() {
     return (
       <section className="card">
         <div className="empty">
-          <strong>Profile not found</strong>
-          <p>This profile does not exist, or its owner has hidden it.</p>
+          <strong>{t('Profile not found')}</strong>
+          <p>{t('This profile does not exist, or its owner has hidden it.')}</p>
           <Link className="btn" to="/people">
-            Back to People
+            {t('Back to People')}
           </Link>
         </div>
       </section>
@@ -34,7 +35,7 @@ export default function PublicProfile() {
   async function send() {
     try {
       const res = await api.post('/connections', { username: p.username, relation });
-      notify(res.status === 'connected' ? `You are now connected with ${p.name}` : `Request sent to ${p.name}`);
+      notify(res.status === 'connected' ? t('You are now connected with {name}', { name: p.name }) : t('Request sent to {name}', { name: p.name }));
       reload();
       reloadInbox();
     } catch (err) {
@@ -49,26 +50,26 @@ export default function PublicProfile() {
       <div className="muted">@{p.username}</div>
       {p.self ? (
         <>
-          <p className="muted">This is how others see your profile.</p>
+          <p className="muted">{t('This is how others see your profile.')}</p>
           <Link className="btn" to="/profile">
-            <Icon name="edit" size={16} /> Edit profile
+            <Icon name="edit" size={16} /> {t('Edit profile')}
           </Link>
         </>
       ) : p.connection?.status === 'connected' ? (
-        <span className="badge accent">Connected · {relationLabel(p.connection.relation)}</span>
+        <span className="badge accent">{t('Connected · {relationLabel}', { relationLabel: relationLabel(p.connection.relation) })}</span>
       ) : p.connection?.status === 'request_sent' ? (
-        <span className="badge">Request sent — waiting for {p.name.split(' ')[0]} to accept</span>
+        <span className="badge">{t('Request sent — waiting for {value} to accept', { value: p.name.split(' ')[0] })}</span>
       ) : (
         <div className="profile-actions">
-          {p.connection?.status === 'request_received' && <span className="badge accent">Wants to connect with you</span>}
+          {p.connection?.status === 'request_received' && <span className="badge accent">{t('Wants to connect with you')}</span>}
           <label className="inline-select">
-            {p.connection?.status === 'request_received' ? 'They are my' : 'They are my'}
+            {p.connection?.status === 'request_received' ? t('They are my') : t('They are my')}
             <RelationSelect value={relation} onChange={setRelation} />
           </label>
           <button className="btn primary" onClick={send}>
-            <Icon name="plus" size={16} /> {p.connection?.status === 'request_received' ? 'Accept' : 'Send connection request'}
+            <Icon name="plus" size={16} /> {p.connection?.status === 'request_received' ? t('Accept') : t('Send connection request')}
           </button>
-          <p className="field-hint">Make sure this is the person you mean. Phone numbers and emails are not verified.</p>
+          <p className="field-hint">{t('Make sure this is the person you mean. Phone numbers and emails are not verified.')}</p>
         </div>
       )}
     </section>

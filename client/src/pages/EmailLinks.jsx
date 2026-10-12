@@ -6,9 +6,10 @@ import PasswordField from '../components/PasswordField.jsx';
 import { Icon } from '../components/ui.jsx';
 import { passwordOk } from '../passwordRules.js';
 import { Shell } from './Auth.jsx';
+import { t } from '../i18n/translate.js';
 
 const home = (user) => (
-  <Link to={user ? '/' : '/login'}>{user ? 'Go to the app' : 'Go to sign in'}</Link>
+  <Link to={user ? '/' : '/login'}>{user ? t('Go to the app') : t('Go to sign in')}</Link>
 );
 
 /**
@@ -39,16 +40,16 @@ export function VerifyEmail() {
   }
 
   return (
-    <Shell title="Confirm your email" subtitle="One last step to turn on email alerts." footer={home(user)}>
+    <Shell title={t('Confirm your email')} subtitle={t('One last step to turn on email alerts.')} footer={home(user)}>
       {state.status === 'done' ? (
         <div className="banner ok" role="status">
           <Icon name="check" />
-          <div>Your email address is confirmed. You can now turn on email alerts under Notifications → Settings.</div>
+          <div>{t('Your email address is confirmed. You can now turn on email alerts under Notifications → Settings.')}</div>
         </div>
       ) : !token ? (
         <div className="banner danger" role="alert">
           <Icon name="alert" />
-          <div>This link is incomplete. Open the link from the email again, or ask for a new one in your profile.</div>
+          <div>{t('This link is incomplete. Open the link from the email again, or ask for a new one in your profile.')}</div>
         </div>
       ) : (
         <>
@@ -59,7 +60,7 @@ export function VerifyEmail() {
             </div>
           )}
           <button className="btn primary block" onClick={confirm} disabled={state.status === 'busy'}>
-            {state.status === 'busy' ? 'Confirming…' : 'Confirm my email address'}
+            {state.status === 'busy' ? t('Confirming…') : t('Confirm my email address')}
           </button>
         </>
       )}
@@ -85,18 +86,18 @@ export function Unsubscribe() {
   }
 
   return (
-    <Shell title="Stop email alerts" subtitle="You will no longer get payment alerts by email." footer={home(user)}>
+    <Shell title={t('Stop email alerts')} subtitle={t('You will no longer get payment alerts by email.')} footer={home(user)}>
       {state.status === 'done' ? (
         <div className="banner ok" role="status">
           <Icon name="check" />
           <div>
-            Email alerts are off. You will still see notifications in the app. You can turn them back on any time under Notifications → Settings.
+            {t('Email alerts are off. You will still see notifications in the app. You can turn them back on any time under Notifications → Settings.')}
           </div>
         </div>
       ) : !token ? (
         <div className="banner danger" role="alert">
           <Icon name="alert" />
-          <div>This link is incomplete. Use the link at the bottom of one of our emails.</div>
+          <div>{t('This link is incomplete. Use the link at the bottom of one of our emails.')}</div>
         </div>
       ) : (
         <>
@@ -107,7 +108,7 @@ export function Unsubscribe() {
             </div>
           )}
           <button className="btn primary block" onClick={go} disabled={state.status === 'busy'}>
-            {state.status === 'busy' ? 'Working…' : 'Turn off email alerts'}
+            {state.status === 'busy' ? t('Working…') : t('Turn off email alerts')}
           </button>
         </>
       )}
@@ -145,8 +146,8 @@ export function ResetPassword() {
 
   async function submit(e) {
     e.preventDefault();
-    if (!valid) return setState({ status: 'error', error: { message: 'Please choose a password that meets all the requirements below.' } });
-    if (confirm !== password) return setState({ status: 'error', error: { message: 'The two passwords do not match.' } });
+    if (!valid) return setState({ status: 'error', error: { message: t('Please choose a password that meets all the requirements below.') } });
+    if (confirm !== password) return setState({ status: 'error', error: { message: t('The two passwords do not match.') } });
     setState({ status: 'busy', error: null });
     try {
       await api.post('/auth/password/reset', { token, new_password: password });
@@ -156,42 +157,42 @@ export function ResetPassword() {
     }
   }
 
-  const footer = user ? home(user) : <Link to="/login">Back to sign in</Link>;
+  const footer = user ? home(user) : <Link to="/login">{t('Back to sign in')}</Link>;
   if (state.status === 'done') {
     return (
-      <Shell title="Password changed" subtitle="You can sign in with it now." footer={null}>
+      <Shell title={t('Password changed')} subtitle={t('You can sign in with it now.')} footer={null}>
         <div className="banner ok" role="status">
           <Icon name="check" />
-          <div>Your password was changed and every device was signed out.</div>
+          <div>{t('Your password was changed and every device was signed out.')}</div>
         </div>
         <button className="btn primary wide" onClick={() => window.location.assign('/login')}>
-          Go to sign in
+          {t('Go to sign in')}
         </button>
       </Shell>
     );
   }
   if (link === 'checking') {
     return (
-      <Shell title="Choose a new password" subtitle="One moment…" footer={footer}>
-        <p className="muted" role="status">Checking your link…</p>
+      <Shell title={t('Choose a new password')} subtitle={t('One moment…')} footer={footer}>
+        <p className="muted" role="status">{t('Checking your link…')}</p>
       </Shell>
     );
   }
   if (link === 'invalid') {
     return (
-      <Shell title="This link has expired" subtitle="Reset links work once and last one hour." footer={footer}>
+      <Shell title={t('This link has expired')} subtitle={t('Reset links work once and last one hour.')} footer={footer}>
         <div className="banner danger" role="alert">
           <Icon name="alert" />
-          <div>This reset link is not valid any more, or was already used. Ask for a new one.</div>
+          <div>{t('This reset link is not valid any more, or was already used. Ask for a new one.')}</div>
         </div>
         <Link className="btn primary wide" to="/forgot-password">
-          Ask for a new link
+          {t('Ask for a new link')}
         </Link>
       </Shell>
     );
   }
   return (
-    <Shell title="Choose a new password" subtitle="You will be signed out everywhere, then you can sign in with it." footer={footer}>
+    <Shell title={t('Choose a new password')} subtitle={t('You will be signed out everywhere, then you can sign in with it.')} footer={footer}>
       <form onSubmit={submit} className="form">
         {state.status === 'error' && (
           <div className="banner danger" role="alert">
@@ -208,10 +209,10 @@ export function ResetPassword() {
             </div>
           </div>
         )}
-        <PasswordField label="New password" value={password} onChange={setPassword} autoComplete="new-password" showRules context={{}} />
-        <PasswordField label="Confirm new password" value={confirm} onChange={setConfirm} autoComplete="new-password" hint={mismatch ? 'The passwords do not match yet.' : undefined} />
+        <PasswordField label={t('New password')} value={password} onChange={setPassword} autoComplete="new-password" showRules context={{}} />
+        <PasswordField label={t('Confirm new password')} value={confirm} onChange={setConfirm} autoComplete="new-password" hint={mismatch ? t('The passwords do not match yet.') : undefined} />
         <button className="btn primary wide" disabled={state.status === 'busy' || !valid || confirm !== password}>
-          {state.status === 'busy' ? 'Saving…' : 'Change my password'}
+          {state.status === 'busy' ? t('Saving…') : t('Change my password')}
         </button>
       </form>
     </Shell>

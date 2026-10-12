@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from './api.js';
 import { useAuth } from './auth.jsx';
+import { t } from './i18n/translate.js';
 
 const Ctx = createContext({ unread: 0, reload: () => {}, version: 0, settings: null, setSettings: () => {} });
 export const useNotifications = () => useContext(Ctx);
@@ -31,7 +32,7 @@ export function NotificationsProvider({ children }) {
         setVersion((v) => v + 1);
         if (settingsRef.current?.browser_push && pushSupported() && Notification.permission === 'granted' && document.visibilityState !== 'visible') {
           try {
-            new Notification('Penny', { body: s.latest_title ?? 'You have a new notification', tag: 'penny' });
+            new Notification(t('Penny'), { body: s.latest_title ?? t('You have a new notification'), tag: 'penny' });
           } catch {
             /* some browsers only allow this from a service worker */
           }

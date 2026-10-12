@@ -2,6 +2,7 @@ import { useId } from 'react';
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useApp } from '../context.jsx';
 import { monthLabel, monthShort } from '../format.js';
+import { t } from '../i18n/translate.js';
 
 const axisProps = {
   tick: { fill: 'var(--ink-3)', fontSize: 12 },
@@ -64,15 +65,15 @@ function MonthTooltip({ active, payload }) {
   if (!active || !payload?.length) return null;
   const r = payload[0].payload;
   const rows = [
-    ['Income', r.income, r.estimatedIncome ? `+ ${money(r.estimatedIncome)} est.` : null],
-    ['Expenses', r.expenses, r.estimatedExpenses ? `+ ${money(r.estimatedExpenses)} est.` : null],
-    ['Net', r.net],
+    [t('Income'), r.income, r.estimatedIncome ? t('+ {money} est.', { money: money(r.estimatedIncome) }) : null],
+    [t('Expenses'), r.expenses, r.estimatedExpenses ? t('+ {money} est.', { money: money(r.estimatedExpenses) }) : null],
+    [t('Net'), r.net],
   ];
   return (
     <div className="tooltip">
       <strong>
         {monthLabel(r.month)}
-        {r.kind === 'actual' ? ' · actual' : r.kind === 'current' ? ' · this month' : ' · forecast'}
+        {r.kind === 'actual' ? t(' · actual') : r.kind === 'current' ? t(' · this month') : t(' · forecast')}
       </strong>
       {rows.map(([label, value, extra]) => (
         <div key={label} className="tooltip-row">
@@ -83,7 +84,7 @@ function MonthTooltip({ active, payload }) {
         </div>
       ))}
       <div className="tooltip-row total">
-        <span>Balance at month end</span>
+        <span>{t('Balance at month end')}</span>
         <span className={`num ${r.endBalance < 0 ? 'neg' : ''}`}>{money(r.endBalance)}</span>
       </div>
     </div>
@@ -100,14 +101,14 @@ export function BalanceChart({ months, height = 260 }) {
   }));
   const min = Math.min(...months.map((m) => m.endBalance));
   const axis = niceAxis(months.map((m) => m.endBalance));
-  const label = `Month-end balance from ${monthLabel(months[0].month)} to ${monthLabel(months.at(-1).month)}; lowest ${money(min)}.`;
+  const label = t('Month-end balance from {monthLabel} to {monthLabel2}; lowest {money}.', { monthLabel: monthLabel(months[0].month), monthLabel2: monthLabel(months.at(-1).month), money: money(min) });
 
   return (
     <div role="img" aria-label={label}>
       <Legend
         items={[
-          { kind: 'line', color: 'var(--series-3)', label: 'Actual balance' },
-          { kind: 'line', color: 'var(--series-3)', dashed: true, label: 'Projected balance' },
+          { kind: 'line', color: 'var(--series-3)', label: t('Actual balance') },
+          { kind: 'line', color: 'var(--series-3)', dashed: true, label: t('Projected balance') },
         ]}
       />
       <ResponsiveContainer width="100%" height={height}>
@@ -131,12 +132,12 @@ export function CashflowChart({ months, showEstimates, height = 260 }) {
   const { money } = useApp();
   const hasEstIncome = months.some((m) => m.estimatedIncome > 0);
   const legend = [
-    { color: 'var(--series-1)', label: 'Income' },
-    { color: 'var(--series-2)', label: 'Expenses' },
+    { color: 'var(--series-1)', label: t('Income') },
+    { color: 'var(--series-2)', label: t('Expenses') },
   ];
-  if (showEstimates) legend.push({ color: 'var(--series-2)', hatched: true, label: 'Estimated variable spending' });
+  if (showEstimates) legend.push({ color: 'var(--series-2)', hatched: true, label: t('Estimated variable spending') });
   return (
-    <div role="img" aria-label="Income and expenses per month. See the table below for exact values.">
+    <div role="img" aria-label={t('Income and expenses per month. See the table below for exact values.')}>
       <Legend items={legend} />
       <ResponsiveContainer width="100%" height={height}>
         <BarChart data={months} margin={{ top: 8, right: 12, bottom: 0, left: 0 }} barGap={2} barCategoryGap="22%">
@@ -177,7 +178,7 @@ export function Sparkline({ months, height = 56 }) {
   const x = (i) => pad + (i * (w - pad * 2)) / (vals.length - 1);
   const y = (v) => pad + ((hi - v) * (height - pad * 2)) / span;
   const pts = vals.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
-  const label = `Month-end balance trend from ${monthLabel(months[0].month)} to ${monthLabel(months.at(-1).month)}; lowest ${money(Math.min(...vals))}, highest ${money(Math.max(...vals))}.`;
+  const label = t('Month-end balance trend from {monthLabel} to {monthLabel2}; lowest {money}, highest {money2}.', { monthLabel: monthLabel(months[0].month), monthLabel2: monthLabel(months.at(-1).month), money: money(Math.min(...vals)), money2: money(Math.max(...vals)) });
   return (
     <svg className="spark" viewBox={`0 0 ${w} ${height}`} preserveAspectRatio="none" role="img" aria-label={label}>
       <line x1="0" x2={w} y1={y(0)} y2={y(0)} className="spark-zero" />

@@ -459,6 +459,27 @@ html {
 .ask-btn:hover svg {
   transform: scaleX(1.18);
 }
+.lang-quick {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: var(--r-2);
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--fs-2);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease), color var(--t-fast) var(--ease);
+}
+.lang-quick:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
 .avatar-btn {
   display: inline-flex;
   padding: 2px;
@@ -948,8 +969,12 @@ html {
   }
   .search-text,
   .search-keys,
-  .ask-label {
+  .ask-label,
+  .lang-quick svg {
     display: none;
+  }
+  .lang-quick {
+    padding: 0 8px;
   }
   .ask-btn {
     width: 36px;
@@ -1032,3 +1057,11 @@ html {
     padding-top: 6vh;
   }
 }
+
+/* The language links on the public pages and the sign-in pages (docs/DESIGN.md section 46) */
+.lang-links { display: inline-flex; gap: 4px; align-items: center; font-size: var(--fs-2); }
+.lang-links a,
+.lang-links button { padding: 4px 8px; border-radius: var(--r-1); color: var(--ink-2); text-decoration: none; background: none; border: 0; cursor: pointer; font: inherit; }
+.lang-links a:hover,
+.lang-links button:hover { color: var(--ink); background: var(--hover); }
+.lang-links .on { color: var(--ink); font-weight: 600; }

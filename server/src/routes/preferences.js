@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { query } from '../db.js';
 import { wrap } from '../lib/http.js';
+import { rememberLanguage } from '../lib/i18n.js';
 
 /** User-level: interface choices that follow the person around (layout, density, accent, sidebar…), and "active now" status. */
 const router = Router();
@@ -26,6 +27,7 @@ const schema = z
     favorites: z.array(z.enum(ROUTES)).max(ROUTES.length).refine((a) => new Set(a).size === a.length, 'no duplicates'),
     avatar_style: z.enum(['photo', 'initials', 'generated', 'illustrated']),
     assistant_intro_seen: z.boolean(),
+    language: z.enum(['en', 'it']),
     collapsed: z.array(widget).max(WIDGETS.length).refine((a) => new Set(a).size === a.length, 'no duplicates'),
   })
   .partial()
@@ -50,6 +52,7 @@ router.put(
        RETURNING data`,
       [req.user.id, JSON.stringify(patch)],
     );
+    if (patch.language) rememberLanguage(req.user.id, patch.language);
     res.json(rows[0].data);
   }),
 );
@@ -58,6 +61,7 @@ router.delete(
   '/preferences',
   wrap(async (req, res) => {
     await query('DELETE FROM user_preferences WHERE user_id = $1', [req.user.id]);
+    rememberLanguage(req.user.id, 'en');
     res.status(204).end();
   }),
 );

@@ -8,6 +8,7 @@ import { attachAlerts } from '../lib/alerts.js';
 import { formatMoney } from '../lib/emailTemplates.js';
 import { notify, notifyMany } from '../lib/notifications.js';
 import { briefUser, usernameField } from '../lib/profile.js';
+import { t } from '../lib/i18n.js';
 
 const router = Router();
 
@@ -54,15 +55,15 @@ const findOne = async (workspaceId, id) =>
  * How a payment was paid. `date` is always the day the money leaves the account; a credit card payment also remembers the day it was
  * bought (`charged_on`). `current` is the stored row when editing, so leaving a field out keeps what is there.
  */
-function cardFields(t, current) {
-  const method = t.pay_method ?? current?.pay_method ?? 'cash';
+function cardFields(tt, current) {
+  const method = tt.pay_method ?? current?.pay_method ?? 'cash';
   if (method === 'cash') {
-    if (t.charged_on) throw new HttpError(400, 'A purchase date only applies to credit card payments.');
+    if (tt.charged_on) throw new HttpError(400, t('A purchase date only applies to credit card payments.'));
     return { pay_method: 'cash', charged_on: null };
   }
-  if (t.type !== 'expense') throw new HttpError(400, 'Only expenses can be paid with a credit card.');
-  const chargedOn = t.charged_on ?? current?.charged_on ?? t.date;
-  if (chargedOn > t.date) throw new HttpError(400, 'The purchase date cannot be after the day the card bill is paid.');
+  if (tt.type !== 'expense') throw new HttpError(400, t('Only expenses can be paid with a credit card.'));
+  const chargedOn = tt.charged_on ?? current?.charged_on ?? tt.date;
+  if (chargedOn > tt.date) throw new HttpError(400, t('The purchase date cannot be after the day the card bill is paid.'));
   return { pay_method: 'credit_card', charged_on: chargedOn };
 }
 
@@ -74,7 +75,7 @@ async function resolveMember(workspaceId, defaultUserId, username) {
      WHERE lower(u.username) = $2`,
     [workspaceId, username],
   );
-  if (!rows[0]) throw new HttpError(400, `@${username} is not a member of this budget.`);
+  if (!rows[0]) throw new HttpError(400, t('@{username} is not a member of this budget.', { username }));
   return rows[0].id;
 }
 
@@ -96,9 +97,9 @@ async function resolveParticipants(creatorId, workspaceId, participants, amount)
   );
   const byName = new Map(rows.map((r) => [r.username, r.id]));
   const missing = wanted.find((p) => !byName.has(p.username));
-  if (missing) throw new HttpError(400, `@${missing.username} is not one of your connections. Add them under People first.`);
+  if (missing) throw new HttpError(400, t('@{username} is not one of your connections. Add them under People first.', { username: missing.username }));
   const total = wanted.reduce((s, p) => s + Math.round(p.share * 100), 0);
-  if (total > Math.round(amount * 100)) throw new HttpError(400, 'The shares add up to more than the payment amount.');
+  if (total > Math.round(amount * 100)) throw new HttpError(400, t('The shares add up to more than the payment amount.'));
   return wanted.map((p) => ({ id: byName.get(p.username), share: p.share }));
 }
 
@@ -117,13 +118,13 @@ async function saveParticipants(client, transactionId, people) {
 }
 
 /** Tell people they were added to a payment, and (optionally) tell the rest of a shared budget about a new payment. */
-async function announce(req, id, t, newcomers, { created }) {
+async function announce(req, id, tt, newcomers, { created }) {
   const currency = (await query('SELECT currency FROM workspace_settings WHERE workspace_id = $1', [req.workspace.id])).rows[0]?.currency ?? 'USD';
   for (const p of newcomers) {
     await notify(p.id, {
       kind: 'payment_shared',
-      title: `${req.user.name} added you to "${t.description}"`,
-      body: `Your share: ${formatMoney(p.share, currency)} of ${formatMoney(t.amount, currency)}`,
+      title: () => t('{name} added you to "{description}"', { name: req.user.name, description: tt.description }),
+      body: () => t('Your share: {formatMoney} of {formatMoney2}', { formatMoney: formatMoney(p.share, currency), formatMoney2: formatMoney(tt.amount, currency) }),
       link: '/people?tab=shared',
       data: { transaction_id: id, share: p.share, from: briefUser(req.user) },
       dedupeKey: `shared:${id}`,
@@ -133,8 +134,8 @@ async function announce(req, id, t, newcomers, { created }) {
     const others = (await query('SELECT user_id FROM workspace_members WHERE workspace_id = $1 AND user_id <> $2', [req.workspace.id, req.user.id])).rows.map((r) => r.user_id);
     await notifyMany(others, {
       kind: 'group_activity',
-      title: `${req.user.name} added "${t.description}"`,
-      body: `${t.type === 'income' ? '+' : '−'}${formatMoney(t.amount, currency)} in ${req.workspace.name}`,
+      title: () => t('{name} added "{description}"', { name: req.user.name, description: tt.description }),
+      body: () => t('{sign}{amount} in {name}', { sign: tt.type === 'income' ? '+' : '−', amount: formatMoney(tt.amount, currency), name: req.workspace.name }),
       link: '/payments',
       data: { transaction_id: id, workspace_id: req.workspace.id },
       dedupeKey: `act:${id}`,
@@ -151,7 +152,7 @@ function filters(q, workspaceId) {
     where.push(sql.replace('?', `$${params.length}`));
   };
   if (q.month) {
-    if (!isValidYM(q.month)) throw new HttpError(400, 'month must be YYYY-MM');
+    if (!isValidYM(q.month)) throw new HttpError(400, t('month must be YYYY-MM'));
     if (q.bought === '1') {
       // also the credit card payments that were bought this month and are paid (counted) in another one
       params.push(monthStart(q.month), monthEnd(q.month));
@@ -168,7 +169,7 @@ function filters(q, workspaceId) {
   if (q.type) add('t.type = ?', txType.parse(q.type));
   if (q.member) add('lower(mu.username) = ?', usernameField.parse(q.member));
   if (q.pay) {
-    if (!['credit_card', 'cash'].includes(q.pay)) throw new HttpError(400, 'pay must be credit_card or cash');
+    if (!['credit_card', 'cash'].includes(q.pay)) throw new HttpError(400, t('pay must be credit_card or cash'));
     add('t.pay_method = ?', q.pay);
   }
   if (q.category_id === 'none') where.push('t.category_id IS NULL');
@@ -240,23 +241,23 @@ router.get(
 router.post(
   '/transactions',
   wrap(async (req, res) => {
-    const t = baseSchema.parse(req.body);
+    const tt = baseSchema.parse(req.body);
     const ws = req.workspace.id;
-    await assertOwnCategory(ws, t.category_id);
-    const memberId = await resolveMember(ws, req.user.id, t.paid_by);
-    const people = await resolveParticipants(req.user.id, ws, t.participants ?? [], t.amount);
-    const card = cardFields(t, null);
-    const status = t.status ?? (t.date <= todayYMD() ? 'paid' : 'pending');
+    await assertOwnCategory(ws, tt.category_id);
+    const memberId = await resolveMember(ws, req.user.id, tt.paid_by);
+    const people = await resolveParticipants(req.user.id, ws, tt.participants ?? [], tt.amount);
+    const card = cardFields(tt, null);
+    const status = tt.status ?? (tt.date <= todayYMD() ? 'paid' : 'pending');
     const { id, newcomers } = await withTransaction(async (client) => {
       const { rows } = await client.query(
         `INSERT INTO transactions (user_id, workspace_id, member_id, type, description, amount, category_id, date, status, note, pay_method, charged_on)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
-        [req.user.id, ws, memberId, t.type, t.description, t.amount, t.category_id ?? null, t.date, status, t.note || null, card.pay_method, card.charged_on],
+        [req.user.id, ws, memberId, tt.type, tt.description, tt.amount, tt.category_id ?? null, tt.date, status, tt.note || null, card.pay_method, card.charged_on],
       );
       const added = people.length ? await saveParticipants(client, rows[0].id, people) : [];
       return { id: rows[0].id, newcomers: added };
     });
-    await announce(req, id, t, newcomers, { created: true });
+    await announce(req, id, tt, newcomers, { created: true });
     res.status(201).json(await findOne(ws, id));
   }),
 );
@@ -265,19 +266,19 @@ router.put(
   '/transactions/:id',
   wrap(async (req, res) => {
     const id = idParam(req);
-    const t = baseSchema.parse(req.body);
+    const tt = baseSchema.parse(req.body);
     const ws = req.workspace.id;
     const existing = (await query('SELECT user_id, member_id, pay_method, charged_on FROM transactions WHERE id = $1 AND workspace_id = $2', [id, ws])).rows[0];
-    if (!existing) throw new HttpError(404, 'Transaction not found');
-    await assertOwnCategory(ws, t.category_id);
-    const card = cardFields(t, existing);
-    const memberId = t.paid_by === undefined ? existing.member_id : await resolveMember(ws, req.user.id, t.paid_by);
-    const people = t.participants === undefined ? null : await resolveParticipants(existing.user_id ?? req.user.id, ws, t.participants, t.amount);
+    if (!existing) throw new HttpError(404, t('Transaction not found'));
+    await assertOwnCategory(ws, tt.category_id);
+    const card = cardFields(tt, existing);
+    const memberId = tt.paid_by === undefined ? existing.member_id : await resolveMember(ws, req.user.id, tt.paid_by);
+    const people = tt.participants === undefined ? null : await resolveParticipants(existing.user_id ?? req.user.id, ws, tt.participants, tt.amount);
     if (people === null) {
       // Participants are left as they are, so the new amount must still cover their shares.
       const { rows } = await query('SELECT COALESCE(sum(share), 0)::float8 AS total FROM transaction_participants WHERE transaction_id = $1', [id]);
-      if (Math.round(rows[0].total * 100) > Math.round(t.amount * 100)) {
-        throw new HttpError(400, 'The amount is lower than the shares already given to the people on this payment. Adjust their shares too.');
+      if (Math.round(rows[0].total * 100) > Math.round(tt.amount * 100)) {
+        throw new HttpError(400, t('The amount is lower than the shares already given to the people on this payment. Adjust their shares too.'));
       }
     }
     let newcomers = [];
@@ -287,11 +288,11 @@ router.put(
          SET type = $1, description = $2, amount = $3, category_id = $4, date = $5,
              status = COALESCE($6, status), note = $7, member_id = $8, pay_method = $9, charged_on = $10, updated_at = now()
          WHERE id = $11 AND workspace_id = $12`,
-        [t.type, t.description, t.amount, t.category_id ?? null, t.date, t.status ?? null, t.note || null, memberId, card.pay_method, card.charged_on, id, ws],
+        [tt.type, tt.description, tt.amount, tt.category_id ?? null, tt.date, tt.status ?? null, tt.note || null, memberId, card.pay_method, card.charged_on, id, ws],
       );
       if (people) newcomers = await saveParticipants(client, id, people);
     });
-    await announce(req, id, t, newcomers, { created: false });
+    await announce(req, id, tt, newcomers, { created: false });
     res.json(await findOne(ws, id));
   }),
 );
@@ -305,7 +306,7 @@ router.patch(
       'UPDATE transactions SET status = $1, updated_at = now() WHERE id = $2 AND workspace_id = $3',
       [status, id, req.workspace.id],
     );
-    if (!rowCount) throw new HttpError(404, 'Transaction not found');
+    if (!rowCount) throw new HttpError(404, t('Transaction not found'));
     res.json(await findOne(req.workspace.id, id));
   }),
 );
@@ -320,7 +321,7 @@ router.delete(
       req.workspace.id,
     ]);
     const tx = rows[0];
-    if (!tx) throw new HttpError(404, 'Transaction not found');
+    if (!tx) throw new HttpError(404, t('Transaction not found'));
     if (tx.recurring_id && tx.status !== 'skipped' && req.query.hard !== '1') {
       await query(`UPDATE transactions SET status = 'skipped', updated_at = now() WHERE id = $1`, [id]);
       return res.json({ skipped: true });

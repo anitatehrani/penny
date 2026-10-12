@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { effectiveTheme } from '../theme.js';
+import { t } from '../i18n/translate.js';
 
 // hl=en: the rest of Penny is in English, so the button should be too (otherwise it follows the browser's language)
 const SRC = 'https://accounts.google.com/gsi/client?hl=en';
@@ -14,7 +15,7 @@ function loadGoogle() {
     s.onload = resolve;
     s.onerror = () => {
       loading = undefined;
-      reject(new Error('Could not load Google sign-in. Check your internet connection or ad blocker.'));
+      reject(new Error(t('Could not load Google sign-in. Check your internet connection or ad blocker.')));
     };
     document.head.appendChild(s);
   });

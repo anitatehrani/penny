@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useMemo, useState } from 'react';
 import TransactionForm from './components/TransactionForm.jsx';
 import { Modal } from './components/ui.jsx';
+import { t } from './i18n/translate.js';
 
 const Ctx = createContext({ version: 0, bump: () => {}, openAddPayment: () => {} });
 export const useQuick = () => useContext(Ctx);
@@ -20,7 +21,7 @@ export function QuickProvider({ children }) {
     <Ctx.Provider value={value}>
       {children}
       {adding && (
-        <Modal title="Add payment" onClose={() => setAdding(null)}>
+        <Modal title={t('Add payment')} onClose={() => setAdding(null)}>
           <TransactionForm
             defaultDate={adding.defaultDate}
             onCancel={() => setAdding(null)}

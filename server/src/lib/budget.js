@@ -6,6 +6,8 @@ import { query } from '../db.js';
 import { addMonthsYM, daysInMonth, monthEnd, monthOf, monthStart, parseYMD, todayYMD } from './dates.js';
 import { makeFmt, monthName } from './insights.js';
 import { workspaceSettings } from './forecastService.js';
+import { catName } from './categoryNames.js';
+import { t, tn } from './i18n.js';
 
 const round2 = (n) => Math.round(n * 100) / 100;
 const EPS = 0.005;
@@ -137,7 +139,7 @@ export function buildBudgetView({ month, today, categories, budgets, current, hi
   };
 
   const lines = categories.map(line);
-  const none = current.has(0) ? [line({ id: null, name: 'Uncategorized', color: '#8a8a85' })] : [];
+  const none = current.has(0) ? [line({ id: null, name: t('Uncategorized'), color: '#8a8a85' })] : [];
   const budgeted = lines.filter((l) => l.budget !== null);
   const sum = (arr, f) => round2(arr.reduce((s, l) => s + f(l), 0));
   const unbudgeted = [...lines.filter((l) => l.budget === null && (l.spent > 0 || l.planned > 0)), ...none.filter((l) => l.spent > 0 || l.planned > 0)];
@@ -176,13 +178,13 @@ export function buildBudgetView({ month, today, categories, budgets, current, hi
 // what is worth saying (pure)
 // ------------------------------------------------------------------------------------------------
 const SEVERITY = { alert: 0, watch: 1, info: 2, good: 3 };
-const list = (names) => (names.length <= 1 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`);
+const list = (names) => (names.length <= 1 ? names.join('') : t('{join} and {at}', { join: names.slice(0, -1).join(', '), at: names.at(-1) }));
 
 /** Plain sentences about a month's budget, most important first: [{ key, severity, text, categoryId }]. */
 export function analyse(view, currency) {
   const fmt = makeFmt(currency);
   const out = [];
-  const t = view.totals;
+  const tt = view.totals;
   const add = (key, severity, text, categoryId = null) => out.push({ key, severity, text, categoryId });
   const budgeted = view.lines.filter((l) => l.budget !== null);
   if (!budgeted.length) return out;
@@ -193,7 +195,15 @@ export function analyse(view, currency) {
   const close = budgeted.filter((l) => l.status === 'close');
 
   for (const l of over.sort((a, b) => b.spent - b.budget - (a.spent - a.budget))) {
-    add(`over:${l.id}`, 'alert', `${l.name} is over its budget by ${fmt(l.spent - l.budget)}: ${fmt(l.spent)} spent of ${fmt(l.budget)}${l.budget > 0 ? ` (${l.percent}%)` : ''}.`, l.id);
+    const by = fmt(l.spent - l.budget);
+    add(
+      `over:${l.id}`,
+      'alert',
+      l.budget > 0
+        ? t('{name} is over its budget by {by}: {spent} spent of {budget} ({percent}%).', { name: catName(l.name), by, spent: fmt(l.spent), budget: fmt(l.budget), percent: l.percent })
+        : t('{name} is over its budget by {by}: {spent} spent of {budget}.', { name: catName(l.name), by, spent: fmt(l.spent), budget: fmt(l.budget) }),
+      l.id,
+    );
   }
   if (view.phase === 'current') {
     for (const l of heading) {
@@ -202,34 +212,62 @@ export function analyse(view, currency) {
         `heading:${l.id}`,
         'watch',
         plannedAlone
-          ? `${l.name}: what is spent and already planned comes to ${fmt(l.spent + l.planned)}, which is ${fmt(l.spent + l.planned - l.budget)} over its budget of ${fmt(l.budget)}.`
-          : `At this pace ${l.name} will end the month around ${fmt(l.expected)}, about ${fmt(l.expected - l.budget)} over its budget of ${fmt(l.budget)}.`,
+          ? t('{name}: what is spent and already planned comes to {fmt}, which is {fmt2} over its budget of {fmt3}.', { name: l.name, fmt: fmt(l.spent + l.planned), fmt2: fmt(l.spent + l.planned - l.budget), fmt3: fmt(l.budget) })
+          : t('At this pace {name} will end the month around {fmt}, about {fmt2} over its budget of {fmt3}.', { name: l.name, fmt: fmt(l.expected), fmt2: fmt(l.expected - l.budget), fmt3: fmt(l.budget) }),
         l.id,
       );
     }
     for (const l of close) {
-      add(`close:${l.id}`, 'watch', `${l.name} has used ${l.percent}% of its budget, with ${fmt(l.left)} left for ${view.remainingDays} more day${view.remainingDays === 1 ? '' : 's'}.`, l.id);
+      add(`close:${l.id}`, 'watch', tn(view.remainingDays, '{name} has used {percent}% of its budget, with {fmt} left for {n} more day.', '{name} has used {percent}% of its budget, with {fmt} left for {n} more days.', { name: l.name, percent: l.percent, fmt: fmt(l.left) }), l.id);
     }
   } else if (view.phase === 'future') {
-    for (const l of heading) add(`heading:${l.id}`, 'watch', `${l.name}: the payments already planned for ${label} come to ${fmt(l.planned)}, more than its budget of ${fmt(l.budget)}.`, l.id);
+    for (const l of heading) add(`heading:${l.id}`, 'watch', t('{name}: the payments already planned for {label} come to {fmt}, more than its budget of {fmt2}.', { name: l.name, label, fmt: fmt(l.planned), fmt2: fmt(l.budget) }), l.id);
   }
 
-  if (t.unbudgetedSpent + t.unbudgetedPlanned > EPS) {
+  if (tt.unbudgetedSpent + tt.unbudgetedPlanned > EPS) {
     const names = view.lines.filter((l) => l.budget === null && (l.spent > 0 || l.planned > 0)).map((l) => l.name);
-    add('unbudgeted', 'info', `${fmt(t.unbudgetedSpent + (view.phase === 'past' ? 0 : t.unbudgetedPlanned))} ${view.phase === 'past' ? 'went' : 'is going'} on ${names.length === 1 ? 'a category' : 'categories'} with no budget: ${names.length > 4 ? `${names.slice(0, 4).join(', ')} and ${names.length - 4} more` : list(names)}.`);
+    const amount = fmt(tt.unbudgetedSpent + (view.phase === 'past' ? 0 : tt.unbudgetedPlanned));
+    const shown = names.map(catName);
+    const where = shown.length > 4 ? t('{join} and {n} more', { join: shown.slice(0, 4).join(', '), n: shown.length - 4 }) : list(shown);
+    add(
+      'unbudgeted',
+      'info',
+      view.phase === 'past'
+        ? tn(names.length, '{amount} went on a category with no budget: {names}.', '{amount} went on categories with no budget: {names}.', { amount, names: where })
+        : tn(names.length, '{amount} is going on a category with no budget: {names}.', '{amount} is going on categories with no budget: {names}.', { amount, names: where }),
+    );
   }
-  if (t.income > 0) {
-    if (t.unallocated < -EPS) add('over-allocated', 'watch', `Your budgets add up to ${fmt(t.budget)}, which is ${fmt(-t.unallocated)} more than the income you expect in ${label} (${fmt(t.income)}).`);
-    else if (t.unallocated > EPS) add('unallocated', 'info', `${fmt(t.unallocated)} of the income you expect in ${label} is not in any budget yet.`);
+  if (tt.income > 0) {
+    if (tt.unallocated < -EPS) add('over-allocated', 'watch', t('Your budgets add up to {fmt}, which is {fmt2} more than the income you expect in {label} ({fmt3}).', { fmt: fmt(tt.budget), fmt2: fmt(-tt.unallocated), label, fmt3: fmt(tt.income) }));
+    else if (tt.unallocated > EPS) add('unallocated', 'info', t('{fmt} of the income you expect in {label} is not in any budget yet.', { fmt: fmt(tt.unallocated), label }));
   }
 
   if (view.phase === 'past') {
     const within = budgeted.length - over.length;
-    add('review', over.length ? 'info' : 'good', `You stayed within budget in ${within} of ${budgeted.length} categories in ${label}. In all you spent ${fmt(t.spent)} of ${fmt(t.budget)}${t.left >= 0 ? `, ${fmt(t.left)} less than planned` : `, ${fmt(-t.left)} more than planned`}.`);
+    add(
+      'review',
+      over.length ? 'info' : 'good',
+      tt.left >= 0
+        ? t('You stayed within budget in {within} of {length} categories in {label}. In all you spent {spent} of {budget}, {diff} less than planned.', { within, length: budgeted.length, label, spent: fmt(tt.spent), budget: fmt(tt.budget), diff: fmt(tt.left) })
+        : t('You stayed within budget in {within} of {length} categories in {label}. In all you spent {spent} of {budget}, {diff} more than planned.', { within, length: budgeted.length, label, spent: fmt(tt.spent), budget: fmt(tt.budget), diff: fmt(-tt.left) }),
+    );
     const best = budgeted.filter((l) => l.status !== 'over' && l.budget - l.spent > EPS).sort((a, b) => b.budget - b.spent - (a.budget - a.spent))[0];
-    if (best && !over.length) add('best', 'good', `The most left over was in ${best.name}: ${fmt(best.budget - best.spent)}.`, best.id);
+    if (best && !over.length) add('best', 'good', t('The most left over was in {name}: {amount}.', { name: catName(best.name), amount: fmt(best.budget - best.spent) }), best.id);
   } else if (!over.length && !heading.length && !close.length) {
-    add('on-track', 'good', `${budgeted.length === 1 ? 'Your budgeted category is' : `All ${budgeted.length} budgeted categories are`} on track${view.phase === 'current' ? `, with ${fmt(Math.max(0, t.left))} left of ${fmt(t.budget)} and ${view.remainingDays} day${view.remainingDays === 1 ? '' : 's'} to go` : ''}.`);
+    const days = view.phase === 'current';
+    const left = fmt(Math.max(0, tt.left));
+    const budget = fmt(tt.budget);
+    add(
+      'on-track',
+      'good',
+      budgeted.length === 1
+        ? days
+          ? tn(view.remainingDays, 'Your budgeted category is on track, with {left} left of {budget} and {n} day to go.', 'Your budgeted category is on track, with {left} left of {budget} and {n} days to go.', { left, budget })
+          : t('Your budgeted category is on track.')
+        : days
+          ? tn(view.remainingDays, 'All {count} budgeted categories are on track, with {left} left of {budget} and {n} day to go.', 'All {count} budgeted categories are on track, with {left} left of {budget} and {n} days to go.', { count: budgeted.length, left, budget })
+          : t('All {count} budgeted categories are on track.', { count: budgeted.length }),
+    );
   }
   return out.sort((a, b) => SEVERITY[a.severity] - SEVERITY[b.severity]);
 }

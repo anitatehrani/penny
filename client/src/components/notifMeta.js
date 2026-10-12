@@ -1,3 +1,4 @@
+import { t } from '../i18n/translate.js';
 // How each kind of notification looks (icon + tone) and which group it belongs to.
 // Shared by the notification centre, the Notifications page and the settings.
 export const KIND_ICON = {
@@ -31,9 +32,9 @@ export const KIND_TONE = {
 };
 
 export const GROUPS = [
-  { id: 'payments', label: 'Payments', icon: 'clock', kinds: ['payment_due', 'payment_overdue', 'balance_warning', 'forecast_warning', 'budget_alert'] },
-  { id: 'ai', label: 'AI insights', icon: 'signal', kinds: ['ai_insight', 'summary_weekly', 'summary_monthly'] },
-  { id: 'people', label: 'People & budgets', icon: 'users', kinds: ['connection_request', 'connection_accepted', 'group_invite', 'group_change', 'payment_shared', 'group_activity'] },
-  { id: 'account', label: 'Account & system', icon: 'shield', kinds: ['security', 'system'] },
+  { id: 'payments', get label() { return t('Payments'); }, icon: 'clock', kinds: ['payment_due', 'payment_overdue', 'balance_warning', 'forecast_warning', 'budget_alert'] },
+  { id: 'ai', get label() { return t('AI insights'); }, icon: 'signal', kinds: ['ai_insight', 'summary_weekly', 'summary_monthly'] },
+  { id: 'people', get label() { return t('People & budgets'); }, icon: 'users', kinds: ['connection_request', 'connection_accepted', 'group_invite', 'group_change', 'payment_shared', 'group_activity'] },
+  { id: 'account', get label() { return t('Account & system'); }, icon: 'shield', kinds: ['security', 'system'] },
 ];
 export const groupOf = (kind) => GROUPS.find((g) => g.kinds.includes(kind))?.id ?? 'account';

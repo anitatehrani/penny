@@ -1,3 +1,4 @@
+import { t } from './i18n.js';
 // Asking an outside AI service for an answer (docs/DESIGN.md section 42). Only OpenRouter, only its FREE models, only when the person who runs the
 // site has put OPENROUTER_API_KEY in .env, and (see aiAnswer.js) only for budgets whose every member switched it on.
 // This file knows nothing about budgets: it sends the messages it is given and returns plain text. The key is never logged or sent anywhere else.
@@ -50,8 +51,8 @@ export class AiError extends Error {
 
 /** The words shown to the person when the service could not answer (the built-in answer follows). */
 export const AI_NOTES = {
-  limit: 'The free AI service has reached its limit for now, so this answer comes from Penny’s built-in rules.',
-  default: 'The AI service could not answer just now, so this answer comes from Penny’s built-in rules.',
+  get limit() { return t('The free AI service has reached its limit for now, so this answer comes from Penny’s built-in rules.'); },
+  get default() { return t('The AI service could not answer just now, so this answer comes from Penny’s built-in rules.'); },
 };
 export const aiNote = (kind) => AI_NOTES[kind] ?? AI_NOTES.default;
 
@@ -68,7 +69,7 @@ const roll = () => {
 export function takeAllowance(userId, config = aiConfig()) {
   roll();
   const mine = usage.people.get(userId) ?? 0;
-  if ((config.dailyLimit && usage.total >= config.dailyLimit) || (config.personDailyLimit && mine >= config.personDailyLimit)) throw new AiError('limit', 'daily allowance used up');
+  if ((config.dailyLimit && usage.total >= config.dailyLimit) || (config.personDailyLimit && mine >= config.personDailyLimit)) throw new AiError('limit', t('daily allowance used up'));
   usage.total += 1;
   usage.people.set(userId, mine + 1);
 }

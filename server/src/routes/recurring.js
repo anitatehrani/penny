@@ -6,6 +6,7 @@ import { materializeRule, resetRule } from '../lib/materialize.js';
 import { assertOwnCategory } from '../lib/ownership.js';
 import { usernameField } from '../lib/profile.js';
 import { nthOccurrence } from '../lib/schedule.js';
+import { t } from '../lib/i18n.js';
 
 const router = Router();
 
@@ -26,16 +27,16 @@ const schema = z
   })
   .refine((r) => !r.end_date || r.end_date >= r.start_date, {
     path: ['end_date'],
-    message: 'must not be before the start date',
+    get message() { return t('must not be before the start date'); },
   })
   .refine((r) => !(r.end_date && r.ends_after), {
     path: ['ends_after'],
-    message: 'choose either an end date or a number of payments, not both',
+    get message() { return t('choose either an end date or a number of payments, not both'); },
   })
   .transform((r) => {
     if (!r.ends_after) return r;
     const last = nthOccurrence(r, r.ends_after);
-    if (last > '2200-12-31') throw new HttpError(400, 'The last payment would be too far in the future.');
+    if (last > '2200-12-31') throw new HttpError(400, t('The last payment would be too far in the future.'));
     return { ...r, end_date: last };
   });
 
@@ -59,7 +60,7 @@ async function resolveMember(workspaceId, defaultUserId, username) {
     `SELECT u.id FROM users u JOIN workspace_members m ON m.user_id = u.id AND m.workspace_id = $1 WHERE lower(u.username) = $2`,
     [workspaceId, username],
   );
-  if (!rows[0]) throw new HttpError(400, `@${username} is not a member of this budget.`);
+  if (!rows[0]) throw new HttpError(400, t('@{username} is not a member of this budget.', { username }));
   return rows[0].id;
 }
 
@@ -112,7 +113,7 @@ router.put(
     const r = schema.parse(req.body);
     await assertOwnCategory(req.workspace.id, r.category_id);
     const existing = (await query('SELECT member_id FROM recurring_rules WHERE id = $1 AND workspace_id = $2', [id, req.workspace.id])).rows[0];
-    if (!existing) throw new HttpError(404, 'Recurring item not found');
+    if (!existing) throw new HttpError(404, t('Recurring item not found'));
     const memberId = r.paid_by === undefined ? existing.member_id : await resolveMember(req.workspace.id, req.user.id, r.paid_by);
     const { rows } = await query(
       `UPDATE recurring_rules SET type=$1, description=$2, amount=$3, category_id=$4, frequency=$5,
@@ -131,7 +132,7 @@ router.delete(
     const id = idParam(req);
     await withTransaction(async (client) => {
       const owned = await client.query('SELECT 1 FROM recurring_rules WHERE id = $1 AND workspace_id = $2', [id, req.workspace.id]);
-      if (!owned.rowCount) throw new HttpError(404, 'Recurring item not found');
+      if (!owned.rowCount) throw new HttpError(404, t('Recurring item not found'));
       // Unpaid occurrences go away with the rule; paid history stays (rule link is nulled).
       await client.query(`DELETE FROM transactions WHERE recurring_id = $1 AND status IN ('pending', 'skipped')`, [id]);
       await client.query('DELETE FROM recurring_rules WHERE id = $1', [id]);

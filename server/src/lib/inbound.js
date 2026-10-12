@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { query } from '../db.js';
 import { getSecret } from './secret.js';
 import { notify } from './notifications.js';
+import { t } from './i18n.js';
 
 /**
  * Replies to an admin's answer come back into the Messages tab (docs/DESIGN.md section 40).
@@ -105,7 +106,7 @@ export async function takeIncoming(item) {
   await query('UPDATE contact_messages SET read_at = NULL, archived_at = NULL WHERE id = $1', [messageId]);
   const admins = (await query('SELECT id FROM users WHERE is_admin AND suspended_at IS NULL')).rows;
   for (const a of admins) {
-    await notify(a.id, { kind: 'system', title: 'New reply', body: `${m.name} replied to your answer.`, link: '/admin?tab=messages', dedupeKey: `contact-reply:${rows[0].id}` }).catch((e) => console.error('inbound: could not notify an admin -', e.message));
+    await notify(a.id, { kind: 'system', title: () => t('New reply'), body: () => t('{name} replied to your answer.', { name: m.name }), link: '/admin?tab=messages', dedupeKey: `contact-reply:${rows[0].id}` }).catch((e) => console.error('inbound: could not notify an admin -', e.message));
   }
   return 'stored';
 }

@@ -7,11 +7,12 @@ import { AI_FOLLOW_UPS, aiAccess, answerWithAi, setAiAnswers } from '../lib/aiAn
 import { answerQuestion } from '../lib/assistant.js';
 import { HttpError, wrap } from '../lib/http.js';
 import { buildCompare, buildInsights, buildSummary, gatherFacts } from '../lib/insights.js';
+import { t } from '../lib/i18n.js';
 
 /** Budget-scoped: the assistant's insights, month summary, and answers to typed questions. */
 const router = Router();
 
-const askLimiter = rateLimit({ windowMs: 60_000, max: 40, keyFn: (req) => `ask:${req.user.id}`, message: 'You are asking quickly. Wait a moment and try again.' });
+const askLimiter = rateLimit({ windowMs: 60_000, max: 40, keyFn: (req) => `ask:${req.user.id}`, get message() { return t('You are asking quickly. Wait a moment and try again.'); } });
 const keySchema = z.string().regex(/^[a-z0-9:_-]{1,80}$/i, 'Not a valid insight');
 
 router.get(
@@ -85,8 +86,8 @@ router.put(
   '/assistant/ai',
   wrap(async (req, res) => {
     const { on } = z.object({ on: z.boolean() }).strict().parse(req.body);
-    if (req.impersonation) throw new HttpError(403, 'You cannot change this for someone else.');
-    if (on && !aiConfig().enabled) throw new HttpError(400, 'AI answers are not set up on this site.');
+    if (req.impersonation) throw new HttpError(403, t('You cannot change this for someone else.'));
+    if (on && !aiConfig().enabled) throw new HttpError(400, t('AI answers are not set up on this site.'));
     await setAiAnswers(req.user.id, on);
     res.json(await aiAccess(req.workspace.id, req.user.id));
   }),
@@ -105,7 +106,7 @@ router.post(
     if (chip || facts.isEmpty || !ctx.aiOn) return res.json(await answerQuestion(question, ctx));
     try {
       const answer = await answerWithAi({ question, history, workspaceId: req.workspace.id, userId: req.user.id, facts });
-      res.json({ intent: 'ai', answer, blocks: [], follow_ups: AI_FOLLOW_UPS, ai: { used: true } });
+      res.json({ intent: 'ai', answer, blocks: [], follow_ups: AI_FOLLOW_UPS.map((s) => t(s)), ai: { used: true } });
     } catch (e) {
       if (!(e instanceof AiError)) throw e;
       // only what went wrong is logged, never the question, the answer or any figure

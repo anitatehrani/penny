@@ -1,3 +1,5 @@
+import { t } from './i18n/translate.js';
+import { catName } from './categoryNames.js';
 // The logic behind the searchable filter dropdowns, as plain functions.
 // An option is { value, label, group?, dot?, person? }; `value` '' means "no filter" (the "All ..." entry).
 
@@ -47,12 +49,12 @@ export function labelOf(options, value) {
 }
 
 /** Options for the category filter: "All", "Uncategorized", then expense and income categories under their own headings. */
-export function categoryOptions(categories, { allLabel = 'All categories' } = {}) {
+export function categoryOptions(categories, { allLabel = t('All categories') } = {}) {
   const make = (kind, group) =>
     categories
       .filter((c) => c.kind === kind)
-      .map((c) => ({ value: String(c.id), label: c.name, group, dot: c.color || null }));
-  return [{ value: '', label: allLabel }, { value: 'none', label: 'Uncategorized', dot: null }, ...make('expense', 'Expenses'), ...make('income', 'Income')];
+      .map((c) => ({ value: String(c.id), label: catName(c.name), group, dot: c.color || null }));
+  return [{ value: '', label: allLabel }, { value: 'none', label: t('Uncategorized'), dot: null }, ...make('expense', t('Expenses')), ...make('income', t('Income'))];
 }
 
 /** How many of the page's filters are switched on (the month and status are not counted: they are always visible). */

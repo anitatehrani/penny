@@ -3,6 +3,7 @@ import { query } from '../db.js';
 import { carriedInto } from '../lib/carryover.js';
 import { addMonthsYM, isValidYM } from '../lib/dates.js';
 import { HttpError, wrap } from '../lib/http.js';
+import { t } from '../lib/i18n.js';
 
 const router = Router();
 
@@ -14,7 +15,7 @@ router.get(
   '/carryover',
   wrap(async (req, res) => {
     const month = String(req.query.month ?? '');
-    if (!isValidYM(month)) throw new HttpError(400, 'month must be YYYY-MM');
+    if (!isValidYM(month)) throw new HttpError(400, t('month must be YYYY-MM'));
     const ws = req.workspace.id;
     const enabled = (await query('SELECT carry_over FROM workspace_settings WHERE workspace_id = $1', [ws])).rows[0]?.carry_over ?? true;
     let cents = 0;

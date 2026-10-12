@@ -5,6 +5,7 @@ import { createGroup } from '../lib/accounts.js';
 import { HttpError, idParam, text, wrap } from '../lib/http.js';
 import { notify, notifyMany, removeByData, resolveByData } from '../lib/notifications.js';
 import { briefUser, usernameField } from '../lib/profile.js';
+import { t } from '../lib/i18n.js';
 
 const router = Router();
 
@@ -25,7 +26,7 @@ async function membership(workspaceId, userId) {
      JOIN workspace_members m ON m.workspace_id = w.id AND m.user_id = $2 WHERE w.id = $1`,
     [workspaceId, userId],
   );
-  if (!rows[0]) throw new HttpError(404, 'Group not found.');
+  if (!rows[0]) throw new HttpError(404, t('Group not found.'));
   return rows[0];
 }
 
@@ -40,8 +41,8 @@ async function dropSharedAccess(client, workspaceId, userId) {
 
 async function ownedGroup(workspaceId, userId) {
   const w = await membership(workspaceId, userId);
-  if (w.kind !== 'group') throw new HttpError(400, 'This is your personal budget, not a group.');
-  if (w.role !== 'owner') throw new HttpError(403, 'Only the group owner can do that.');
+  if (w.kind !== 'group') throw new HttpError(400, t('This is your personal budget, not a group.'));
+  if (w.role !== 'owner') throw new HttpError(403, t('Only the group owner can do that.'));
   return w;
 }
 
@@ -89,8 +90,8 @@ router.delete(
     await query('DELETE FROM workspaces WHERE id = $1', [w.id]);
     await notifyMany(others, {
       kind: 'group_change',
-      title: `"${w.name}" was deleted`,
-      body: `${req.user.name} deleted the shared budget.`,
+      title: () => t('"{name}" was deleted', { name: w.name }),
+      body: () => t('{name} deleted the shared budget.', { name: req.user.name }),
       link: '/people?tab=groups',
       data: { from: briefUser(req.user) },
       dedupeKey: `gdel:${w.id}:${Date.now()}`,
@@ -127,21 +128,21 @@ router.post(
       [req.user.id, username],
     );
     const invitee = rows[0];
-    if (!invitee) throw new HttpError(400, 'You can only invite people you are connected with. Add them under People first.');
+    if (!invitee) throw new HttpError(400, t('You can only invite people you are connected with. Add them under People first.'));
     const already = await query('SELECT 1 FROM workspace_members WHERE workspace_id = $1 AND user_id = $2', [w.id, invitee.id]);
-    if (already.rowCount) throw new HttpError(409, 'That person is already in this group.');
+    if (already.rowCount) throw new HttpError(409, t('That person is already in this group.'));
     try {
       const created = await query('INSERT INTO workspace_invites (workspace_id, inviter_id, invitee_id) VALUES ($1, $2, $3) RETURNING id', [w.id, req.user.id, invitee.id]);
       await notify(invitee.id, {
         kind: 'group_invite',
-        title: `${req.user.name} invited you to "${w.name}"`,
-        body: 'Join to share one budget together.',
+        title: () => t('{name} invited you to "{name2}"', { name: req.user.name, name2: w.name }),
+        body: () => t('Join to share one budget together.'),
         link: '/people?tab=groups',
         data: { invite_id: created.rows[0].id, workspace: { id: w.id, name: w.name }, from: briefUser(req.user) },
         dedupeKey: `invite:${created.rows[0].id}`,
       });
     } catch (err) {
-      if (err.code === '23505') throw new HttpError(409, 'An invitation is already waiting for that person.');
+      if (err.code === '23505') throw new HttpError(409, t('An invitation is already waiting for that person.'));
       throw err;
     }
     res.status(201).json({ ok: true });
@@ -157,7 +158,7 @@ router.delete(
        WHERE i.id = $1 AND i.status = 'pending' AND w.id = i.workspace_id AND w.owner_id = $2 RETURNING i.id, i.invitee_id`,
       [idParam(req), req.user.id],
     );
-    if (!rows[0]) throw new HttpError(404, 'Invitation not found.');
+    if (!rows[0]) throw new HttpError(404, t('Invitation not found.'));
     await removeByData(rows[0].invitee_id, 'group_invite', 'invite_id', rows[0].id);
     res.status(204).end();
   }),
@@ -173,7 +174,7 @@ router.post(
          WHERE id = $1 AND invitee_id = $2 AND status = 'pending' RETURNING workspace_id, inviter_id`,
         [id, req.user.id],
       );
-      if (!rows[0]) throw new HttpError(404, 'Invitation not found.');
+      if (!rows[0]) throw new HttpError(404, t('Invitation not found.'));
       await client.query(
         `INSERT INTO workspace_members (workspace_id, user_id, role, ai_consent_at) VALUES ($1, $2, 'member', CASE WHEN $3 THEN now() END) ON CONFLICT DO NOTHING`,
         [rows[0].workspace_id, req.user.id, req.body?.ai === true],
@@ -184,7 +185,7 @@ router.post(
     const ws = (await query('SELECT name FROM workspaces WHERE id = $1', [accepted.workspace_id])).rows[0];
     await notify(accepted.inviter_id, {
       kind: 'group_change',
-      title: `${req.user.name} joined "${ws.name}"`,
+      title: () => t('{name} joined "{name2}"', { name: req.user.name, name2: ws.name }),
       link: '/people?tab=groups',
       data: { workspace_id: accepted.workspace_id, from: briefUser(req.user) },
       dedupeKey: `joined:${accepted.workspace_id}:${req.user.id}:${Date.now()}`,
@@ -201,12 +202,12 @@ router.post(
        WHERE id = $1 AND invitee_id = $2 AND status = 'pending' RETURNING id, inviter_id, workspace_id`,
       [idParam(req), req.user.id],
     );
-    if (!rows[0]) throw new HttpError(404, 'Invitation not found.');
+    if (!rows[0]) throw new HttpError(404, t('Invitation not found.'));
     await resolveByData(req.user.id, 'group_invite', 'invite_id', rows[0].id);
     const ws = (await query('SELECT name FROM workspaces WHERE id = $1', [rows[0].workspace_id])).rows[0];
     await notify(rows[0].inviter_id, {
       kind: 'group_change',
-      title: `${req.user.name} declined the invitation to "${ws.name}"`,
+      title: () => t('{name} declined the invitation to "{name2}"', { name: req.user.name, name2: ws.name }),
       link: '/people?tab=groups',
       data: { workspace_id: rows[0].workspace_id, from: briefUser(req.user) },
       dedupeKey: `declined:${rows[0].id}`,
@@ -225,16 +226,16 @@ router.delete(
       `SELECT u.id FROM users u JOIN workspace_members m ON m.user_id = u.id AND m.workspace_id = $1 WHERE lower(u.username) = $2`,
       [w.id, target],
     );
-    if (!rows[0]) throw new HttpError(404, 'That person is not in this group.');
-    if (rows[0].id === req.user.id) throw new HttpError(400, 'Use "Leave group" for yourself.');
+    if (!rows[0]) throw new HttpError(404, t('That person is not in this group.'));
+    if (rows[0].id === req.user.id) throw new HttpError(400, t('Use "Leave group" for yourself.'));
     await withTransaction(async (client) => {
       await client.query('DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2', [w.id, rows[0].id]);
       await dropSharedAccess(client, w.id, rows[0].id);
     });
     await notify(rows[0].id, {
       kind: 'group_change',
-      title: `You were removed from "${w.name}"`,
-      body: `${req.user.name} removed you from the shared budget.`,
+      title: () => t('You were removed from "{name}"', { name: w.name }),
+      body: () => t('{name} removed you from the shared budget.', { name: req.user.name }),
       link: '/people?tab=groups',
       data: { from: briefUser(req.user) },
       dedupeKey: `removed:${w.id}:${Date.now()}`,
@@ -247,10 +248,10 @@ router.post(
   '/workspaces/:id/leave',
   wrap(async (req, res) => {
     const w = await membership(idParam(req), req.user.id);
-    if (w.kind !== 'group') throw new HttpError(400, 'You cannot leave your personal budget.');
+    if (w.kind !== 'group') throw new HttpError(400, t('You cannot leave your personal budget.'));
     const { rows } = await query('SELECT count(*)::int AS n FROM workspace_members WHERE workspace_id = $1', [w.id]);
     if (w.role === 'owner' && rows[0].n > 1) {
-      throw new HttpError(400, 'You own this group. Transfer ownership to someone else first, or remove the other members.');
+      throw new HttpError(400, t('You own this group. Transfer ownership to someone else first, or remove the other members.'));
     }
     if (rows[0].n === 1) await query('DELETE FROM workspaces WHERE id = $1', [w.id]); // last person out
     else {
@@ -260,7 +261,7 @@ router.post(
       });
       await notify(w.owner_id, {
         kind: 'group_change',
-        title: `${req.user.name} left "${w.name}"`,
+        title: () => t('{name} left "{name2}"', { name: req.user.name, name2: w.name }),
         link: '/people?tab=groups',
         data: { workspace_id: w.id, from: briefUser(req.user) },
         dedupeKey: `left:${w.id}:${req.user.id}:${Date.now()}`,
@@ -281,7 +282,7 @@ router.post(
         `SELECT u.id FROM users u JOIN workspace_members m ON m.user_id = u.id AND m.workspace_id = $1 WHERE lower(u.username) = $2`,
         [w.id, username],
       );
-      if (!rows[0] || rows[0].id === req.user.id) throw new HttpError(400, 'Choose another member of this group.');
+      if (!rows[0] || rows[0].id === req.user.id) throw new HttpError(400, t('Choose another member of this group.'));
       await client.query(`UPDATE workspace_members SET role = 'member' WHERE workspace_id = $1 AND user_id = $2`, [w.id, req.user.id]);
       await client.query(`UPDATE workspace_members SET role = 'owner' WHERE workspace_id = $1 AND user_id = $2`, [w.id, rows[0].id]);
       await client.query('UPDATE workspaces SET owner_id = $1 WHERE id = $2', [rows[0].id, w.id]);
@@ -289,8 +290,8 @@ router.post(
     });
     await notify(newOwner, {
       kind: 'group_change',
-      title: `You are now the owner of "${w.name}"`,
-      body: `${req.user.name} handed the group over to you.`,
+      title: () => t('You are now the owner of "{name}"', { name: w.name }),
+      body: () => t('{name} handed the group over to you.', { name: req.user.name }),
       link: '/people?tab=groups',
       data: { workspace_id: w.id, from: briefUser(req.user) },
       dedupeKey: `owner:${w.id}:${Date.now()}`,

@@ -18,6 +18,7 @@ import Budget from './pages/Budget.jsx';
 import Recurring from './pages/Recurring.jsx';
 import Settings from './pages/Settings.jsx';
 import Transactions from './pages/Transactions.jsx';
+import { t } from './i18n/translate.js';
 
 export default function App() {
   const { ready, error } = useApp();
@@ -40,7 +41,7 @@ export default function App() {
   return (
     <DashboardLayout>
       {error ? (
-        <ErrorState error={error} title="Cannot reach the server" onRetry={() => window.location.reload()} />
+        <ErrorState error={error} title={t('Cannot reach the server')} onRetry={() => window.location.reload()} />
       ) : !ready ? (
         <Loading />
       ) : (

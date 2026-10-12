@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from '../ui.jsx';
 import { useFocusTrap, useMedia } from './hooks.js';
+import { t } from '../../i18n/translate.js';
 
 /**
  * A panel that slides in from the right on large screens and rises from the bottom on small ones.
@@ -35,7 +36,7 @@ export function Sheet({ title, subtitle, onClose, children, width = 420, footer,
             <h2>{title}</h2>
             {subtitle && <p className="muted small">{subtitle}</p>}
           </div>
-          <button className="btn icon ghost" onClick={onClose} aria-label="Close">
+          <button className="btn icon ghost" onClick={onClose} aria-label={t('Close')}>
             <Icon name="x" />
           </button>
         </div>

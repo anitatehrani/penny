@@ -17,6 +17,7 @@ import { legalConfig, TERMS_VERSION } from '../lib/legal.js';
 import { phoneField, usernameField } from '../lib/profile.js';
 import { SIGNUPS_CLOSED, signupsOpen } from '../lib/signups.js';
 import { deleteUserAccount, sharedBudgetCount } from '../lib/userAdmin.js';
+import { t, tn } from '../lib/i18n.js';
 
 const router = Router();
 
@@ -56,23 +57,23 @@ function normalizeLogin(value) {
 }
 
 function passwordProblems(res, problems) {
-  return res.status(400).json({ error: 'That password does not meet the requirements.', problems });
+  return res.status(400).json({ error: t('That password does not meet the requirements.'), problems });
 }
 
 async function verifyGoogleCredential(credential) {
-  if (!googleClient) throw new HttpError(503, 'Google sign-in is not configured on this server.');
+  if (!googleClient) throw new HttpError(503, t('Google sign-in is not configured on this server.'));
   try {
     const ticket = await googleClient.verifyIdToken({ idToken: credential, audience: GOOGLE_CLIENT_ID });
     return ticket.getPayload();
   } catch {
-    throw new HttpError(401, 'Google sign-in could not be verified. Please try again.');
+    throw new HttpError(401, t('Google sign-in could not be verified. Please try again.'));
   }
 }
 
 router.get('/config', (_req, res) => res.json({ googleClientId: GOOGLE_CLIENT_ID, signupsOpen: signupsOpen(), passwordResetAvailable: resetAvailable(), legal: legalConfig() }));
 
 router.get('/me', (req, res) => {
-  if (!req.user) return res.status(401).json({ error: 'Not signed in.' });
+  if (!req.user) return res.status(401).json({ error: t('Not signed in.') });
   const imp = req.impersonation;
   res.json({
     user: publicUser(req.user),
@@ -90,7 +91,7 @@ router.post(
   '/impersonation/stop',
   requireAuth,
   wrap(async (req, res) => {
-    if (!req.impersonation) throw new HttpError(400, 'You are not viewing as anyone.');
+    if (!req.impersonation) throw new HttpError(400, t('You are not viewing as anyone.'));
     const admin = req.admin;
     await stopViewing(req);
     res.json({ user: publicUser(admin) });
@@ -104,7 +105,7 @@ router.get(
     const parsed = usernameField.safeParse(String(req.query.u ?? ''));
     if (!parsed.success) return res.json({ available: false, reason: parsed.error.issues[0].message });
     const { rowCount } = await query('SELECT 1 FROM users WHERE lower(username) = $1', [parsed.data]);
-    res.json({ available: !rowCount, reason: rowCount ? 'That username is taken.' : null });
+    res.json({ available: !rowCount, reason: rowCount ? t('That username is taken.') : null });
   }),
 );
 
@@ -112,7 +113,7 @@ router.post(
   '/signup',
   attemptLimiter,
   wrap(async (req, res) => {
-    if (!signupsOpen()) throw new HttpError(403, SIGNUPS_CLOSED);
+    if (!signupsOpen()) throw new HttpError(403, t(SIGNUPS_CLOSED));
     const body = z
       .object({
         name: nameField,
@@ -120,7 +121,7 @@ router.post(
         username: usernameField,
         phone: phoneField,
         password: z.string().max(1000),
-        accept_terms: z.literal(true, { errorMap: () => ({ message: 'You need to accept the terms and the privacy policy to create an account.' }) }),
+        accept_terms: z.literal(true, { errorMap: () => ({ message: t('You need to accept the terms and the privacy policy to create an account.') }) }),
       })
       .parse(req.body);
     const problems = validatePassword(body.password, body);
@@ -138,9 +139,9 @@ router.post(
       });
     } catch (err) {
       if (err.code === '23505') {
-        if (/username/.test(err.constraint ?? '')) throw new HttpError(409, 'That username is taken.');
-        if (/phone/.test(err.constraint ?? '')) throw new HttpError(409, 'That phone number is already used by another account.');
-        throw new HttpError(409, 'An account with this email already exists. Try signing in.');
+        if (/username/.test(err.constraint ?? '')) throw new HttpError(409, t('That username is taken.'));
+        if (/phone/.test(err.constraint ?? '')) throw new HttpError(409, t('That phone number is already used by another account.'));
+        throw new HttpError(409, t('An account with this email already exists. Try signing in.'));
       }
       throw err;
     }
@@ -161,11 +162,11 @@ router.post(
         email: z.string().trim().min(1, 'is required').max(254).optional(),
         password: z.string().min(1).max(1000),
       })
-      .refine((b) => b.identifier || b.email, { path: ['identifier'], message: 'Enter your email address or username.' })
+      .refine((b) => b.identifier || b.email, { path: ['identifier'], message: t('Enter your email address or username.') })
       .parse(req.body);
     const typed = normalizeLogin(body.identifier ?? body.email);
     const byEmail = typed.includes('@'); // usernames never contain an @
-    if (byEmail && !email.safeParse(typed).success) throw new HttpError(400, 'Enter a valid email address or a username.');
+    if (byEmail && !email.safeParse(typed).success) throw new HttpError(400, t('Enter a valid email address or a username.'));
     const { rows } = await query(`SELECT * FROM users WHERE lower(${byEmail ? 'email' : 'username'}) = $1`, [typed]);
     const user = rows[0];
     if (user) await limitAccount(req, res, user.id);
@@ -174,7 +175,7 @@ router.post(
     if (!ok) {
       // only that it failed and how it was tried, never what was typed
       await record('login_failed', { req, userId: user?.id ?? null, detail: byEmail ? 'tried with an e-mail address' : 'tried with a username' });
-      throw new HttpError(401, 'Invalid email, username or password.');
+      throw new HttpError(401, t('Invalid email, username or password.'));
     }
     // said only after the right password, so it tells nobody who is guessing anything
     if (user.suspended_at) {
@@ -228,12 +229,12 @@ router.post(
     const { credential } = z.object({ credential: z.string().min(20).max(5000) }).parse(req.body);
     const profile = await verifyGoogleCredential(credential);
     const taken = await query('SELECT id FROM users WHERE google_id = $1 AND id <> $2', [profile.sub, req.user.id]);
-    if (taken.rows[0]) throw new HttpError(409, 'That Google account is already connected to another user.');
+    if (taken.rows[0]) throw new HttpError(409, t('That Google account is already connected to another user.'));
     const { rows } = await query(
       'UPDATE users SET google_id = $1, google_picture = $2, avatar_url = COALESCE(avatar_url, $2) WHERE id = $3 RETURNING *',
       [profile.sub, profile.picture ?? null, req.user.id],
     );
-    await notify(req.user.id, { kind: 'security', title: 'A Google account was connected', body: 'You can now sign in with Google. If this was not you, change your password.', link: '/settings?tab=account', dedupeKey: `google-link:${Date.now()}` });
+    await notify(req.user.id, { kind: 'security', title: () => t('A Google account was connected'), body: () => t('You can now sign in with Google. If this was not you, change your password.'), link: '/settings?tab=account', dedupeKey: `google-link:${Date.now()}` });
     res.json({ user: publicUser(rows[0]) });
   }),
 );
@@ -242,9 +243,9 @@ router.delete(
   '/google',
   requireAuth,
   wrap(async (req, res) => {
-    if (!req.user.password_hash) throw new HttpError(400, 'Set a password first, otherwise you could not sign in again.');
+    if (!req.user.password_hash) throw new HttpError(400, t('Set a password first, otherwise you could not sign in again.'));
     const { rows } = await query('UPDATE users SET google_id = NULL WHERE id = $1 RETURNING *', [req.user.id]);
-    await notify(req.user.id, { kind: 'security', title: 'Google sign-in was disconnected', body: 'You now sign in with your email and password only.', link: '/settings?tab=account', dedupeKey: `google-unlink:${Date.now()}` });
+    await notify(req.user.id, { kind: 'security', title: () => t('Google sign-in was disconnected'), body: () => t('You now sign in with your email and password only.'), link: '/settings?tab=account', dedupeKey: `google-unlink:${Date.now()}` });
     res.json({ user: publicUser(rows[0]) });
   }),
 );
@@ -259,7 +260,7 @@ router.put(
       .parse(req.body);
     if (req.user.password_hash) {
       const ok = body.current_password && (await verifyPassword(body.current_password, req.user.password_hash));
-      if (!ok) throw new HttpError(401, 'Your current password is not correct.');
+      if (!ok) throw new HttpError(401, t('Your current password is not correct.'));
     }
     const problems = validatePassword(body.new_password, req.user);
     if (problems.length) return passwordProblems(res, problems);
@@ -270,14 +271,14 @@ router.put(
     // Sign out every other device.
     await query('DELETE FROM sessions WHERE user_id = $1 AND token_hash <> $2', [req.user.id, req.sessionHash]);
     await record('password_changed', { req, userId: req.user.id });
-    await notify(req.user.id, { kind: 'security', title: 'Your password was changed', body: 'Other devices were signed out. If this was not you, reset your password and check your account.', link: '/settings?tab=account', dedupeKey: `password:${Date.now()}` });
+    await notify(req.user.id, { kind: 'security', title: () => t('Your password was changed'), body: () => t('Other devices were signed out. If this was not you, reset your password and check your account.'), link: '/settings?tab=account', dedupeKey: `password:${Date.now()}` });
     res.json({ user: publicUser(rows[0]) });
   }),
 );
 
 // ---- e-mail confirmation (needed before e-mail alerts can be switched on) ----
-const sha256 = (t) => createHash('sha256').update(t).digest('hex');
-const verifyLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 6, keyFn: (req) => `verifymail:${req.user?.id ?? req.ip}`, message: 'Too many confirmation e-mails. Try again in an hour.' });
+const sha256 = (tt) => createHash('sha256').update(tt).digest('hex');
+const verifyLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 6, keyFn: (req) => `verifymail:${req.user?.id ?? req.ip}`, get message() { return t('Too many confirmation e-mails. Try again in an hour.'); } });
 
 router.post(
   '/email/send-verification',
@@ -296,7 +297,7 @@ router.post(
       await query(`INSERT INTO email_log (user_id, to_email, subject, kind, status) VALUES ($1, $2, $3, 'verify', $4)`, [user.id, user.email, mail.subject, r.status]);
     } catch (err) {
       await query(`INSERT INTO email_log (user_id, to_email, subject, kind, status, error) VALUES ($1, $2, $3, 'verify', 'failed', $4)`, [user.id, user.email, mail.subject, err.message.slice(0, 300)]);
-      throw new HttpError(502, 'The confirmation e-mail could not be sent. Check the mail server settings.');
+      throw new HttpError(502, t('The confirmation e-mail could not be sent. Check the mail server settings.'));
     }
     // Without a mail server nothing leaves this machine, so the link is handed back for local testing.
     res.json({ sent: true, mode: mailMode(), ...(mailMode() === 'preview' ? { dev_link: link } : {}) });
@@ -309,10 +310,10 @@ router.post(
   wrap(async (req, res) => {
     const { token } = z.object({ token: z.string().min(20).max(200) }).parse(req.body);
     const { rows } = await query(`DELETE FROM email_tokens WHERE token_hash = $1 AND purpose = 'verify' AND expires_at > now() RETURNING user_id, email`, [sha256(token)]);
-    if (!rows[0]) throw new HttpError(400, 'This confirmation link is not valid or has expired.');
+    if (!rows[0]) throw new HttpError(400, t('This confirmation link is not valid or has expired.'));
     await query('UPDATE users SET email_verified_at = COALESCE(email_verified_at, now()) WHERE id = $1 AND lower(email) = lower($2)', [rows[0].user_id, rows[0].email]);
     await record('email_verified', { req, userId: rows[0].user_id });
-    await notify(rows[0].user_id, { kind: 'system', title: 'E-mail address confirmed', body: 'You can now turn on e-mail alerts for upcoming payments.', link: '/notifications?tab=settings', dedupeKey: `verified:${Date.now()}` });
+    await notify(rows[0].user_id, { kind: 'system', title: () => t('E-mail address confirmed'), body: () => t('You can now turn on e-mail alerts for upcoming payments.'), link: '/notifications?tab=settings', dedupeKey: `verified:${Date.now()}` });
     res.json({ ok: true });
   }),
 );
@@ -329,7 +330,7 @@ router.post(
   }),
 );
 
-const dataLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 6, keyFn: (req) => `export:${req.user?.id ?? req.ip}`, message: 'Too many downloads. Try again in an hour.' });
+const dataLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 6, keyFn: (req) => `export:${req.user?.id ?? req.ip}`, get message() { return t('Too many downloads. Try again in an hour.'); } });
 const deleteLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 6,
@@ -343,7 +344,7 @@ router.get(
   requireAuth,
   dataLimiter,
   wrap(async (req, res) => {
-    if (req.impersonation) throw new HttpError(403, 'That cannot be done while viewing as someone else.');
+    if (req.impersonation) throw new HttpError(403, t('That cannot be done while viewing as someone else.'));
     const data = await buildExport(req.user.id);
     await record('data_exported', { req, userId: req.user.id });
     res.set('Content-Disposition', `attachment; filename="penny-data-${new Date().toISOString().slice(0, 10)}.json"`);
@@ -359,22 +360,22 @@ router.post(
   requireAuth,
   deleteLimiter,
   wrap(async (req, res) => {
-    if (req.impersonation) throw new HttpError(403, 'That cannot be done while viewing as someone else.');
+    if (req.impersonation) throw new HttpError(403, t('That cannot be done while viewing as someone else.'));
     const body = z
-      .object({ confirm: z.literal('DELETE', { errorMap: () => ({ message: 'Type DELETE to confirm.' }) }), password: z.string().max(1000).optional(), credential: z.string().min(20).max(5000).optional() })
+      .object({ confirm: z.literal('DELETE', { errorMap: () => ({ message: t('Type DELETE to confirm.') }) }), password: z.string().max(1000).optional(), credential: z.string().min(20).max(5000).optional() })
       .parse(req.body);
     const user = req.user;
-    if (user.is_admin) throw new HttpError(409, 'You are an admin. Remove your admin rights first (the person who runs the server does that from the command line), so the site is never left without one.');
+    if (user.is_admin) throw new HttpError(409, t('You are an admin. Remove your admin rights first (the person who runs the server does that from the command line), so the site is never left without one.'));
     const shared = await sharedBudgetCount(user.id);
     if (shared > 0) {
-      throw new HttpError(409, `You share ${shared} budget${shared === 1 ? '' : 's'} with other people, and deleting your account would take their payments away. Leave ${shared === 1 ? 'it' : 'them'} first (Budgets, then Leave), or ask the others to remove you.`);
+      throw new HttpError(409, tn(shared, 'You share {n} budget with other people, and deleting your account would take their payments away. Leave it first (Budgets, then Leave), or ask the others to remove you.', 'You share {n} budgets with other people, and deleting your account would take their payments away. Leave them first (Budgets, then Leave), or ask the others to remove you.'));
     }
     if (user.password_hash) {
-      if (!body.password || !(await verifyPassword(body.password, user.password_hash))) throw new HttpError(401, 'Your password is not correct.');
+      if (!body.password || !(await verifyPassword(body.password, user.password_hash))) throw new HttpError(401, t('Your password is not correct.'));
     } else {
-      if (!body.credential) throw new HttpError(401, 'Sign in with Google again to confirm.', 'google_required');
+      if (!body.credential) throw new HttpError(401, t('Sign in with Google again to confirm.'), 'google_required');
       const profile = await verifyGoogleCredential(body.credential);
-      if (!user.google_id || profile.sub !== user.google_id) throw new HttpError(401, 'That is not the Google account connected to this account.');
+      if (!user.google_id || profile.sub !== user.google_id) throw new HttpError(401, t('That is not the Google account connected to this account.'));
     }
     const { name, email: address } = user;
     await destroySession(req, res); // the cookie goes first
@@ -397,7 +398,7 @@ const forgotAddressLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 3,
   keyFn: (req) => `forgot-address:${normalizeLogin(req.body?.email)}`,
-  message: 'Too many reset e-mails for this address. Try again in an hour.',
+  get message() { return t('Too many reset e-mails for this address. Try again in an hour.'); },
   onLimit: (req) => record('rate_limited', { req, detail: 'too many reset e-mails for one address' }),
 });
 const resetLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, keyFn: (req) => `reset:${req.ip}`, onLimit: (req) => record('rate_limited', { req, detail: 'too many password reset attempts' }) });
@@ -428,7 +429,7 @@ router.post(
   forgotIpLimiter,
   forgotAddressLimiter,
   wrap(async (req, res) => {
-    if (!resetAvailable()) throw new HttpError(503, RESET_UNAVAILABLE);
+    if (!resetAvailable()) throw new HttpError(503, t(RESET_UNAVAILABLE));
     const { email: address } = z.object({ email }).parse(req.body);
     // the same answer whether or not the address has an account, sent before any of the work, so it takes the same time too
     res.json({ ok: true });
@@ -441,7 +442,7 @@ router.post(
   '/password/check',
   ipLimiter,
   wrap(async (req, res) => {
-    if (!resetAvailable()) throw new HttpError(503, RESET_UNAVAILABLE);
+    if (!resetAvailable()) throw new HttpError(503, t(RESET_UNAVAILABLE));
     const { token } = z.object({ token: z.string().min(20).max(200) }).parse(req.body);
     const { rowCount } = await query(`SELECT 1 FROM email_tokens WHERE token_hash = $1 AND purpose = 'reset' AND expires_at > now()`, [sha256(token)]);
     res.json({ valid: rowCount > 0 });
@@ -452,7 +453,7 @@ router.post(
   '/password/reset',
   resetLimiter,
   wrap(async (req, res) => {
-    if (!resetAvailable()) throw new HttpError(503, RESET_UNAVAILABLE);
+    if (!resetAvailable()) throw new HttpError(503, t(RESET_UNAVAILABLE));
     const body = z.object({ token: z.string().min(20).max(200), new_password: z.string().max(1000) }).parse(req.body);
     const hash = sha256(body.token);
     const found = (
@@ -461,19 +462,19 @@ router.post(
         [hash],
       )
     ).rows[0];
-    if (!found) throw new HttpError(400, 'This reset link is not valid or has expired. Ask for a new one.');
+    if (!found) throw new HttpError(400, t('This reset link is not valid or has expired. Ask for a new one.'));
     // a weak password is refused BEFORE the link is spent, so the person can simply try again
     const problems = validatePassword(body.new_password, found);
     if (problems.length) return passwordProblems(res, problems);
     const spent = await query(`DELETE FROM email_tokens WHERE token_hash = $1 AND purpose = 'reset' AND expires_at > now() RETURNING user_id`, [hash]);
-    if (!spent.rows[0]) throw new HttpError(400, 'This reset link is not valid or has expired. Ask for a new one.');
+    if (!spent.rows[0]) throw new HttpError(400, t('This reset link is not valid or has expired. Ask for a new one.'));
     const userId = found.id;
     // Getting the link proves the address is theirs, so it counts as confirmed too.
     await query('UPDATE users SET password_hash = $1, email_verified_at = COALESCE(email_verified_at, now()) WHERE id = $2', [await hashPassword(body.new_password), userId]);
     await query('DELETE FROM sessions WHERE user_id = $1', [userId]); // signed out everywhere, including whoever knew the old password
     await query(`DELETE FROM email_tokens WHERE user_id = $1 AND purpose = 'reset'`, [userId]);
     await record('password_reset', { req, userId });
-    await notify(userId, { kind: 'security', title: 'Your password was reset', body: 'It was reset with a link sent to your e-mail address, and every device was signed out. If this was not you, ask for another reset right away.', link: '/settings?tab=account', dedupeKey: `password-reset:${Date.now()}` });
+    await notify(userId, { kind: 'security', title: () => t('Your password was reset'), body: () => t('It was reset with a link sent to your e-mail address, and every device was signed out. If this was not you, ask for another reset right away.'), link: '/settings?tab=account', dedupeKey: `password-reset:${Date.now()}` });
     try {
       const mail = passwordChangedEmail({ name: found.name });
       const r = await sendMail({ to: found.email, ...mail });

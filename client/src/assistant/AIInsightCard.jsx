@@ -3,12 +3,13 @@ import { Link } from 'react-router-dom';
 import { Tooltip } from '../components/ds/Tooltip.jsx';
 import { Icon } from '../components/ui.jsx';
 import { dateLabel } from '../format.js';
+import { t } from '../i18n/translate.js';
 
 const SEVERITY = {
-  alert: { label: 'Needs attention', icon: 'alert' },
-  watch: { label: 'Worth watching', icon: 'eye' },
-  good: { label: 'Good news', icon: 'check' },
-  info: { label: 'Idea', icon: 'sparkle' },
+  alert: { get label() { return t('Needs attention'); }, icon: 'alert' },
+  watch: { get label() { return t('Worth watching'); }, icon: 'eye' },
+  good: { get label() { return t('Good news'); }, icon: 'check' },
+  info: { get label() { return t('Idea'); }, icon: 'sparkle' },
 };
 
 /**
@@ -27,7 +28,7 @@ export default function AIInsightCard({ insight, onDismiss, onAsk, compact, defa
           <span className="insight-tag">
             <Icon name={sev.icon} size={13} /> {sev.label}
           </span>
-          {insight.forecast && <span className="badge tone-forecast">Forecast</span>}
+          {insight.forecast && <span className="badge tone-forecast">{t('Forecast')}</span>}
         </div>
         <h3 className="insight-title">{insight.title}</h3>
         <p className="insight-body">{insight.body}</p>
@@ -53,7 +54,7 @@ export default function AIInsightCard({ insight, onDismiss, onAsk, compact, defa
         <div className="insight-actions">
           {insight.details?.length > 0 && (
             <button className="insight-link" onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-controls={panelId}>
-              {open ? 'Hide details' : 'Why?'}
+              {open ? t('Hide details') : t('Why?')}
               <Icon name="chevron" size={13} />
             </button>
           )}
@@ -65,14 +66,14 @@ export default function AIInsightCard({ insight, onDismiss, onAsk, compact, defa
           )}
           {onAsk && insight.ask?.[0] && (
             <button className="insight-link" onClick={() => onAsk(insight.ask[0])}>
-              Ask: “{insight.ask[0]}”
+              {t('Ask: “{value}”', { value: insight.ask[0] })}
             </button>
           )}
         </div>
       </div>
       {onDismiss && (
-        <Tooltip label="Dismiss for this month" side="left">
-          <button className="btn icon sm ghost insight-x" onClick={() => onDismiss(insight)} aria-label={`Dismiss: ${insight.title}`}>
+        <Tooltip label={t('Dismiss for this month')} side="left">
+          <button className="btn icon sm ghost insight-x" onClick={() => onDismiss(insight)} aria-label={t('Dismiss: {title}', { title: insight.title })}>
             <Icon name="x" size={14} />
           </button>
         </Tooltip>

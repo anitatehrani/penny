@@ -4,6 +4,8 @@ import { api } from '../api.js';
 import { useApp } from '../context.jsx';
 import { reconcilePreview } from '../reconcileLogic.js';
 import { Field, Icon, Modal } from './ui.jsx';
+import { t, tn } from '../i18n/translate.js';
+import { tRich } from '../i18n/react.jsx';
 
 /**
  * "Match my bank balance": type what the bank shows, see the difference and exactly what saving will do. One paid payment dated today
@@ -23,7 +25,7 @@ export default function MatchBankDialog({ balance, overdue, onClose, onDone }) {
     setSaving(true);
     try {
       const r = await api.post('/reconcile', { balance: Number(bank) });
-      notify(r.adjusted ? `Balance matched: ${r.difference > 0 ? 'added' : 'subtracted'} ${money(Math.abs(r.difference))}` : 'Already matching, nothing to change');
+      notify(r.adjusted ? r.difference > 0 ? t('Balance matched: {money} added', { money: money(Math.abs(r.difference)) }) : t('Balance matched: {money} subtracted', { money: money(Math.abs(r.difference)) }) : t('Already matching, nothing to change'));
       onDone();
     } catch (err) {
       notify(err.message, 'error');
@@ -32,42 +34,41 @@ export default function MatchBankDialog({ balance, overdue, onClose, onDone }) {
   }
 
   return (
-    <Modal title="Match my bank balance" onClose={onClose}>
+    <Modal title={t('Match my bank balance')} onClose={onClose}>
       <form onSubmit={submit} className="form">
         <p className="muted">
-          Penny says you have <strong className="num">{money(balance)}</strong>. Type what your bank shows right now.
+          {tRich('Penny says you have {bold}. Type what your bank shows right now.', { bold: <strong className="num">{money(balance)}</strong> })}
         </p>
         {overdueCount > 0 && (
           <div className="banner info">
             <Icon name="alert" />
             <span>
-              {overdueCount} payment{overdueCount === 1 ? ' is' : 's are'} overdue ({money(overdueTotal)}). If you already paid {overdueCount === 1 ? 'it' : 'them'}, mark{' '}
-              {overdueCount === 1 ? 'it' : 'them'} paid first: that may close the gap by itself.{' '}
+              {tn(overdueCount, 'One payment is overdue ({money}). If you already paid it, mark it paid first: that may close the gap by itself.', '{n} payments are overdue ({money}). If you already paid them, mark them paid first: that may close the gap by itself.', { money: money(overdueTotal) })}{' '}
               <Link to="/payments?status=overdue" onClick={onClose}>
-                Review overdue
+                {t('Review overdue')}
               </Link>
             </span>
           </div>
         )}
-        <Field label="Balance in my bank">
+        <Field label={t('Balance in my bank')}>
           <input type="number" step="0.01" inputMode="decimal" value={bank} onChange={(e) => setBank(e.target.value)} placeholder="0.00" required autoFocus />
         </Field>
         <div className={`banner ${p.state === 'match' ? 'ok' : p.state === 'empty' ? 'info' : 'warn'}`} aria-live="polite">
-          {p.state === 'empty' && <span>Enter the balance to see the difference.</span>}
-          {p.state === 'match' && <span>They already match. Nothing needs to change.</span>}
+          {p.state === 'empty' && <span>{t('Enter the balance to see the difference.')}</span>}
+          {p.state === 'match' && <span>{t('They already match. Nothing needs to change.')}</span>}
           {(p.state === 'more' || p.state === 'less') && (
             <span>
-              Your bank has <strong>{money(p.amount)} {p.state === 'more' ? 'more' : 'less'}</strong> than Penny. Saving adds {p.type === 'income' ? 'an income' : 'an expense'} of{' '}
-              <strong>{money(p.amount)}</strong> dated today, called “Balance adjustment”, so your balance becomes <strong>{money(Number(bank))}</strong>. Delete that payment to undo it.
+              {tRich(p.state === 'more' ? 'Your bank has {amount} more than Penny.' : 'Your bank has {amount} less than Penny.', { amount: <strong>{money(p.amount)}</strong> })}{' '}
+              {tRich(p.type === 'income' ? 'Saving adds an income of {amount} dated today, called “Balance adjustment”, so your balance becomes {balance}. Delete that payment to undo it.' : 'Saving adds an expense of {amount} dated today, called “Balance adjustment”, so your balance becomes {balance}. Delete that payment to undo it.', { amount: <strong>{money(p.amount)}</strong>, balance: <strong>{money(Number(bank))}</strong> })}
             </span>
           )}
         </div>
         <div className="form-actions">
           <button type="button" className="btn" onClick={onClose}>
-            Cancel
+            {t('Cancel')}
           </button>
           <button type="submit" className="btn primary" disabled={saving || p.state === 'empty' || p.state === 'match'}>
-            {p.state === 'match' ? 'Already matching' : 'Match the balance'}
+            {p.state === 'match' ? t('Already matching') : t('Match the balance')}
           </button>
         </div>
       </form>

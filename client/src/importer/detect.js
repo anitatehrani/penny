@@ -4,6 +4,7 @@
 
 import { directionOf, headerRole, statusOf } from './headers.js';
 import { currencyIn, fold, inferDateOrder, inferDecimal, looksLikeDate, looksLikeMoney, parseAmount, parseDate, tidy } from './values.js';
+import { t } from '../i18n/translate.js';
 
 const MAX_COLS = 60;
 const SAMPLE = 500;
@@ -24,9 +25,9 @@ export function findHeaderRow(rows) {
     const roles = new Set();
     let named = 0;
     for (const c of rows[r]) {
-      const t = tidy(c);
-      if (!t || t.length > 60) continue;
-      const hr = headerRole(t);
+      const tt = tidy(c);
+      if (!tt || tt.length > 60) continue;
+      const hr = headerRole(tt);
       if (hr && hr.score >= 60) {
         roles.add(hr.role);
         named++;
@@ -51,25 +52,25 @@ export function findHeaderRow(rows) {
 function profile(rows, start, col) {
   const cells = [];
   for (let r = start; r < Math.min(rows.length, start + SAMPLE); r++) {
-    const t = cell(rows[r], col);
-    if (t) cells.push(t);
+    const tt = cell(rows[r], col);
+    if (tt) cells.push(tt);
   }
   const n = cells.length;
   const frac = (fn) => (n ? cells.filter(fn).length / n : 0);
-  const dateOf = (t) => looksLikeDate(t, { order: 'dmy' }) || looksLikeDate(t, { order: 'mdy' });
+  const dateOf = (tt) => looksLikeDate(tt, { order: 'dmy' }) || looksLikeDate(tt, { order: 'mdy' });
   return {
     cells,
     n,
     dates: frac(dateOf),
-    money: frac((t) => looksLikeMoney(t)),
-    numbers: frac((t) => parseAmount(t) !== null && /\d/.test(t)),
-    text: frac((t) => !dateOf(t) && parseAmount(t) === null),
-    avgLen: n ? cells.reduce((s, t) => s + t.length, 0) / n : 0,
-    compact: frac((t) => /^(19|20)\d{6}$/.test(t) && parseDate(t, { compact: true }) !== null),
-    codes: frac((t) => /^[A-Za-z]{3}$/.test(t)),
-    ids: frac((t) => /^[A-Za-z0-9][A-Za-z0-9\-_/.]{7,}$/.test(t) && /\d/.test(t) && !/\s/.test(t)),
-    directions: frac((t) => directionOf(t) !== 0),
-    statuses: frac((t) => statusOf(t) !== 0),
+    money: frac((tt) => looksLikeMoney(tt)),
+    numbers: frac((tt) => parseAmount(tt) !== null && /\d/.test(tt)),
+    text: frac((tt) => !dateOf(tt) && parseAmount(tt) === null),
+    avgLen: n ? cells.reduce((s, tt) => s + tt.length, 0) / n : 0,
+    compact: frac((tt) => /^(19|20)\d{6}$/.test(tt) && parseDate(tt, { compact: true }) !== null),
+    codes: frac((tt) => /^[A-Za-z]{3}$/.test(tt)),
+    ids: frac((tt) => /^[A-Za-z0-9][A-Za-z0-9\-_/.]{7,}$/.test(tt) && /\d/.test(tt) && !/\s/.test(tt)),
+    directions: frac((tt) => directionOf(tt) !== 0),
+    statuses: frac((tt) => statusOf(tt) !== 0),
     distinct: new Set(cells).size,
   };
 }
@@ -104,12 +105,12 @@ export function analyseGrid(grid, { hint = {}, saved = null } = {}) {
   const rows = grid.rows;
   const width = widthOf(rows);
   const notes = [];
-  if (!width || rows.length < 2) return { ok: false, confidence: 'low', roles: [], headers: [], headerRow: -1, dataStart: 0, notes: ['The table is empty.'] };
+  if (!width || rows.length < 2) return { ok: false, confidence: 'low', roles: [], headers: [], headerRow: -1, dataStart: 0, notes: [t('The table is empty.')] };
 
   // a layout the person matched by hand before (same headings) is used as they left it
   if (saved) {
     const at = saved.headerRow;
-    return { ...saved.mapping, ok: true, confidence: 'high', notes: ['Penny used the way you matched this layout before.'], fromMemory: true, headers: rows[at].map(tidy), headerRow: at, dataStart: at + 1 };
+    return { ...saved.mapping, ok: true, confidence: 'high', notes: [t('Penny used the way you matched this layout before.')], fromMemory: true, headers: rows[at].map(tidy), headerRow: at, dataStart: at + 1 };
   }
   const headerRow = Number.isInteger(grid.headerRow) ? grid.headerRow : findHeaderRow(rows);
   // where the payments start: after the heading; with no heading, at the first line that has a date in it (what is above is explanation)
@@ -150,7 +151,7 @@ export function analyseGrid(grid, { hint = {}, saved = null } = {}) {
         dateCol = i;
       }
     });
-    if (dateCol >= 0) notes.push('Penny found the date column by looking at what is in it.');
+    if (dateCol >= 0) notes.push(t('Penny found the date column by looking at what is in it.'));
   }
   const compactDates = dateCol >= 0 && stat[dateCol].dates < 0.6 && stat[dateCol].compact >= 0.6;
   if (dateCol >= 0) take('date', dateCol);
@@ -214,7 +215,7 @@ export function analyseGrid(grid, { hint = {}, saved = null } = {}) {
   if (!roles.includes('amount') && !roles.includes('debit') && !roles.includes('credit')) {
     const cand = stat.map((s, i) => (claimed.has(i) || !moneyOk(i) || s.money < 0.5 ? -1 : i)).filter((i) => i >= 0);
     if (cand.length) {
-      notes.push('Penny found the amount column by looking at what is in it.');
+      notes.push(t('Penny found the amount column by looking at what is in it.'));
       const [first, second, third] = cand;
       if (cand.length === 1) take('amount', first);
       else if (chainFits(rows, dataStart, second, first, {}) && cand.length >= 2) {
@@ -229,7 +230,7 @@ export function analyseGrid(grid, { hint = {}, saved = null } = {}) {
           take('debit', first);
           take('credit', second);
           sign = 'debitcredit';
-          notes.push('Two number columns, one for money out and one for money in: Penny assumed the first is money out.');
+          notes.push(t('Two number columns, one for money out and one for money in: Penny assumed the first is money out.'));
           if (third) take('balance', third);
         } else {
           take('amount', first);
@@ -245,7 +246,7 @@ export function analyseGrid(grid, { hint = {}, saved = null } = {}) {
     const best = stat.map((s, i) => ({ i, len: s.avgLen })).filter(({ i }) => textual(i)).sort((a, b) => b.len - a.len)[0];
     if (best) {
       take('description', best.i);
-      notes.push('Penny took the column with the longest text as the description.');
+      notes.push(t('Penny took the column with the longest text as the description.'));
     }
   }
 
@@ -262,13 +263,13 @@ export function analyseGrid(grid, { hint = {}, saved = null } = {}) {
     if (c >= 0) moneySamples.push(...stat[c].cells.slice(0, 300));
   }
   const decInfo = inferDecimal(moneySamples, hint.decimal ?? ',');
-  if (dateInfo.ambiguous) notes.push(`Dates could be read day first or month first; Penny chose ${dateInfo.order === 'dmy' ? 'day first' : 'month first'}.`);
+  if (dateInfo.ambiguous) notes.push(t('Dates could be read day first or month first; Penny chose {value}.', { value: dateInfo.order === 'dmy' ? t('day first') : t('month first') }));
 
   // 8. what the sign of an amount means
   const parseOpts = { decimal: decInfo.decimal };
   if (!sign && hasAmount) {
     const a = col('amount');
-    const values = stat[a].cells.map((t) => parseAmount(t, parseOpts)).filter((v) => v !== null);
+    const values = stat[a].cells.map((tt) => parseAmount(tt, parseOpts)).filter((v) => v !== null);
     const negatives = values.filter((v) => v < 0).length;
     const dirCol = col('direction');
     if (negatives > 0) {
@@ -276,13 +277,13 @@ export function analyseGrid(grid, { hint = {}, saved = null } = {}) {
       // a card statement shows purchases as plus and payments as minus
       if (values.length >= 5 && negatives / values.length <= 0.35 && descriptionsLookLikePayments(rows, dataStart, a, parseOpts, roles)) {
         sign = 'positiveOut';
-        notes.push('Penny took positive amounts as money you spent (it looks like a card statement). Check the first lines.');
+        notes.push(t('Penny took positive amounts as money you spent (it looks like a card statement). Check the first lines.'));
       }
     } else if (dirCol >= 0) {
       sign = 'direction';
     } else {
       sign = 'positiveOut';
-      notes.push('The amounts have no minus sign, so Penny took them all as money you spent. If that is wrong, change it in "How Penny read this file".');
+      notes.push(t('The amounts have no minus sign, so Penny took them all as money you spent. If that is wrong, change it in "How Penny read this file".'));
     }
   }
   // the balance column, if any, can confirm or correct a guessed direction
@@ -291,7 +292,7 @@ export function analyseGrid(grid, { hint = {}, saved = null } = {}) {
     const agree = balanceDirection(rows, dataStart, balanceAt, col('amount'), parseOpts);
     if (agree === 'in') {
       sign = 'positiveIn';
-      notes.push('The balance column shows these amounts add to the balance, so Penny took them as money received.');
+      notes.push(t('The balance column shows these amounts add to the balance, so Penny took them as money received.'));
     }
   }
 
@@ -299,14 +300,14 @@ export function analyseGrid(grid, { hint = {}, saved = null } = {}) {
     const c = col('currency');
     if (c >= 0) {
       const counts = new Map();
-      for (const t of stat[c].cells) counts.set(t.toUpperCase(), (counts.get(t.toUpperCase()) ?? 0) + 1);
+      for (const tt of stat[c].cells) counts.set(tt.toUpperCase(), (counts.get(tt.toUpperCase()) ?? 0) + 1);
       const top = [...counts].sort((a, b) => b[1] - a[1])[0];
       if (top) return top[0];
     }
     for (const role of ['amount', 'debit', 'credit']) {
       const cc = col(role);
       if (cc >= 0) {
-        const found = currencyIn(headers[cc]) ?? stat[cc].cells.map((t) => currencyIn(t)).find(Boolean);
+        const found = currencyIn(headers[cc]) ?? stat[cc].cells.map((tt) => currencyIn(tt)).find(Boolean);
         if (found) return found;
       }
     }
@@ -319,7 +320,7 @@ export function analyseGrid(grid, { hint = {}, saved = null } = {}) {
   if (dateAt >= 0 && Math.max(stat[dateAt].dates, compactDates ? stat[dateAt].compact : 0) < 0.6) confidence = 'low';
   if (confidence === 'high' && (dateInfo.ambiguous || decInfo.ambiguous)) confidence = 'medium';
   if (grid.loose && confidence === 'high') confidence = 'medium';
-  if (headerRow < 0 && confidence !== 'low') notes.unshift('This table has no headings: Penny worked out the columns from their content.');
+  if (headerRow < 0 && confidence !== 'low') notes.unshift(t('This table has no headings: Penny worked out the columns from their content.'));
 
   return {
     ok: confidence !== 'low',
@@ -397,8 +398,8 @@ function balanceDirection(rows, start, balCol, amtCol, opts) {
 /** Roles a person may pick for a column in the matching screen need at least these, to produce payments. */
 export function mappingProblem(mapping) {
   const has = (r) => mapping.roles.includes(r);
-  if (!has('date')) return 'Choose which column holds the date.';
-  if (!has('amount') && !(has('debit') || has('credit'))) return 'Choose which column holds the amount (or the columns for money out and money in).';
-  if (has('amount') && (has('debit') || has('credit'))) return 'Use either one amount column, or the money out and money in columns, not both.';
+  if (!has('date')) return t('Choose which column holds the date.');
+  if (!has('amount') && !(has('debit') || has('credit'))) return t('Choose which column holds the amount (or the columns for money out and money in).');
+  if (has('amount') && (has('debit') || has('credit'))) return t('Use either one amount column, or the money out and money in columns, not both.');
   return null;
 }

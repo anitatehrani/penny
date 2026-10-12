@@ -6,6 +6,8 @@ import { useApp } from '../../context.jsx';
 import { currentMonth, monthLabel } from '../../format.js';
 import { useQuick } from '../../quick.jsx';
 import { Delta, Donut } from '../charts.jsx';
+import { t } from '../../i18n/translate.js';
+import { catName } from '../../categoryNames.js';
 
 /**
  * Where the money goes this month. The ring and the list are one control: point at a category in either and the
@@ -22,8 +24,8 @@ export default function SpendingWidget({ compare }) {
   const items = compare.categories.filter((c) => c.current > 0);
   if (items.length === 0) {
     return (
-      <EmptyState art="chart" title={compare.month === currentMonth() ? 'No spending recorded this month' : `No spending recorded for ${monthLabel(compare.month)}`} action={<button className="btn sm" onClick={() => openAddPayment()}>Add a payment</button>}>
-        Once you add expenses, you will see which categories take the most.
+      <EmptyState art="chart" title={compare.month === currentMonth() ? t('No spending recorded this month') : t('No spending recorded for {monthLabel}', { monthLabel: monthLabel(compare.month) })} action={<button className="btn sm" onClick={() => openAddPayment()}>{t('Add a payment')}</button>}>
+        {t('Once you add expenses, you will see which categories take the most.')}
       </EmptyState>
     );
   }
@@ -41,15 +43,15 @@ export default function SpendingWidget({ compare }) {
           onActive={setActive}
           centre={
             <div className="donut-label" aria-hidden="true">
-              <span className="eyebrow">{hovered ? hovered.name : 'Total'}</span>
+              <span className="eyebrow">{hovered ? hovered.name : t('Total')}</span>
               <span className="num donut-value">{money(hovered ? hovered.current : total)}</span>
-              <span className="muted small">{hovered ? `${Math.round((hovered.current / total) * 100)}% of spending` : monthLabel(compare.month, { month: 'long' })}</span>
+              <span className="muted small">{hovered ? t('{round}% of spending', { round: Math.round((hovered.current / total) * 100) }) : monthLabel(compare.month, { month: 'long' })}</span>
             </div>
           }
         />
         {prevTotal > 0 && (
           <div className="spending-total">
-            <Delta now={total} before={prevTotal} goodWhen="down" suffix={`vs ${monthLabel(compare.prevMonth, { month: 'long' })}`} />
+            <Delta now={total} before={prevTotal} goodWhen="down" suffix={t('vs {monthLabel}', { monthLabel: monthLabel(compare.prevMonth, { month: 'long' }) })} />
           </div>
         )}
       </div>
@@ -57,9 +59,9 @@ export default function SpendingWidget({ compare }) {
       <div className="spending-list">
         <div className="spending-toggle">
           <label htmlFor="cmp" className="small muted">
-            Compare with {monthLabel(compare.prevMonth, { month: 'long' })}
+            {t('Compare with {monthLabel}', { monthLabel: monthLabel(compare.prevMonth, { month: 'long' }) })}
           </label>
-          <Switch id="cmp" checked={showPrev} onChange={setShowPrev} label="Compare with last month" />
+          <Switch id="cmp" checked={showPrev} onChange={setShowPrev} label={t('Compare with last month')} />
         </div>
         <ul>
           {items.slice(0, 7).map((c, i) => {
@@ -71,19 +73,19 @@ export default function SpendingWidget({ compare }) {
                   onFocus={() => setActive(i)}
                   onBlur={() => setActive(null)}
                   onClick={() => navigate(`/payments?${c.category_id ? `category=${c.category_id}&` : ''}month=${compare.month}&type=expense`)}
-                  aria-label={`${c.name}: ${money(c.current)}, ${share}% of spending${c.previous > 0 ? `, last month ${money(c.previous)}` : ', nothing last month'}. See these payments.`}
+                  aria-label={c.previous > 0 ? t('{name}: {money}, {share}% of spending, last month {previous}. See these payments.', { name: catName(c.name), money: money(c.current), share, previous: money(c.previous) }) : t('{name}: {money}, {share}% of spending, nothing last month. See these payments.', { name: catName(c.name), money: money(c.current), share })}
                 >
                   <span className="spend-top">
                     <span className="cat">
                       <span className="dot" style={{ background: c.color }} />
-                      {c.name}
+                      {catName(c.name)}
                     </span>
                     <span className="spend-right">
-                      {showPrev && (c.previous > 0 ? <Delta now={c.current} before={c.previous} goodWhen="down" suffix="" compact /> : <span className="badge">New</span>)}
+                      {showPrev && (c.previous > 0 ? <Delta now={c.current} before={c.previous} goodWhen="down" suffix="" compact /> : <span className="badge">{t('New')}</span>)}
                       <span className="num">{money(c.current)}</span>
                     </span>
                   </span>
-                  <span className="bar-track" aria-hidden="true" title={showPrev ? `Last month: ${money(c.previous)}` : undefined}>
+                  <span className="bar-track" aria-hidden="true" title={showPrev ? t('Last month: {money}', { money: money(c.previous) }) : undefined}>
                     <span className="bar-now" style={{ width: `${(c.current / max) * 100}%`, background: c.color }} />
                     {showPrev && c.previous > 0 && <span className="bar-tick" style={{ left: `${Math.min(100, (c.previous / max) * 100)}%` }} />}
                   </span>
@@ -92,8 +94,8 @@ export default function SpendingWidget({ compare }) {
             );
           })}
         </ul>
-        {showPrev && <p className="muted small spend-key"><i className="tick-key" /> marks last month</p>}
-        {items.length > 7 && <p className="muted small">and {items.length - 7} smaller categories</p>}
+        {showPrev && <p className="muted small spend-key"><i className="tick-key" /> {t('marks last month')}</p>}
+        {items.length > 7 && <p className="muted small">{t('and {value} smaller categories', { value: items.length - 7 })}</p>}
       </div>
     </div>
   );

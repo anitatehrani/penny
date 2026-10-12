@@ -5,6 +5,7 @@ import { CategoryDot, Icon } from '../components/ui.jsx';
 import { useApp } from '../context.jsx';
 import { dateLabel, relativeDay, todayYMD, weekday } from '../format.js';
 import { useQuick } from '../quick.jsx';
+import { t } from '../i18n/translate.js';
 
 /**
  * One payment in the "coming up" ledger. The date, name and amount are always visible; the quick actions
@@ -23,8 +24,8 @@ export default function PaymentRow({ tx, onEdit }) {
     try {
       await api.patch(`/transactions/${tx.id}/status`, { status: 'paid' });
       setLeaving(true);
-      notify(`${income ? 'Received' : 'Paid'}: ${tx.description}`, 'ok', {
-        label: 'Undo',
+      notify(`${income ? t('Received') : t('Paid')}: ${tx.description}`, 'ok', {
+        label: t('Undo'),
         run: async () => {
           await api.patch(`/transactions/${tx.id}/status`, { status: 'pending' }).catch(() => {});
           bump();
@@ -47,36 +48,36 @@ export default function PaymentRow({ tx, onEdit }) {
         <div className="prow-title">
           <span>{tx.description}</span>
           {tx.source === 'recurring' && (
-            <Tooltip label="Repeats automatically">
-              <span className="prow-ico" role="img" aria-label="Recurring">
+            <Tooltip label={t('Repeats automatically')}>
+              <span className="prow-ico" role="img" aria-label={t('Recurring')}>
                 <Icon name="repeat" size={12} />
               </span>
             </Tooltip>
           )}
           {tx.pay_method === 'credit_card' && (
-            <Tooltip label={`Credit card, bought ${dateLabel(tx.charged_on)}`}>
-              <span className="prow-ico" role="img" aria-label={`Credit card, bought ${dateLabel(tx.charged_on)}`}>
+            <Tooltip label={t('Credit card, bought {dateLabel}', { dateLabel: dateLabel(tx.charged_on) })}>
+              <span className="prow-ico" role="img" aria-label={t('Credit card, bought {dateLabel}', { dateLabel: dateLabel(tx.charged_on) })}>
                 <Icon name="card" size={12} />
               </span>
             </Tooltip>
           )}
           {tx.source === 'debt' && (
-            <Tooltip label={tx.type === 'income' ? 'Money paid back to you' : 'Paying off a debt'}>
-              <span className="prow-ico" role="img" aria-label={tx.type === 'income' ? 'Paid back' : 'Debt'}>
+            <Tooltip label={tx.type === 'income' ? t('Money paid back to you') : t('Paying off a debt')}>
+              <span className="prow-ico" role="img" aria-label={tx.type === 'income' ? t('Paid back') : t('Debt')}>
                 <Icon name="debt" size={12} />
               </span>
             </Tooltip>
           )}
           {tx.source === 'loan' && (
-            <Tooltip label="Money you lent">
-              <span className="prow-ico" role="img" aria-label="Loan">
+            <Tooltip label={t('Money you lent')}>
+              <span className="prow-ico" role="img" aria-label={t('Loan')}>
                 <Icon name="debt" size={12} />
               </span>
             </Tooltip>
           )}
           {tx.source === 'installment' && (
-            <Tooltip label="Installment plan">
-              <span className="prow-ico" role="img" aria-label="Installment">
+            <Tooltip label={t('Installment plan')}>
+              <span className="prow-ico" role="img" aria-label={t('Installment')}>
                 <Icon name="card" size={12} />
               </span>
             </Tooltip>
@@ -89,12 +90,12 @@ export default function PaymentRow({ tx, onEdit }) {
         {money(tx.amount)}
       </div>
       <div className="prow-actions">
-        <button className="btn sm primary-soft" onClick={markPaid} disabled={busy} aria-label={`${income ? 'Mark received' : 'Mark paid'}: ${tx.description}`}>
-          <Icon name="check" size={14} /> {income ? 'Received' : 'Paid'}
+        <button className="btn sm primary-soft" onClick={markPaid} disabled={busy} aria-label={`${income ? t('Mark received') : t('Mark paid')}: ${tx.description}`}>
+          <Icon name="check" size={14} /> {income ? t('Received') : t('Paid')}
         </button>
         {onEdit && (
-          <Tooltip label="Edit">
-            <button className="btn icon sm ghost" onClick={() => onEdit(tx)} aria-label={`Edit ${tx.description}`}>
+          <Tooltip label={t('Edit')}>
+            <button className="btn icon sm ghost" onClick={() => onEdit(tx)} aria-label={t('Edit {description}', { description: tx.description })}>
               <Icon name="edit" size={15} />
             </button>
           </Tooltip>

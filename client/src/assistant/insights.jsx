@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { api } from '../api.js';
 import { useApp } from '../context.jsx';
 import { useQuick } from '../quick.jsx';
+import { t } from '../i18n/translate.js';
 
 const Ctx = createContext({ data: null, loading: true, error: null, insights: [], reload: () => {}, dismiss: () => {}, restoreAll: () => {}, overdueCount: 0, hasForecastWarning: false });
 export const useInsights = () => useContext(Ctx);
@@ -36,8 +37,8 @@ export function InsightsProvider({ children }) {
       setState((s) => (s.data ? { ...s, data: { ...s.data, insights: s.data.insights.filter((i) => i.key !== insight.key), dismissed: s.data.dismissed + 1 } } : s));
       try {
         await api.post(`/insights/${encodeURIComponent(insight.key)}/dismiss`);
-        notify('Insight dismissed. It stays hidden for the rest of the month.', 'ok', {
-          label: 'Undo',
+        notify(t('Insight dismissed. It stays hidden for the rest of the month.'), 'ok', {
+          label: t('Undo'),
           run: async () => {
             await api.del(`/insights/${encodeURIComponent(insight.key)}/dismiss`).catch(() => {});
             load();

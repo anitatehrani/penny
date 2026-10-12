@@ -1,7 +1,8 @@
+import { t } from './i18n/translate.js';
 // The review step of a statement import, as plain functions (docs/DESIGN.md section 41): from the lines the reader found and what the server
 // made of them to the rows the person edits, and from those rows to what is saved. No screen code here, so it is tested on its own.
 
-export const WHY = { duplicate: 'Already in your payments', notbooked: 'Not booked by the bank yet', reverted: 'Cancelled by the bank', section: 'This part of the statement is switched off', you: 'You left it out' };
+export const WHY = { get duplicate() { return t('Already in your payments'); }, get notbooked() { return t('Not booked by the bank yet'); }, get reverted() { return t('Cancelled by the bank'); }, get section() { return t('This part of the statement is switched off'); }, get you() { return t('You left it out'); } };
 
 /** What the preview request carries for each line: only what the server needs to suggest a category and find duplicates. */
 export const previewLines = (rows) =>
@@ -159,7 +160,7 @@ export function commitRows(rows) {
       const changed = r.touched && !same(c, r.suggested);
       return {
         date: r.date,
-        description: r.description.trim() || r.original || 'Bank transaction',
+        description: r.description.trim() || r.original || t('Bank transaction'),
         note: r.note ?? '',
         amount: r.amount,
         type: r.type,

@@ -1750,7 +1750,8 @@
 }
 @media (max-width: 560px) {
   /* on a phone the bar only has room for the brand and the two buttons; the light/dark switch moves to the footer */
-  .lp-theme-nav {
+  .lp-theme-nav,
+  .lp-nav-actions .lang-links {
     display: none;
   }
   .lp-theme-foot {

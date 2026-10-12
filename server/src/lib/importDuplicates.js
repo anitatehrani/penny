@@ -21,7 +21,7 @@ export function similarity(a, b) {
   const y = tokens(b);
   if (!x.size || !y.size) return 0;
   let shared = 0;
-  for (const t of x) if (y.has(t)) shared++;
+  for (const tt of x) if (y.has(tt)) shared++;
   if (shared) return Math.max(shared / (x.size + y.size - shared), shared / Math.min(x.size, y.size) >= 1 ? 0.9 : 0);
   // one word inside the other ("netflix" and "netflixcom")
   const joinedA = [...x].join('');

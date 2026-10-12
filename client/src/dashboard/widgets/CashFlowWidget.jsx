@@ -3,6 +3,7 @@ import { Skeleton, Switch } from '../../components/ui.jsx';
 import { useApp } from '../../context.jsx';
 import { monthLabel } from '../../format.js';
 import { Delta, CashFlowChart } from '../charts.jsx';
+import { t } from '../../i18n/translate.js';
 
 /** Income against expenses month by month, with this month's net and how it compares to last month. Forecast months can be hidden. */
 export default function CashFlowWidget({ forecast, month }) {
@@ -20,32 +21,32 @@ export default function CashFlowWidget({ forecast, month }) {
     <div className="cashflow panel">
       <div className="cashflow-head">
         <div>
-          <div className="eyebrow">{cur.kind === 'current' ? 'Net this month' : `Net in ${monthLabel(cur.month)}`}</div>
+          <div className="eyebrow">{cur.kind === 'current' ? t('Net this month') : t('Net in {monthLabel}', { monthLabel: monthLabel(cur.month) })}</div>
           <div className={`cashflow-net num ${curNet < 0 ? 'neg' : 'pos'}`}>
             {curNet >= 0 ? '+' : '−'}
             {money(Math.abs(curNet))}
           </div>
-          {prev && <Delta now={cur.expenses + cur.estimatedExpenses} before={prev.expenses} goodWhen="down" suffix="spending vs last month" />}
+          {prev && <Delta now={cur.expenses + cur.estimatedExpenses} before={prev.expenses} goodWhen="down" suffix={t('spending vs last month')} />}
         </div>
         <label className="cashflow-toggle small muted">
-          Show forecast
-          <Switch checked={showForecast} onChange={setShowForecast} label="Show forecast months" />
+          {t('Show forecast')}
+          <Switch checked={showForecast} onChange={setShowForecast} label={t('Show forecast months')} />
         </label>
       </div>
       <CashFlowChart months={months} showForecast={showForecast} height={220} />
       <ul className="legend-inline cf-legend">
         <li>
-          <i className="swatch" style={{ background: 'var(--series-1)' }} /> Income
+          <i className="swatch" style={{ background: 'var(--series-1)' }} /> {t('Income')}
         </li>
         <li>
-          <i className="swatch" style={{ background: 'var(--series-2)' }} /> Expenses
+          <i className="swatch" style={{ background: 'var(--series-2)' }} /> {t('Expenses')}
         </li>
         <li>
-          <i className="line solid ink" /> Net
+          <i className="line solid ink" /> {t('Net')}
         </li>
         {showForecast && (
           <li>
-            <i className="swatch hatch" /> Forecast (lighter, dashed)
+            <i className="swatch hatch" /> {t('Forecast (lighter, dashed)')}
           </li>
         )}
       </ul>

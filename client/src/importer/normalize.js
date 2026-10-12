@@ -5,6 +5,7 @@
 import { directionOf, statusOf } from './headers.js';
 import { redact } from './redact.js';
 import { parseAmount, parseDate, roundCents, tidy, ymd } from './values.js';
+import { t } from '../i18n/translate.js';
 
 const MAX_DESCRIPTION = 200;
 const MAX_NOTE = 300;
@@ -60,7 +61,7 @@ function parts(roles, row) {
   return out;
 }
 
-const firstOf = (list) => (list ?? []).find((t) => t) ?? '';
+const firstOf = (list) => (list ?? []).find((tt) => tt) ?? '';
 
 /**
  * Apply `mapping` (from detect.js, possibly edited by the person) to `grid`. `ref` is today ({y,m,d}) for dates written without a year.
@@ -81,7 +82,7 @@ export function extractRows(grid, mapping, { ref = null } = {}) {
     const preview = clip(raw.map(tidy).filter(Boolean).join(' · '), 80);
 
     // the date; a line with money but a blank date shares the date above it (banks that print the date once for several payments)
-    const dateText = [...(p.date ?? []), ...(p.valueDate ?? [])].find((t) => t) ?? '';
+    const dateText = [...(p.date ?? []), ...(p.valueDate ?? [])].find((tt) => tt) ?? '';
     let date = dateText ? parseDate(dateText, dateOpts) : null;
     let carried = false;
     if (!date && !dateText && lastDate) {
@@ -137,12 +138,12 @@ export function extractRows(grid, mapping, { ref = null } = {}) {
 
     // the words: the other party first (the payee for money out, the payer for money in), then the description, then the details
     const party = type === 'income' ? firstOf(p.payer) || firstOf(p.counterparty) || firstOf(p.payee) : firstOf(p.payee) || firstOf(p.counterparty) || firstOf(p.payer);
-    const pieces = [party, ...(p.description ?? []), ...(p.details ?? [])].filter((t, i, all) => t && all.indexOf(t) === i);
+    const pieces = [party, ...(p.description ?? []), ...(p.details ?? [])].filter((tt, i, all) => tt && all.indexOf(tt) === i);
     const split = pieces.map(splitDescription);
     const title = split.map((s) => s.title).filter(Boolean);
     const noteParts = [...title.slice(1), ...split.flatMap((s) => s.notes), ...(p.category ? [] : [])];
     const reference = (firstOf(p.reference) || split.map((s) => s.ref).find(Boolean) || '').trim();
-    const description = clip(redact(title[0] ?? '') || 'Bank transaction', MAX_DESCRIPTION);
+    const description = clip(redact(title[0] ?? '') || t('Bank transaction'), MAX_DESCRIPTION);
     const note = clip(noteParts.map(redact).filter(Boolean).join(' · '), MAX_NOTE);
 
     // is it final? a status column, or the table's own heading ("Pending ...")
@@ -175,7 +176,7 @@ export function extractRows(grid, mapping, { ref = null } = {}) {
       rows.push({
         line,
         date: dateYMD,
-        description: clip(`Fee: ${description}`, MAX_DESCRIPTION),
+        description: clip(t('Fee: {description}', { description }), MAX_DESCRIPTION),
         note: '',
         amount: roundCents(Math.abs(fee)),
         type: 'expense',

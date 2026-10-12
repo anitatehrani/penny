@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { api } from './api.js';
 import { useAuth } from './auth.jsx';
 import { DEFAULT_LAYOUT, normalizeLayout, WIDGETS } from './prefsLogic.js';
+import { N_, t } from './i18n/translate.js';
 
 export { DEFAULT_LAYOUT, normalizeLayout, WIDGETS };
 
@@ -11,12 +12,12 @@ export { DEFAULT_LAYOUT, normalizeLayout, WIDGETS };
  * page looks right on the very first paint, and applied to <html> as data attributes the design tokens react to.
  */
 export const ACCENTS = [
-  ['blue', 'Blue'],
-  ['green', 'Green'],
-  ['violet', 'Violet'],
-  ['amber', 'Amber'],
-  ['rose', 'Rose'],
-  ['graphite', 'Graphite'],
+  ['blue', N_('Blue')],
+  ['green', N_('Green')],
+  ['violet', N_('Violet')],
+  ['amber', N_('Amber')],
+  ['rose', N_('Rose')],
+  ['graphite', N_('Graphite')],
 ];
 const DEFAULTS = { density: 'comfortable', accent: 'blue', sidebar_collapsed: false, favorites: [], avatar_style: 'photo', assistant_intro_seen: false };
 
@@ -88,7 +89,14 @@ export function PreferencesProvider({ children }) {
     }
   }, []);
 
-  useEffect(() => () => clearTimeout(timer.current), []);
+  // a change waiting to be saved is saved when this goes away (the language change draws everything again at once)
+  useEffect(
+    () => () => {
+      clearTimeout(timer.current);
+      flush();
+    },
+    [flush],
+  );
 
   const setPrefs = useCallback(
     (patch) => {

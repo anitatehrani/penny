@@ -231,7 +231,8 @@ describe('the sitemap', () => {
       assert.ok(locs.includes(`${BASE}/guides/${g.slug}`), g.slug);
       assert.ok(xml.includes(`<loc>${BASE}/guides/${g.slug}</loc>\n    <lastmod>${g.updated}</lastmod>`), `${g.slug} is dated`);
     }
-    assert.equal(locs.length, SITEMAP_PAGES.length);
+    for (const g of GUIDES) assert.ok(locs.includes(`${BASE}/it/guides/${g.slug}`), `${g.slug} in Italian`);
+    assert.equal(locs.length, SITEMAP_PAGES.length * 2, 'every page in both languages');
     assert.equal(new Set(locs).size, locs.length, 'no address twice');
   });
 });

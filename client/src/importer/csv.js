@@ -2,6 +2,7 @@
 // The separator, the quotes and the text encoding are worked out from the file itself.
 
 import { ImportError } from './errors.js';
+import { t } from '../i18n/translate.js';
 
 export const MAX_TEXT_BYTES = 12 * 1024 * 1024;
 const MAX_ROWS = 60000;
@@ -100,7 +101,7 @@ export function guessSeparator(text) {
 
 /** Text to a grid: { source: 'csv', name, rows }. A first line such as "sep=;" (Excel's own hint) is used and dropped. */
 export function readDelimited(text) {
-  if (!isProbablyText(text)) throw new ImportError('unreadable', 'That file does not look like a statement Penny can read.');
+  if (!isProbablyText(text)) throw new ImportError('unreadable', t('That file does not look like a statement Penny can read.'));
   let body = text;
   let sep = null;
   const hint = body.match(/^\s*sep=(.)\s*(?:\r\n|\n|\r)/i);
@@ -110,8 +111,8 @@ export function readDelimited(text) {
   }
   sep ||= guessSeparator(body);
   const rows = splitRows(body, sep);
-  if (!rows.length) throw new ImportError('empty', 'That file is empty.');
-  return { source: 'csv', name: 'File', rows, separator: sep };
+  if (!rows.length) throw new ImportError('empty', t('That file is empty.'));
+  return { source: 'csv', name: t('File'), rows, separator: sep };
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
@@ -139,6 +140,6 @@ export function readHtmlTable(text) {
     );
   const best = (tables.length ? tables : [text]).map(rowsOf).sort((a, b) => b.length - a.length)[0] ?? [];
   const rows = best.filter((r) => r.some((c) => c !== '')).slice(0, MAX_ROWS);
-  if (!rows.length) throw new ImportError('empty', 'Penny found no list of payments in that file.');
-  return { source: 'csv', name: 'File', rows };
+  if (!rows.length) throw new ImportError('empty', t('Penny found no list of payments in that file.'));
+  return { source: 'csv', name: t('File'), rows };
 }

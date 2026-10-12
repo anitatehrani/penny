@@ -10,31 +10,32 @@ import { useApp } from '../context.jsx';
 import { dateLabel, makeMoney, relativeDay, timeAgo, todayYMD } from '../format.js';
 import { useNotifications } from '../notifications.jsx';
 import { useWorkspace } from '../workspace.jsx';
+import { N_, localeOf, t, tn } from '../i18n/translate.js';
 
 const TABS = [
-  ['inbox', 'Inbox'],
-  ['upcoming', 'Upcoming & alerts'],
-  ['settings', 'Settings'],
+  ['inbox', N_('Inbox')],
+  ['upcoming', N_('Upcoming & alerts')],
+  ['settings', N_('Settings')],
 ];
 
 
 const KIND_FILTERS = [
-  ['', 'All types'],
-  ['payment_due', 'Payments due'],
-  ['payment_overdue', 'Overdue'],
-  ['balance_warning', 'Low balance'],
-  ['forecast_warning', 'Forecast warnings'],
-  ['ai_insight', 'AI insights'],
-  ['summary_weekly', 'Weekly summaries'],
-  ['summary_monthly', 'Monthly summaries'],
-  ['security', 'Security'],
-  ['connection_request', 'Connection requests'],
-  ['connection_accepted', 'Accepted connections'],
-  ['group_invite', 'Group invitations'],
-  ['group_change', 'Group changes'],
-  ['payment_shared', 'Shared payments'],
-  ['group_activity', 'Group activity'],
-  ['system', 'Account'],
+  ['', N_('All types')],
+  ['payment_due', N_('Payments due')],
+  ['payment_overdue', N_('Overdue')],
+  ['balance_warning', N_('Low balance')],
+  ['forecast_warning', N_('Forecast warnings')],
+  ['ai_insight', N_('AI insights')],
+  ['summary_weekly', N_('Weekly summaries')],
+  ['summary_monthly', N_('Monthly summaries')],
+  ['security', N_('Security')],
+  ['connection_request', N_('Connection requests')],
+  ['connection_accepted', N_('Accepted connections')],
+  ['group_invite', N_('Group invitations')],
+  ['group_change', N_('Group changes')],
+  ['payment_shared', N_('Shared payments')],
+  ['group_activity', N_('Group activity')],
+  ['system', N_('Account')],
 ];
 
 export default function Notifications() {
@@ -47,14 +48,14 @@ export default function Notifications() {
     <>
       <header className="page-head">
         <div>
-          <h1>Notifications</h1>
-          <p className="muted">Reminders for upcoming payments, requests from other people, and the alerts you chose.</p>
+          <h1>{t('Notifications')}</h1>
+          <p className="muted">{t('Reminders for upcoming payments, requests from other people, and the alerts you chose.')}</p>
         </div>
       </header>
-      <div className="tabs" role="tablist" aria-label="Notification sections">
+      <div className="tabs" role="tablist" aria-label={t('Notification sections')}>
         {TABS.map(([id, label]) => (
           <button key={id} role="tab" id={`tab-${id}`} aria-selected={tab === id} aria-controls="tab-panel" className={`tab${tab === id ? ' active' : ''}`} onClick={() => setTab(id)}>
-            {label}
+            {t(label)}
             {id === 'inbox' && unread > 0 && <span className="tab-badge">{unread > 99 ? '99+' : unread}</span>}
           </button>
         ))}
@@ -135,11 +136,11 @@ function Inbox() {
     setBusy(false);
   }
   async function clearRead() {
-    if (!window.confirm('Delete all notifications you have already read?')) return;
+    if (!window.confirm(t('Delete all notifications you have already read?'))) return;
     setBusy(true);
     try {
       const r = await api.del('/notifications');
-      notify(`${r.deleted} notification${r.deleted === 1 ? '' : 's'} deleted`);
+      notify(tn(r.deleted, '{n} notification deleted', '{n} notifications deleted'));
       await load();
     } catch (e) {
       notify(e.message, 'error');
@@ -151,7 +152,7 @@ function Inbox() {
     try {
       const r = await api.post('/notifications/refresh');
       await load();
-      notify(r.created ? `${r.created} new notification${r.created === 1 ? '' : 's'}` : 'Nothing new right now');
+      notify(r.created ? tn(r.created, '{n} new notification', '{n} new notifications') : t('Nothing new right now'));
     } catch (e) {
       notify(e.message, 'error');
     }
@@ -169,7 +170,7 @@ function Inbox() {
   async function markPaid(n) {
     try {
       await api.in(n.data.workspace_id).patch(`/transactions/${n.data.transaction_id}/status`, { status: 'paid' });
-      notify(n.data.type === 'income' ? 'Marked as received' : 'Marked as paid');
+      notify(n.data.type === 'income' ? t('Marked as received') : t('Marked as paid'));
       await load();
     } catch (e) {
       notify(e.message, 'error');
@@ -183,10 +184,10 @@ function Inbox() {
   return (
     <>
       <div className="toolbar">
-        <div className="chips" role="group" aria-label="Show">
+        <div className="chips" role="group" aria-label={t('Show')}>
           {[
-            ['all', 'All'],
-            ['unread', `Unread${state.unread ? ` (${state.unread})` : ''}`],
+            ['all', t('All')],
+            ['unread', t('Unread{value}', { value: state.unread ? ` (${state.unread})` : '' })],
           ].map(([value, label]) => (
             <button key={value} className={`chip${filter.status === value ? ' active' : ''}`} onClick={() => setFilter((f) => ({ ...f, status: value }))}>
               {label}
@@ -195,31 +196,29 @@ function Inbox() {
         </div>
         <Select
           variant="inline"
-          label="Type of notification"
+          label={t('Type of notification')}
           value={filter.kind}
           onChange={(kind) => setFilter((f) => ({ ...f, kind }))}
-          options={KIND_FILTERS.map(([v, l]) => ({ value: v, label: l }))}
+          options={KIND_FILTERS.map(([v, l]) => ({ value: v, label: t(l) }))}
         />
         <span className="spacer" />
-        <button className="btn sm" onClick={checkNow} disabled={busy} title="Look for newly due payments right now">
-          <Icon name="repeat" size={14} /> Check now
+        <button className="btn sm" onClick={checkNow} disabled={busy} title={t('Look for newly due payments right now')}>
+          <Icon name="repeat" size={14} /> {t('Check now')}
         </button>
         <button className="btn sm" onClick={readAll} disabled={busy || state.unread === 0}>
-          <Icon name="check" size={14} /> Mark all read
+          <Icon name="check" size={14} /> {t('Mark all read')}
         </button>
         <button className="btn sm" onClick={clearRead} disabled={busy}>
-          <Icon name="trash" size={14} /> Clear read
+          <Icon name="trash" size={14} /> {t('Clear read')}
         </button>
       </div>
 
       {state.items.length === 0 ? (
-        <Empty title={filter.status === 'unread' ? 'You are all caught up' : 'No notifications yet'}>
-          {filter.status === 'unread'
-            ? 'Nothing unread.'
-            : 'Reminders for upcoming payments and requests from other people will show up here. You can choose what you get under Settings.'}
+        <Empty title={filter.status === 'unread' ? t('You are all caught up') : t('No notifications yet')}>
+          {filter.status === 'unread' ? t('Nothing unread.') : t('Reminders for upcoming payments and requests from other people will show up here. You can choose what you get under Settings.')}
         </Empty>
       ) : (
-        <ul className="notif-list" aria-label="Notifications">
+        <ul className="notif-list" aria-label={t('Notifications')}>
           {state.items.map((n) => (
             <li key={n.id} className={`notif${n.read_at ? '' : ' unread'} ${KIND_TONE[n.kind] ?? ''}`}>
               <span className={`notif-icon ${KIND_TONE[n.kind] ?? ''}`} aria-hidden="true">
@@ -227,30 +226,30 @@ function Inbox() {
               </span>
               <div className="notif-main">
                 <div className="notif-title">
-                  {!n.read_at && <span className="unread-dot" role="img" aria-label="Unread" />}
+                  {!n.read_at && <span className="unread-dot" role="img" aria-label={t('Unread')} />}
                   <strong>{n.title}</strong>
-                  <time className="muted small" dateTime={n.created_at} title={new Date(n.created_at).toLocaleString()}>
+                  <time className="muted small" dateTime={n.created_at} title={new Date(n.created_at).toLocaleString(localeOf())}>
                     {timeAgo(n.created_at)}
                   </time>
                 </div>
                 {n.body && <p className="notif-body">{n.body}</p>}
                 {workspaceName(n.data) && <span className="badge">{workspaceName(n.data)}</span>}
-                {(n.kind === 'payment_due' || n.kind === 'payment_overdue') && !n.actionable && <span className="badge ok">Settled — no longer due</span>}
+                {(n.kind === 'payment_due' || n.kind === 'payment_overdue') && !n.actionable && <span className="badge ok">{t('Settled — no longer due')}</span>}
                 <div className="notif-actions">
                   {n.actionable && n.data?.transaction_id && (
                     <button className="btn sm primary-soft" onClick={() => markPaid(n)}>
-                      <Icon name="check" size={14} /> {n.data.type === 'income' ? 'Mark received' : 'Mark paid'}
+                      <Icon name="check" size={14} /> {n.data.type === 'income' ? t('Mark received') : t('Mark paid')}
                     </button>
                   )}
                   {n.link && (
                     <button className="btn sm" onClick={() => open(n)}>
-                      {n.kind === 'connection_request' || n.kind === 'group_invite' ? 'Review' : 'Open'}
+                      {n.kind === 'connection_request' || n.kind === 'group_invite' ? t('Review') : t('Open')}
                     </button>
                   )}
                   <button className="btn sm ghost" onClick={() => mark(n, !n.read_at)}>
-                    {n.read_at ? 'Mark unread' : 'Mark read'}
+                    {n.read_at ? t('Mark unread') : t('Mark read')}
                   </button>
-                  <button className="btn icon ghost danger-hover" onClick={() => remove(n)} aria-label={`Delete notification: ${n.title}`} title="Delete">
+                  <button className="btn icon ghost danger-hover" onClick={() => remove(n)} aria-label={t('Delete notification: {title}', { title: n.title })} title={t('Delete')}>
                     <Icon name="trash" size={16} />
                   </button>
                 </div>
@@ -262,7 +261,7 @@ function Inbox() {
       {state.hasMore && (
         <div className="center">
           <button className="btn" onClick={() => load({ more: true })}>
-            Show older
+            {t('Show older')}
           </button>
         </div>
       )}
@@ -273,9 +272,9 @@ function Inbox() {
 /* ------------------------------------------------------------------ upcoming & alerts */
 
 const MODE_OPTIONS = [
-  ['default', 'Default'],
-  ['on', 'Always'],
-  ['off', 'Never'],
+  ['default', N_('Default')],
+  ['on', N_('Always')],
+  ['off', N_('Never')],
 ];
 
 function Upcoming() {
@@ -307,7 +306,7 @@ function Upcoming() {
     try {
       await api.del(`/alerts/${o.target_type}/${o.target_id}`);
       await load();
-      notify('Alert rule removed');
+      notify(t('Alert rule removed'));
     } catch (e) {
       notify(e.message, 'error');
     }
@@ -331,36 +330,36 @@ function Upcoming() {
         <div className="banner warn" role="status">
           <Icon name="bellOff" />
           <div>
-            Alerts are paused, so nothing below will notify you until you resume. <Link to="/notifications?tab=settings">Change in settings</Link>
+            {t('Alerts are paused, so nothing below will notify you until you resume.')} <Link to="/notifications?tab=settings">{t('Change in settings')}</Link>
           </div>
         </div>
       )}
       <section className="card">
         <div className="card-head">
-          <h2>Payments in the next 60 days</h2>
+          <h2>{t('Payments in the next 60 days')}</h2>
           <label className="check inline">
             <input type="checkbox" checked={alertsOnly} onChange={(e) => setAlertsOnly(e.target.checked)} />
-            <span>Only ones that alert me</span>
+            <span>{t('Only ones that alert me')}</span>
           </label>
         </div>
         <p className="muted small">
-          By default you are reminded {defaults.lead_days === 0 ? 'on the day' : `${defaults.lead_days} day${defaults.lead_days === 1 ? '' : 's'} before`} for every payment you still have to pay
-          {defaults.include_income ? ' and every expected income' : ''}. Change that for a single payment here, or for a whole recurring item, installment plan or category from their own forms and lists.
+          {t(defaults.include_income ? 'By default you are reminded {when} for every payment you still have to pay and every expected income.' : 'By default you are reminded {when} for every payment you still have to pay.', { when: defaults.lead_days === 0 ? t('on the day') : tn(defaults.lead_days, '{n} day before', '{n} days before') })}{' '}
+          {t('Change that for a single payment here, or for a whole recurring item, installment plan or category from their own forms and lists.')}
         </p>
         {shown.length === 0 ? (
-          <Empty title="Nothing to show">{alertsOnly ? 'No upcoming payment is set to alert you.' : 'You have no pending payments in this period.'}</Empty>
+          <Empty title={t('Nothing to show')}>{alertsOnly ? t('No upcoming payment is set to alert you.') : t('You have no pending payments in this period.')}</Empty>
         ) : (
-          <div className="table-wrap" tabIndex={0} role="region" aria-label="Upcoming payments and their alerts (scrolls sideways on small screens)">
+          <div className="table-wrap" tabIndex={0} role="region" aria-label={t('Upcoming payments and their alerts (scrolls sideways on small screens)')}>
             <table className="table alerts-table">
               <thead>
                 <tr>
-                  <th scope="col">Due</th>
-                  <th scope="col">Payment</th>
+                  <th scope="col">{t('Due')}</th>
+                  <th scope="col">{t('Payment')}</th>
                   <th scope="col" className="r">
-                    Amount
+                    {t('Amount')}
                   </th>
-                  <th scope="col">Alert</th>
-                  <th scope="col">Change</th>
+                  <th scope="col">{t('Alert')}</th>
+                  <th scope="col">{t('Change')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -389,10 +388,10 @@ function Upcoming() {
                     <td>
                       <Select
                         variant="inline"
-                        label={`Alert for ${i.description} on ${i.date}`}
+                        label={t('Alert for {description} on {date}', { description: i.description, date: i.date })}
                         value={i.own_mode ?? 'default'}
                         onChange={(v) => setMode(i, v)}
-                        options={MODE_OPTIONS.map(([v, l]) => ({ value: v, label: l }))}
+                        options={MODE_OPTIONS.map(([v, l]) => ({ value: v, label: t(l) }))}
                       />
                     </td>
                   </tr>
@@ -405,21 +404,21 @@ function Upcoming() {
 
       <section className="card">
         <div className="card-head">
-          <h2>Your alert rules</h2>
+          <h2>{t('Your alert rules')}</h2>
         </div>
         {state.overrides.length === 0 ? (
-          <p className="muted">You have not changed any alerts yet. Everything follows your default.</p>
+          <p className="muted">{t('You have not changed any alerts yet. Everything follows your default.')}</p>
         ) : (
           <ul className="rule-list">
             {state.overrides.map((o) => (
               <li key={`${o.target_type}:${o.target_id}`}>
                 <span>
                   <strong>{o.label}</strong>
-                  <span className="muted small"> · {{ transaction: 'one payment', recurring: 'recurring item', installment: 'installment plan', category: 'category' }[o.target_type]}</span>
+                  <span className="muted small"> · {{ transaction: t('one payment'), recurring: t('recurring item'), installment: t('installment plan'), category: 'category' }[o.target_type]}</span>
                 </span>
-                <span className={`badge ${o.mode === 'on' ? 'accent' : ''}`}>{o.mode === 'off' ? 'Never' : o.days != null ? `${o.days} day${o.days === 1 ? '' : 's'} before` : 'Always'}</span>
-                <button className="btn sm ghost" onClick={() => removeOverride(o)} aria-label={`Remove the alert rule for ${o.label}`}>
-                  Reset
+                <span className={`badge ${o.mode === 'on' ? 'accent' : ''}`}>{o.mode === 'off' ? t('Never') : o.days != null ? tn(o.days, '{n} day before', '{n} days before') : t('Always')}</span>
+                <button className="btn sm ghost" onClick={() => removeOverride(o)} aria-label={t('Remove the alert rule for {label}', { label: o.label })}>
+                  {t('Reset')}
                 </button>
               </li>
             ))}

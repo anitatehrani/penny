@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { query } from '../db.js';
 import { HttpError, idParam, strictNumber, text, wrap } from '../lib/http.js';
+import { t } from '../lib/i18n.js';
 
 const router = Router();
 
@@ -88,7 +89,7 @@ router.put(
        RETURNING id, name, kind, color, created_at`,
       [c.name, c.kind, c.color, idParam(req), req.workspace.id],
     );
-    if (!rows[0]) throw new HttpError(404, 'Category not found');
+    if (!rows[0]) throw new HttpError(404, t('Category not found'));
     res.json(rows[0]);
   }),
 );
@@ -97,7 +98,7 @@ router.delete(
   '/categories/:id',
   wrap(async (req, res) => {
     const { rowCount } = await query('DELETE FROM categories WHERE id = $1 AND workspace_id = $2', [idParam(req), req.workspace.id]);
-    if (!rowCount) throw new HttpError(404, 'Category not found');
+    if (!rowCount) throw new HttpError(404, t('Category not found'));
     res.status(204).end();
   }),
 );

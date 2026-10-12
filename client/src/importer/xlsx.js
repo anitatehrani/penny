@@ -6,6 +6,7 @@ import { unzipSync } from 'fflate';
 import { ImportError } from './errors.js';
 import { decodeEntities } from './csv.js';
 import { ymd } from './values.js';
+import { t } from '../i18n/translate.js';
 
 const MAX_PART_BYTES = 40 * 1024 * 1024;
 const MAX_ROWS = 20000;
@@ -85,18 +86,18 @@ export function readXlsx(bytes) {
     files = unzipSync(bytes, {
       filter: (f) => {
         if (!/^xl\/(workbook\.xml|_rels\/workbook\.xml\.rels|sharedStrings\.xml|styles\.xml|worksheets\/[^/]+\.xml)$/.test(f.name)) return false;
-        if (f.originalSize > MAX_PART_BYTES) throw new ImportError('toobig', 'That spreadsheet is too big to read here.');
+        if (f.originalSize > MAX_PART_BYTES) throw new ImportError('toobig', t('That spreadsheet is too big to read here.'));
         total += f.originalSize;
-        if (total > MAX_PART_BYTES * 2) throw new ImportError('toobig', 'That Excel file is too big to read here.');
+        if (total > MAX_PART_BYTES * 2) throw new ImportError('toobig', t('That Excel file is too big to read here.'));
         return true;
       },
     });
   } catch (e) {
     if (e instanceof ImportError) throw e;
-    throw new ImportError('unreadable', 'Penny could not open that Excel spreadsheet. It may be damaged or protected with a password.');
+    throw new ImportError('unreadable', t('Penny could not open that Excel spreadsheet. It may be damaged or protected with a password.'));
   }
   const workbook = files['xl/workbook.xml'] && utf8(files['xl/workbook.xml']);
-  if (!workbook) throw new ImportError('unreadable', 'That does not look like an Excel spreadsheet.');
+  if (!workbook) throw new ImportError('unreadable', t('That does not look like an Excel spreadsheet.'));
   const date1904 = /<workbookPr\b[^>]*date1904="(1|true)"/.test(workbook);
   const rels = new Map();
   for (const m of (files['xl/_rels/workbook.xml.rels'] ? utf8(files['xl/_rels/workbook.xml.rels']) : '').matchAll(/<Relationship\b([^>]*)\/?>/g)) {
@@ -148,8 +149,8 @@ export function readXlsx(bytes) {
       while (end > 0 && (r[end - 1] ?? '') === '') end--;
       return r.slice(0, end).map((c) => c ?? '');
     });
-    if (trimmed.some((r) => r.length)) sheets.push({ source: 'xlsx', name: tag.name || `Sheet ${sheets.length + 1}`, rows: trimmed });
+    if (trimmed.some((r) => r.length)) sheets.push({ source: 'xlsx', name: tag.name || t('Sheet {value}', { value: sheets.length + 1 }), rows: trimmed });
   }
-  if (!sheets.length) throw new ImportError('empty', 'Penny found no data in that spreadsheet.');
+  if (!sheets.length) throw new ImportError('empty', t('Penny found no data in that spreadsheet.'));
   return sheets;
 }

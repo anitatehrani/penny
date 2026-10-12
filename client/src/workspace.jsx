@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { api, setActiveWorkspace } from './api.js';
 import { useAuth } from './auth.jsx';
 import { useFetch } from './hooks.js';
+import { t } from './i18n/translate.js';
 
 const Ctx = createContext(null);
 export const useWorkspace = () => useContext(Ctx);
@@ -84,7 +85,7 @@ export function WorkspaceProvider({ children }) {
     [spaces.data, inbox.data, current?.id, switchTo],
   );
 
-  if (spaces.error) return <div className="loading">Cannot reach the server: {spaces.error.message}</div>;
-  if (!current) return <div className="loading">Loading…</div>;
+  if (spaces.error) return <div className="loading">{t('Cannot reach the server: {message}', { message: spaces.error.message })}</div>;
+  if (!current) return <div className="loading">{t('Loading…')}</div>;
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

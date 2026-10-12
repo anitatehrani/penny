@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { t } from './i18n.js';
 
 const RESERVED = new Set([
   'admin', 'administrator', 'api', 'app', 'root', 'support', 'help', 'me', 'you', 'user', 'users', 'login', 'logout',
@@ -10,12 +11,12 @@ const USERNAME_RE = /^[a-z0-9][a-z0-9._]{2,23}$/;
 
 export function usernameProblem(value) {
   if (!USERNAME_RE.test(value)) {
-    return 'Use 3–24 characters: lowercase letters, numbers, dots or underscores, starting with a letter or number.';
+    return t('Use 3–24 characters: lowercase letters, numbers, dots or underscores, starting with a letter or number.');
   }
   if (value.includes('..') || value.includes('__') || value.includes('._') || value.includes('_.')) {
-    return 'Do not put dots or underscores right next to each other.';
+    return t('Do not put dots or underscores right next to each other.');
   }
-  if (RESERVED.has(value)) return 'That username is reserved.';
+  if (RESERVED.has(value)) return t('That username is reserved.');
   return null;
 }
 
@@ -40,7 +41,7 @@ export function normalizePhone(input) {
   s = s.replace(/[\s().-]/g, '');
   if (s.startsWith('00')) s = `+${s.slice(2)}`;
   if (!/^\+[1-9]\d{6,14}$/.test(s)) {
-    throw new Error('Enter the phone number in international format, e.g. +49 170 1234567.');
+    throw new Error(t('Enter the phone number in international format, e.g. +49 170 1234567.'));
   }
   return s;
 }
