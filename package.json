@@ -1,6 +1,7 @@
 {
   "name": "penny",
   "private": true,
+  "license": "MIT",
   "version": "1.0.0",
   "description": "Penny, a personal budget manager: payments, recurring items, installments and forecasts",
   "scripts": {

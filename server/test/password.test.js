@@ -21,7 +21,7 @@ test('common passwords and personal info are rejected', () => {
   assert.ok(validatePassword('P@ssw0rd', {}).length > 0);
   const withEmail = validatePassword('Anita-Secret-99!', { email: 'anita.t@example.com', name: '' });
   assert.deepEqual(withEmail, []); // "anita.t" is not a substring, so this one is fine
-  assert.ok(validatePassword('Xx!anitatn78Yy9', { email: 'anitatn78@gmail.com' }).some((p) => p.includes('email name')));
+  assert.ok(validatePassword('Xx!rrossi78Yy9', { email: 'rrossi78@example.com' }).some((p) => p.includes('email name')));
   assert.ok(validatePassword('Marcello-Is-Great1!', { name: 'Marcello Rossi' }).some((p) => p.includes('your name')));
   assert.deepEqual(validatePassword(undefined), ['Password is required.']);
 });

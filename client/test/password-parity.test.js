@@ -9,12 +9,12 @@ const corpus = [
   'Tr1cky-Horse!Battery', 'short', '', 'ALLUPPERCASE123!', 'alllowercase123!', 'NoDigitsHere!!!', 'NoSpecials12345', 'Pass word 1 ok!',
   'Password123', 'password123', 'P@ssw0rd', 'p@ssword1', 'Qwerty12345', 'Welcome123', '1234567890', 'A1!aaaaaaa', 'A1!aaaaaaaa', 'A1!aaaaaaaaa',
   'A1!' + 'a'.repeat(125), 'A1!' + 'a'.repeat(126), 'A1!' + 'a'.repeat(300), 'Ünïcode-Pässwörd-9#', '日本語パスワード-Ab1!', ' Leading Space 1A!', 'Trailing Space 1A! ',
-  'Contains-alice-9X!', 'CONTAINS-ALICE-9x!', 'Roberta-Pizza-9!', 'sunshine99-Xx!', 'Xx-anitatn78-9!', 'Tab\tIn1A!bcdef', 'emoji-🎉-Abc123',
+  'Contains-alice-9X!', 'CONTAINS-ALICE-9x!', 'Roberta-Pizza-9!', 'sunshine99-Xx!', 'Xx-rrossi78-9!', 'Tab\tIn1A!bcdef', 'emoji-🎉-Abc123',
 ];
 const contexts = [
   {},
   { email: 'alice@example.com', name: 'Alice Smith', username: 'alice_s' },
-  { email: 'anitatn78@gmail.com', name: 'Roberta Rossi', username: 'sunshine99' },
+  { email: 'rrossi78@example.com', name: 'Roberta Rossi', username: 'sunshine99' },
   { email: 'ab@x.org', name: 'Al', username: 'abc' }, // too short to count as "personal"
 ];
 
